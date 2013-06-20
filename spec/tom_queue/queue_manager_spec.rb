@@ -29,9 +29,7 @@ describe TomQueue::QueueManager do
       TomQueue.bunny = "A FAKE RABBIT"
       manager.bunny.should be_a(Bunny::Session)
     end
-
   end
-
 
   describe "AMQP configuration" do
     it "should create a queue with the name <prefix>-balance" do
@@ -58,7 +56,6 @@ describe TomQueue::QueueManager do
       manager.queue.status[:message_count].should == 0
     end
   end
-
 
   describe "QueueManager message publishing" do
 
@@ -122,29 +119,6 @@ describe TomQueue::QueueManager do
       manager.pop.ack!.payload.should == "foo"
       manager.pop.ack!.payload.should == "bar"
     end
-
-    # describe "if :block => false is specified" do
-
-    #   xit "should not block" do
-    #     Timeout.timeout(0.1) do
-    #       manager.pop(:block => false)
-    #     end
-    #   end
-
-    #   it "should return work if it's available" do
-    #     #manager.publish("some work")
-    #     manager.pop(:block => false).tap do |work|
-    #       work.payload.should == "foo"
-    #       work.should be_a(TomQueue::Work)
-    #     end
-    #   end
-
-    #   xit "should return nil if no work is available" do
-    #     manager.pop(:block => false).should be_nil
-    #   end
-    # end
-
   end
-
 
 end

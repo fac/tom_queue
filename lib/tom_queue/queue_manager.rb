@@ -81,7 +81,6 @@ module TomQueue
     # headers       - the AMQP message headers
     # payload       - the AMQP message payload
     def amqp_notification(delivery_info, headers, payload)
-      puts "GOT NOTIFIED #{payload}"
       @mutex.synchronize do
         @next_message = [delivery_info, headers, payload]
         @condvar.signal
