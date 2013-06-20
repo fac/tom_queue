@@ -54,10 +54,6 @@ describe TomQueue::QueueManager do
       manager.purge!
     end
 
-    it "should mean pop returns nil" do
-      manager.pop(:block => false).should be_nil
-    end
-
     it "should empty the work queue" do
       manager.queue.status[:message_count].should == 0
     end
@@ -95,43 +91,58 @@ describe TomQueue::QueueManager do
         manager.publish("foobar")
         payload.should == "foobar"
       end
-
     end
-
   end
 
   describe "QueueManager#pop - work popping" do
-    it "should return the message at the head of the queue" do
+    before do
       manager.publish("foo")
       manager.publish("bar")
-      manager.pop.payload.should == "foo"
-      manager.pop.payload.should == "bar"
+    end
+
+    it "should not have setup a consumer before the first call" do
+      manager.queue.status[:consumer_count].should == 0
+    end
+    it "should establish an AMQP consumer on the first call" do
+      manager.pop.ack!
+      manager.queue.status[:consumer_count].should == 1
+    end
+
+    it "should not setup any more consumers on subsequent calls" do
+      manager.pop.ack!
+      manager.pop.ack!
+      manager.queue.status[:consumer_count].should == 1
     end
 
     it "should return a QueueManager::Work instance" do
-      manager.publish("foo")
-      manager.pop.should be_a(TomQueue::Work)
+      manager.pop.ack!.should be_a(TomQueue::Work)
     end
 
-
-    describe "if :block => false is specified" do
-
-      it "should not block if :block => false is specified" do
-        Timeout.timeout(0.1) do
-          manager.pop(:block => false)
-        end
-      end
-      it "should return work if it's available" do
-        manager.publish("some work")
-        manager.pop(:block => false).tap do |work|
-          work.payload.should == "some work"
-          work.should be_a(TomQueue::Work)
-        end
-      end
-      it "should return nil if no work is available" do
-        manager.pop(:block => false).should be_nil
-      end
+    it "should return the message at the head of the queue" do
+      manager.pop.ack!.payload.should == "foo"
+      manager.pop.ack!.payload.should == "bar"
     end
+
+    # describe "if :block => false is specified" do
+
+    #   xit "should not block" do
+    #     Timeout.timeout(0.1) do
+    #       manager.pop(:block => false)
+    #     end
+    #   end
+
+    #   it "should return work if it's available" do
+    #     #manager.publish("some work")
+    #     manager.pop(:block => false).tap do |work|
+    #       work.payload.should == "foo"
+    #       work.should be_a(TomQueue::Work)
+    #     end
+    #   end
+
+    #   xit "should return nil if no work is available" do
+    #     manager.pop(:block => false).should be_nil
+    #   end
+    # end
 
   end
 

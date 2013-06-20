@@ -2,8 +2,10 @@ require 'tom_queue/helper'
 
 describe TomQueue::QueueManager, "simple publish / pop" do
 
-  let(:manager) { TomQueue::QueueManager.new('fa.test').tap { |m| m.purge! } }
+  let(:manager) { TomQueue::QueueManager.new('fa.test')}
+  let(:consumer) { TomQueue::QueueManager.new(manager.prefix)}
 
+  before { consumer.purge! }
   it "should pop a previously published message" do
     manager.publish('some work')
     manager.pop.payload.should == 'some work'
@@ -15,25 +17,40 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       manager.publish('some work')
     end
 
-    manager.pop.payload.should == 'some work'
+    consumer.pop.payload.should == 'some work'
   end
 
   it "should work between objects (hello, rabbitmq)" do
-    manager2 = TomQueue::QueueManager.new(manager.prefix)
-
-    manager2.publish "work"
-    manager.pop.payload.should == "work"
+    manager.publish "work"
+    consumer.pop.payload.should == "work"
   end
 
   it "should load-balance work between multiple consumers" do
-    consumer1 = TomQueue::QueueManager.new(manager.prefix)
     consumer2 = TomQueue::QueueManager.new(manager.prefix)
 
     manager.publish "foo"
     manager.publish "bar"
 
-    consumer1.pop.payload.should == "foo"
+    consumer.pop.payload.should == "foo"
     consumer2.pop.payload.should == "bar"
+  end
+
+  it "should work for more than one message!" do
+    consumer2 = TomQueue::QueueManager.new(manager.prefix)
+
+    input, output = [], []
+    (0..9).each do |i|
+      input << i.to_s
+      manager.publish i.to_s
+    end
+
+    (input.size / 2).times do 
+      a = consumer.pop
+      b = consumer2.pop
+      output << a.ack!.payload
+      output << b.ack!.payload
+    end
+    output.should == input
   end
 
 end
