@@ -133,11 +133,7 @@ module TomQueue
         _,_,_,@next_message = @next_message
       end
 
-
-
       payload && TomQueue::Work.new(self, response, header, payload)      
     end
-
   end
-
 end

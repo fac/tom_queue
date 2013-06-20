@@ -1,3 +1,4 @@
+require 'net/http'
 require 'tom_queue/helper'
 
 describe TomQueue::QueueManager, "simple publish / pop" do
@@ -6,6 +7,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
   let(:consumer) { TomQueue::QueueManager.new(manager.prefix)}
 
   before { consumer.purge! }
+
   it "should pop a previously published message" do
     manager.publish('some work')
     manager.pop.payload.should == 'some work'
@@ -51,6 +53,44 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       output << b.ack!.payload
     end
     output.should == input
+  end
+
+  it "should deal with the connection going away" do
+    p consumer.queue.status
+    manager.publish("1")
+    manager.publish("2")
+    manager.publish("3")
+
+    consumer.pop.ack!.payload.should == "1"
+    work2 = consumer.pop
+    work2.payload.should == "2"
+
+    # NOW WE KILL ALL THE THINGS!
+    uri = URI("http://127.0.0.1:15672/api/connections")
+    req = Net::HTTP::Get.new(uri.path)
+    req.basic_auth('guest', 'guest')
+
+    res = Net::HTTP.start(uri.hostname, uri.port) do |http|
+      http.request(req)
+    end
+    JSON.load(res.body).each do |connection|
+      if connection['client_properties']["product"] == "Bunny"
+        puts "Bye bye #{connection['name']}"
+        req = Net::HTTP::Delete.new("/api/connections/#{CGI.escape(connection['name'])}")
+        req.basic_auth('guest', 'guest')
+
+        res = Net::HTTP.start(uri.hostname, uri.port) do |http|
+          http.request(req)
+        end
+        p res
+      end
+    end
+    
+    
+    # first, make sure that 2 got re-delivered!
+    w = consumer.pop
+    w.payload.should == "2"
+    
   end
 
 end
