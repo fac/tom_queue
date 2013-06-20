@@ -6,8 +6,8 @@ describe TomQueue::QueueManager do
   let(:channel) { TomQueue.bunny.create_channel }
 
   before do
-    TomQueue::Bunny.create_channel.queue('fa.test-balance', :passive => true).delete() rescue nil
-    TomQueue::Bunny.create_channel.exchange('fa.test-work', :passive => true).delete() rescue nil
+    TomQueue.bunny.create_channel.queue('fa.test-balance', :passive => true).delete() rescue nil
+    TomQueue.bunny.create_channel.exchange('fa.test-work', :passive => true).delete() rescue nil
   end
 
   describe "basic creation" do
@@ -43,8 +43,8 @@ describe TomQueue::QueueManager do
       channel.queue('fa.test-balance', :durable => true, :auto_delete => false, :exclusive => false)
     end
 
-    it "should create a fanout exchange with the name <prefix>-work" do
-      manager.exchange.name.should == channel.fanout('fa.test-work').name
+    it "should create a durable fanout exchange with the name <prefix>-work" do
+      manager.exchange.name.should == channel.fanout('fa.test-work', :durable => true, :auto_delete => false).name
     end
   end
 

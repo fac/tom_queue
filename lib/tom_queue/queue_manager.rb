@@ -32,14 +32,11 @@ module TomQueue
     def initialize(prefix)
       @bunny = TomQueue.bunny
       @prefix = prefix
-      @temp_queue = []
-      @mutex = Mutex.new
-      @condvar = ConditionVariable.new
   
       @channel = @bunny.create_channel
 
-      @queue = @channel.queue("#{@prefix}-balance", :durable => true)
-      @exchange = @channel.fanout("#{prefix}-work")
+      @exchange = @channel.fanout("#{prefix}-work", :durable => true, :auto_delete => false)
+      @queue = @channel.queue("#{@prefix}-balance", :durable => true).bind(@exchange)
     end
 
     # Public: Purges all messages from queues. Dangerous!
@@ -48,8 +45,7 @@ module TomQueue
     # function for tests to provide a blank slate
     #
     def purge!
-
-      @temp_queue = []
+      @queue.purge
     end
 
 
@@ -62,12 +58,8 @@ module TomQueue
     def publish(work)
       raise ArgumentError, 'work must be a string' unless work.is_a?(String)
 
-      @mutex.synchronize {
-        @temp_queue.unshift(work)
-        @condvar.signal
-      }
-
       @exchange.publish(work)
+
       nil
     end
 
@@ -81,12 +73,14 @@ module TomQueue
     # Returns QueueManager::Work instance
     #      or nil if there is no work and :block => true
     def pop(opts={})
-      work = @mutex.synchronize { 
-        @condvar.wait(@mutex) if opts.fetch(:block, true) && @temp_queue.empty?
-        @temp_queue.pop
-      }
+      # work = @mutex.synchronize { 
+      #   @condvar.wait(@mutex) if opts.fetch(:block, true) && @temp_queue.empty?
+      #   @temp_queue.pop
+      # }
 
-      work && TomQueue::Work.new(work)
+      response, header, payload = p @queue.pop
+
+      payload && TomQueue::Work.new(response, header, payload)
     end
     
   end
