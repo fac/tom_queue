@@ -20,9 +20,20 @@ describe TomQueue::QueueManager, "simple publish / pop" do
 
   it "should work between objects (hello, rabbitmq)" do
     manager2 = TomQueue::QueueManager.new(manager.prefix)
-    manager2.publish("some work")
-    sleep 0.1
-    manager.pop.payload.should == "some work"
+
+    manager2.publish "work"
+    manager.pop.payload.should == "work"
+  end
+
+  it "should load-balance work between multiple consumers" do
+    consumer1 = TomQueue::QueueManager.new(manager.prefix)
+    consumer2 = TomQueue::QueueManager.new(manager.prefix)
+
+    manager.publish "foo"
+    manager.publish "bar"
+
+    consumer1.pop.payload.should == "foo"
+    consumer2.pop.payload.should == "bar"
   end
 
 end

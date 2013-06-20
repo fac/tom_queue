@@ -78,7 +78,7 @@ module TomQueue
       #   @temp_queue.pop
       # }
 
-      response, header, payload = p @queue.pop
+      response, header, payload = @queue.pop
 
       payload && TomQueue::Work.new(response, header, payload)
     end
