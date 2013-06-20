@@ -13,11 +13,19 @@ module TomQueue
     # Public: Returns the instance of Bunny that this object uses
     attr_reader :bunny
 
-    # Public: The work queue used by consumers
+    # Internal: The work queue used by consumers
+    #
+    # Internal, this is an implementation detail. Accessor is mainly for 
+    # convenient testing
+    # 
     # Returns a  Bunny::Queue object
     attr_reader :queue
 
-    # Public: The exchange to which work is published
+    # Internal: The exchange to which work is published
+    #
+    # Internal, this is an implementation detail. Accessor is mainly for 
+    # convenient testing
+    #
     # Returns a Bunny::Exchange
     attr_reader :exchange
 
