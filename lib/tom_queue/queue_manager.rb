@@ -13,6 +13,14 @@ module TomQueue
     # Public: Returns the instance of Bunny that this object uses
     attr_reader :bunny
 
+    # Public: The work queue used by consumers
+    # Returns a  Bunny::Queue object
+    attr_reader :queue
+
+    # Public: The exchange to which work is published
+    # Returns a Bunny::Exchange
+    attr_reader :exchange
+
     # Public: Create the manager.
     #
     # name  - used as a prefix for AMQP exchanges and queues.
@@ -24,11 +32,14 @@ module TomQueue
     def initialize(prefix)
       @bunny = TomQueue.bunny
       @prefix = prefix
-
-      @queue = []
-
+      @temp_queue = []
       @mutex = Mutex.new
       @condvar = ConditionVariable.new
+  
+      @channel = @bunny.create_channel
+
+      @queue = @channel.queue("#{@prefix}-balance", :durable => true)
+      @exchange = @channel.fanout("#{prefix}-work")
     end
 
     # Public: Purges all messages from queues. Dangerous!
@@ -37,23 +48,26 @@ module TomQueue
     # function for tests to provide a blank slate
     #
     def purge!
-      @mutex.synchronize {
-        @queue = []
-      }
+
+      @temp_queue = []
     end
 
 
     # Public: Publish some work to the queue
     #
-    # work - a serializable (to JSON) object representing the work
-    #        please don't pass crazy objects like ActiveRecord instances, etc.
+    # work - a serialized string representing the work
     #
+    # Raises an ArgumentError unless the work is a string
     # Returns nil
     def publish(work)
+      raise ArgumentError, 'work must be a string' unless work.is_a?(String)
+
       @mutex.synchronize {
-        @queue.unshift(work)
+        @temp_queue.unshift(work)
         @condvar.signal
       }
+
+      @exchange.publish(work)
       nil
     end
 
@@ -68,8 +82,8 @@ module TomQueue
     #      or nil if there is no work and :block => true
     def pop(opts={})
       work = @mutex.synchronize { 
-        @condvar.wait(@mutex) if opts.fetch(:block, true) && @queue.empty?
-        @queue.pop
+        @condvar.wait(@mutex) if opts.fetch(:block, true) && @temp_queue.empty?
+        @temp_queue.pop
       }
 
       work && TomQueue::Work.new(work)

@@ -1,10 +1,15 @@
 require 'helper'
 require 'bunny'
 
-TomQueue.bunny = Bunny.new(:host => "localhost")
-TomQueue.bunny.start
+BunnyInstance = Bunny.new(:host => "localhost")
+BunnyInstance.start
 
 RSpec.configure do |r|
+
+  # Make sure all tests see the same Bunny instance
+  r.before do
+    TomQueue.bunny = BunnyInstance
+  end
 
   # All tests should take < 2 seconds !!
   r.around do |test|

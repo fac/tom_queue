@@ -3,6 +3,12 @@ require 'tom_queue/helper'
 describe TomQueue::QueueManager do
 
   let(:manager) { TomQueue::QueueManager.new('fa.test').tap { |m| m.purge! } }
+  let(:channel) { TomQueue.bunny.create_channel }
+
+  before do
+    TomQueue::Bunny.create_channel.queue('fa.test-balance', :passive => true).delete() rescue nil
+    TomQueue::Bunny.create_channel.exchange('fa.test-work', :passive => true).delete() rescue nil
+  end
 
   describe "basic creation" do
   
@@ -27,33 +33,74 @@ describe TomQueue::QueueManager do
   end
 
 
+  describe "AMQP configuration" do
+    it "should create a queue with the name <prefix>-balance" do
+      manager.queue.name.should == channel.queue('fa.test-balance', :passive => true).name
+    end
 
-  describe "message purging #purge!" do
-    it "should leave all queues empty" do
-      manager.publish("some work")
-      manager.purge!
-      manager.pop(:block => false).should be_nil
+    it "should create a durable, non-auto-deleting, non-exclusive queue" do
+      # this will raise an exception if any of the options don't match the queue
+      channel.queue('fa.test-balance', :durable => true, :auto_delete => false, :exclusive => false)
+    end
+
+    it "should create a fanout exchange with the name <prefix>-work" do
+      manager.exchange.name.should == channel.fanout('fa.test-work').name
     end
   end
 
-  describe "QueueManagermessage publishing" do
+  describe "message purging #purge!" do
+    before do
+      manager.publish("some work")
+      manager.purge!
+    end
+
+    it "should mean pop returns nil" do
+      manager.pop(:block => false).should be_nil
+    end
+
+    it "should empty the work queue" do
+      manager.queue.status[:message_count].should == 0
+    end
+  end
+
+
+  describe "QueueManager message publishing" do
+
+    let(:queue) { channel.queue('', :auto_delete => true, :exclusive => true).bind(manager.exchange) }
+
+    # ensure the queue exists before we start pushing messages!
+    before { queue }
 
     it "should return nil" do
       manager.publish("some work").should be_nil
     end
 
-    describe "work message format" do
+    it "should raise an exception if the payload isn't a string" do
+      lambda {
+        manager.publish({"some" => {"structured_data" => true}})
+      }.should raise_exception(ArgumentError, /must be a string/)
+    end
 
+    it "should publish a message to the declared exchange" do
+      manager.publish("foobar")
+      queue.pop.should_not == [nil, nil, nil]
+    end
+
+    describe "work message format" do
+      let(:message) { queue.pop }
+      let(:headers) { message[1] }
+      let(:payload) { message[2]}
+
+      it "should forward the payload directly" do
+        manager.publish("foobar")
+        payload.should == "foobar"
+      end
 
     end
 
   end
 
   describe "QueueManager#pop - work popping" do
-    around do |test|
-      Timeout.timeout(0.1) { test.call }
-    end
-
     it "should return the message at the head of the queue" do
       manager.publish("foo")
       manager.publish("bar")

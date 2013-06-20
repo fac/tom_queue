@@ -2,11 +2,7 @@ require 'tom_queue/helper'
 
 describe TomQueue::QueueManager, "simple publish / pop" do
 
-  let(:manager) { TomQueue::QueueManager.new('fa.test') }
-
-  before do
-    manager.purge!
-  end
+  let(:manager) { TomQueue::QueueManager.new('fa.test').tap { |m| m.purge! } }
 
   it "should pop a previously published message" do
     manager.publish('some work')
@@ -20,6 +16,12 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     end
 
     manager.pop.payload.should == 'some work'
+  end
+
+  it "should work between objects (hello, rabbitmq)" do
+    manager2 = TomQueue::QueueManager.new("fa.test")
+    manager2.publish("some work")
+    manager.pop.payload.should == "some work"
   end
 
 end
