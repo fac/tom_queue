@@ -13,7 +13,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     manager.pop.payload.should == 'some work'
   end
 
-  xit "should block on #pop until work is published" do
+  it "should block on #pop until work is published" do
     Thread.new do
       sleep 0.1
       manager.publish('some work')
@@ -55,7 +55,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     output.should == input
   end
 
-  it "should deal with the connection going away" do
+  xit "should deal with the connection going away" do
     p consumer.queue.status
     manager.publish("1")
     manager.publish("2")
