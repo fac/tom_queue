@@ -89,10 +89,19 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     
     # first, make sure that 2 got re-delivered!
     w = consumer.pop
-    w.payload.should == "2"
-    
+    w.payload.should == "2"    
   end
 
+  it "should not drop messages when two different priorities arrive" do
+    manager.publish("1", :priority => TomQueue::BULK_PRIORITY)
+    manager.publish("2", :priority => TomQueue::NORMAL_PRIORITY)
+    manager.publish("3", :priority => TomQueue::HIGH_PRIORITY)
+    out = []
+    out << consumer.pop.ack!.payload
+    out << consumer.pop.ack!.payload
+    out << consumer.pop.ack!.payload
+    out.sort.should == ["1", "2", "3"]
+  end
 
   xit "should handle priority queueing" do
     manager.publish("1", :priority => TomQueue::BULK_PRIORITY)

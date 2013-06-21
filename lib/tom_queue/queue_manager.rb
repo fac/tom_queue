@@ -44,13 +44,13 @@ module TomQueue
     # Public: Returns the instance of Bunny that this object uses
     attr_reader :bunny
 
-    # Internal: The work queue used by consumers
+    # Internal: The work queues used by consumers
     #
     # Internal, this is an implementation detail. Accessor is mainly for 
     # convenient testing
     # 
-    # Returns a <Bunny::Queue> object
-    attr_reader :queue
+    # Returns a hash of { "priority" => <Bunny::Queue>, ... }
+    attr_reader :queues
 
     # Internal: The exchanges to which work is published, keyed by the priority
     #
@@ -76,11 +76,12 @@ module TomQueue
       @channel.prefetch(1)
 
       @exchanges = {}
+      @queues = {}
 
-      @queue = @channel.queue("#{@prefix}-balance", :durable => true)
       PRIORITIES.each do |priority|
         @exchanges[priority] = @channel.fanout("#{prefix}.work.#{priority}", :durable => true, :auto_delete => false)
-        @queue.bind(@exchanges[priority])
+        @queues[priority] = @channel.queue("#{@prefix}.balance.#{priority}", :durable => true)
+        @queues[priority].bind(@exchanges[priority])
       end
 
       @setup_consumer = false
@@ -92,7 +93,7 @@ module TomQueue
     # function for tests to provide a blank slate
     #
     def purge!
-      @queue.purge
+      @queues.values.each { |q| q.purge }
     end
 
 
@@ -126,7 +127,10 @@ module TomQueue
     def become_consumer!
       @mutex = Mutex.new
       @condvar = ConditionVariable.new
-      @queue.subscribe(:ack => true, &method(:amqp_notification))
+
+      PRIORITIES.each do |priority|
+        @queues[priority].subscribe(:ack => true, &method(:amqp_notification))
+      end
     end
 
     # Internal: Called on a Bunny work-thread when a message has been sent

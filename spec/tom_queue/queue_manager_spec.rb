@@ -32,40 +32,36 @@ describe TomQueue::QueueManager do
   end
 
   describe "AMQP configuration" do
-    it "should create a queue with the name <prefix>-balance" do
-      manager.queue.name.should == channel.queue('fa.test-balance', :passive => true).name
-    end
 
-    xit "should create a queue for each priority level"
+    TomQueue::PRIORITIES.each do |priority|
+      it "should create a queue for '#{priority}' priority" do
+        manager.queues[priority].name.should == "fa.test.balance.#{priority}"
+        # Declare the queue, if the parameters don't match the brokers existing channel, then bunny will throw an
+        # exception.
+        channel.queue("fa.test.balance.#{priority}", :durable => true, :auto_delete => false, :exclusive => false)
+      end
 
-    it "should create a durable, non-auto-deleting, non-exclusive queue" do
-      # this will raise an exception if any of the options don't match the queue
-      channel.queue('fa.test-balance', :durable => true, :auto_delete => false, :exclusive => false)
-    end
-
-    xit "should create a durable fanout exchange with the name <prefix>-work" do
-      manager.exchange.name.should == channel.fanout('fa.test-work', :durable => true, :auto_delete => false).name
-    end
-    it "should create a durable fanout exchange for each priority <prefix>.work.<priority>" do
-      # By re-declaring here, we're asserting that the exchanges' properties match, otherwise
-      # bunny would throw a precondition error exception.
-      manager.exchanges[TomQueue::HIGH_PRIORITY].name.should == channel.fanout('fa.test.work.high', :durable => true, :auto_delete => false).name
-      manager.exchanges[TomQueue::NORMAL_PRIORITY].name.should == channel.fanout('fa.test.work.normal', :durable => true, :auto_delete => false).name
-      manager.exchanges[TomQueue::BULK_PRIORITY].name.should == channel.fanout('fa.test.work.bulk', :durable => true, :auto_delete => false).name
+      it "should create a durable fanout exchange for '#{priority}' priority" do
+        manager.exchanges[priority].name.should == "fa.test.work.#{priority}"
+        # Now we declare it again on the broker, which will raise an exception if the parameters don't match
+        channel.fanout("fa.test.work.#{priority}", :durable => true, :auto_delete => false)
+      end
     end
   end
 
   describe "message purging #purge!" do
     before do
-      manager.publish("some work")
+      TomQueue::PRIORITIES.each do |priority|
+        manager.publish("some work", :priority => priority)
+      end
       manager.purge!
     end
 
-    it "should empty the work queue" do
-      manager.queue.status[:message_count].should == 0
+    TomQueue::PRIORITIES.each do |priority|
+      it "should empty the '#{priority}' priority queue" do
+        manager.queues[priority].status[:message_count].should == 0
+      end
     end
-
-    it "should empty all priority queues"
   end
 
   describe "QueueManager message publishing" do
@@ -135,17 +131,23 @@ describe TomQueue::QueueManager do
     end
 
     it "should not have setup a consumer before the first call" do
-      manager.queue.status[:consumer_count].should == 0
+      manager.queues.values.each do |queue|
+        queue.status[:consumer_count].should == 0
+      end
     end
     it "should establish an AMQP consumer on the first call" do
       manager.pop.ack!
-      manager.queue.status[:consumer_count].should == 1
+      manager.queues.values.each do |queue|
+        queue.status[:consumer_count].should == 1
+      end
     end
 
     it "should not setup any more consumers on subsequent calls" do
       manager.pop.ack!
       manager.pop.ack!
-      manager.queue.status[:consumer_count].should == 1
+      manager.queues.values.each do |queue|
+        queue.status[:consumer_count].should == 1
+      end
     end
 
     it "should return a QueueManager::Work instance" do
