@@ -26,6 +26,9 @@ module TomQueue
   BULK_PRIORITY = "bulk"
 
   # Internal: A list of all the known priority values
+  #
+  # This array is where the priority ordering comes from, so get the
+  # order right!
   PRIORITIES = [HIGH_PRIORITY, NORMAL_PRIORITY, BULK_PRIORITY]
 
   # Public: This is your interface to pushing work onto and
@@ -46,16 +49,16 @@ module TomQueue
     # Internal, this is an implementation detail. Accessor is mainly for 
     # convenient testing
     # 
-    # Returns a  Bunny::Queue object
+    # Returns a <Bunny::Queue> object
     attr_reader :queue
 
-    # Internal: The exchange to which work is published
+    # Internal: The exchanges to which work is published, keyed by the priority
     #
     # Internal, this is an implementation detail. Accessor is mainly for 
     # convenient testing
     #
-    # Returns a Bunny::Exchange
-    attr_reader :exchange
+    # Returns a hash of { "priority" => <Bunny::Exchange>, ... }
+    attr_reader :exchanges
 
     # Public: Create the manager.
     #
@@ -72,8 +75,14 @@ module TomQueue
       @channel = @bunny.create_channel
       @channel.prefetch(1)
 
-      @exchange = @channel.fanout("#{prefix}-work", :durable => true, :auto_delete => false)
-      @queue = @channel.queue("#{@prefix}-balance", :durable => true).bind(@exchange)
+      @exchanges = {}
+
+      @queue = @channel.queue("#{@prefix}-balance", :durable => true)
+      PRIORITIES.each do |priority|
+        @exchanges[priority] = @channel.fanout("#{prefix}.work.#{priority}", :durable => true, :auto_delete => false)
+        @queue.bind(@exchanges[priority])
+      end
+
       @setup_consumer = false
     end
 
@@ -101,7 +110,7 @@ module TomQueue
       raise ArgumentError, 'work must be a string' unless work.is_a?(String)
       raise ArgumentError, 'unknown priority level' unless PRIORITIES.include?(priority)
       
-      @exchange.publish(work, {
+      @exchanges[priority].publish(work, {
         :headers => {
           'job_priority' => priority
         }

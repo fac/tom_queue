@@ -36,13 +36,22 @@ describe TomQueue::QueueManager do
       manager.queue.name.should == channel.queue('fa.test-balance', :passive => true).name
     end
 
+    xit "should create a queue for each priority level"
+
     it "should create a durable, non-auto-deleting, non-exclusive queue" do
       # this will raise an exception if any of the options don't match the queue
       channel.queue('fa.test-balance', :durable => true, :auto_delete => false, :exclusive => false)
     end
 
-    it "should create a durable fanout exchange with the name <prefix>-work" do
+    xit "should create a durable fanout exchange with the name <prefix>-work" do
       manager.exchange.name.should == channel.fanout('fa.test-work', :durable => true, :auto_delete => false).name
+    end
+    it "should create a durable fanout exchange for each priority <prefix>.work.<priority>" do
+      # By re-declaring here, we're asserting that the exchanges' properties match, otherwise
+      # bunny would throw a precondition error exception.
+      manager.exchanges[TomQueue::HIGH_PRIORITY].name.should == channel.fanout('fa.test.work.high', :durable => true, :auto_delete => false).name
+      manager.exchanges[TomQueue::NORMAL_PRIORITY].name.should == channel.fanout('fa.test.work.normal', :durable => true, :auto_delete => false).name
+      manager.exchanges[TomQueue::BULK_PRIORITY].name.should == channel.fanout('fa.test.work.bulk', :durable => true, :auto_delete => false).name
     end
   end
 
@@ -55,14 +64,16 @@ describe TomQueue::QueueManager do
     it "should empty the work queue" do
       manager.queue.status[:message_count].should == 0
     end
+
+    it "should empty all priority queues"
   end
 
   describe "QueueManager message publishing" do
 
-    let(:queue) { channel.queue('', :auto_delete => true, :exclusive => true).bind(manager.exchange) }
-
-    # ensure the queue exists before we start pushing messages!
-    before { queue }
+    it "should forward the payload directly" do
+      manager.publish("foobar")
+      manager.pop.ack!.payload.should == "foobar"
+    end
 
     it "should return nil" do
       manager.publish("some work").should be_nil
@@ -74,21 +85,30 @@ describe TomQueue::QueueManager do
       }.should raise_exception(ArgumentError, /must be a string/)
     end
 
-    it "should publish a message to the declared exchange" do
-      manager.publish("foobar")
-      queue.pop.should_not == [nil, nil, nil]
-    end
-
     describe "message priorities" do
+      it "should have an array of priorities, in the correct order" do
+        TomQueue::PRIORITIES.should be_a(Array)
+        TomQueue::PRIORITIES.should == [
+          TomQueue::HIGH_PRIORITY,
+          TomQueue::NORMAL_PRIORITY,
+          TomQueue::BULK_PRIORITY
+        ]
+      end
+
+      it "should have ordered the array of priorities in the correct order!" do
+
+      end
       it "should allow the message priority to be set" do
         manager.publish("foobar", :priority => TomQueue::BULK_PRIORITY)
       end
+
       it "should throw an ArgumentError if an unknown priority value is used" do
         lambda {
           manager.publish("foobar", :priority => "VERY BLOODY IMPORTANT")
         }.should raise_exception(ArgumentError, /unknown priority level/)
       end
-      xit "should write the priority in the message header as 'job_priority'" do
+
+      it "should write the priority in the message header as 'job_priority'" do
         manager.publish("foobar", :priority => TomQueue::BULK_PRIORITY)
         manager.pop.ack!.headers[:headers]['job_priority'].should == TomQueue::BULK_PRIORITY
       end
@@ -99,17 +119,13 @@ describe TomQueue::QueueManager do
       end
     end
 
-
-    describe "work message format" do
-      let(:message) { queue.pop }
-      let(:headers) { message[1] }
-      let(:payload) { message[2]}
-
-      it "should forward the payload directly" do
-        manager.publish("foobar")
-        payload.should == "foobar"
+    TomQueue::PRIORITIES.each do |priority|
+      it "should publish #{priority} priority messages to the #{priority} queue" do
+        manager.publish("foo", :priority => priority)
+        manager.pop.ack!.response.exchange.should == "fa.test.work.#{priority}"
       end
     end
+
   end
 
   describe "QueueManager#pop - work popping" do
