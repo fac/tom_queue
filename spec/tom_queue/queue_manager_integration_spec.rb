@@ -93,4 +93,17 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     
   end
 
+
+  xit "should handle priority queueing" do
+    manager.publish("1", :priority => TomQueue::BULK_PRIORITY)
+    manager.publish("2", :priority => TomQueue::NORMAL_PRIORITY)
+    manager.publish("3", :priority => TomQueue::HIGH_PRIORITY)
+    consumer.pop.ack!.payload.should == "3"
+    consumer.pop.ack!.payload.should == "2"
+    consumer.pop.ack!.payload.should == "1"
+  end
+
+
+
+
 end

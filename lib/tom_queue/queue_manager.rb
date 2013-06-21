@@ -1,5 +1,33 @@
 module TomQueue
 
+  # Public: Priority values for QueueManager#publish
+  #
+  # Rather than an arbitrary numeric scale, we use distinct
+  # priority values, one should be selected depending on the
+  # type and use-case of the work.
+  #
+  # The scheduler simply trumps lower-priority jobs with higher
+  # priority jobs. So ensure you don't saturate the worker with many
+  # or lengthy high priority jobs as you'll negatively impact normal 
+  # and bulk jobs.
+  #
+  # HIGH_PRIORITY - use where the job is relatively short and the
+  #    user is waiting on completion. For example sending a password
+  #    reset email.
+  #
+  # NORMAL_PRIORITY - use for longer-interactive tasks (rebuilding ledgers?)
+  #
+  # BULK_PRIORITY - typically when you want to schedule lots of work to be done
+  #   at some point in the future - background emailing, cron-triggered 
+  #   syncs, etc.
+  #
+  HIGH_PRIORITY = "high"
+  NORMAL_PRIORITY = "normal"
+  BULK_PRIORITY = "bulk"
+
+  # Internal: A list of all the known priority values
+  PRIORITIES = [HIGH_PRIORITY, NORMAL_PRIORITY, BULK_PRIORITY]
+
   # Public: This is your interface to pushing work onto and
   #   pulling work off the work queue. Instantiate one of these
   #   and, if you're planning on operating as a consumer, then call
@@ -61,13 +89,23 @@ module TomQueue
 
     # Public: Publish some work to the queue
     #
-    # work - a serialized string representing the work
+    # work    - a serialized string representing the work
+    # options - a hash of options, with keys:
+    #   :priority = (default: NORMAL_PRIORITY) a priority constant from above
     #
     # Raises an ArgumentError unless the work is a string
     # Returns nil
-    def publish(work)
+    def publish(work, opts={})
+      priority = opts.fetch(:priority, NORMAL_PRIORITY)
+
       raise ArgumentError, 'work must be a string' unless work.is_a?(String)
-      @exchange.publish(work)
+      raise ArgumentError, 'unknown priority level' unless PRIORITIES.include?(priority)
+      
+      @exchange.publish(work, {
+        :headers => {
+          'job_priority' => priority
+        }
+      })
       nil
     end
 

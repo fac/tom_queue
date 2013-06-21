@@ -79,6 +79,27 @@ describe TomQueue::QueueManager do
       queue.pop.should_not == [nil, nil, nil]
     end
 
+    describe "message priorities" do
+      it "should allow the message priority to be set" do
+        manager.publish("foobar", :priority => TomQueue::BULK_PRIORITY)
+      end
+      it "should throw an ArgumentError if an unknown priority value is used" do
+        lambda {
+          manager.publish("foobar", :priority => "VERY BLOODY IMPORTANT")
+        }.should raise_exception(ArgumentError, /unknown priority level/)
+      end
+      xit "should write the priority in the message header as 'job_priority'" do
+        manager.publish("foobar", :priority => TomQueue::BULK_PRIORITY)
+        manager.pop.ack!.headers[:headers]['job_priority'].should == TomQueue::BULK_PRIORITY
+      end
+
+      it "should default to normal priority" do
+        manager.publish("foobar")
+        manager.pop.ack!.headers[:headers]['job_priority'].should == TomQueue::NORMAL_PRIORITY
+      end
+    end
+
+
     describe "work message format" do
       let(:message) { queue.pop }
       let(:headers) { message[1] }
