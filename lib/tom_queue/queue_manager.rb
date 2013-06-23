@@ -44,6 +44,13 @@ module TomQueue
     # Public: Returns the instance of Bunny that this object uses
     attr_reader :bunny
 
+    # Internal: The DeferredManager object created to handle deferred work
+    #
+    # Internal, this accessor is to make for convenient testing.#
+    #
+    # Returns TomQueue::DeferredWorkManager
+    attr_reader :deferred_manager
+
     # Internal: The work queues used by consumers
     #
     # Internal, this is an implementation detail. Accessor is mainly for 
@@ -72,6 +79,8 @@ module TomQueue
       @bunny = TomQueue.bunny
       @prefix = prefix
   
+      @deferred_manager = DeferredWorkManager.new(@prefix, self)
+
       @channel = @bunny.create_channel
       @channel.prefetch(1)
 
@@ -117,12 +126,20 @@ module TomQueue
       raise ArgumentError, 'unknown priority level' unless PRIORITIES.include?(priority)
       raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.nil? or run_at.is_a?(Time)
 
-      @exchanges[priority].publish(work, {
-        :headers => {
-          :job_priority => priority,
-          :run_at       => run_at.iso8601(4)
-        }
-      })
+      if run_at > Time.now
+        # Make sure we explicitly pass all options in, even if they're the defaulted values
+        deferred_manager.handle_deferred(work, {
+          :priority => priority,
+          :run_at   => run_at
+        })
+      else
+        @exchanges[priority].publish(work, {
+          :headers => {
+            :job_priority => priority,
+            :run_at       => run_at.iso8601(4)
+          }
+        })
+      end
       nil
     end
 

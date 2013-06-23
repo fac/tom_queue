@@ -9,6 +9,7 @@
 #
 module TomQueue
 
+  require 'tom_queue/deferred_work_manager'
   require 'tom_queue/queue_manager'
   require 'tom_queue/work'
   
