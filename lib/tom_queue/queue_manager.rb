@@ -105,18 +105,22 @@ module TomQueue
     # work    - a serialized string representing the work
     # options - a hash of options, with keys:
     #   :priority = (default: NORMAL_PRIORITY) a priority constant from above
+    #   :run_at   = (default: immediate) defer execution of this work for a given time
     #
     # Raises an ArgumentError unless the work is a string
     # Returns nil
     def publish(work, opts={})
       priority = opts.fetch(:priority, NORMAL_PRIORITY)
+      run_at = opts.fetch(:run_at, Time.now)
 
       raise ArgumentError, 'work must be a string' unless work.is_a?(String)
       raise ArgumentError, 'unknown priority level' unless PRIORITIES.include?(priority)
-      
+      raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.nil? or run_at.is_a?(Time)
+
       @exchanges[priority].publish(work, {
         :headers => {
-          'job_priority' => priority
+          :job_priority => priority,
+          :run_at       => run_at.iso8601(4)
         }
       })
       nil

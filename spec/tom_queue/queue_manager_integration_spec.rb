@@ -169,6 +169,14 @@ describe TomQueue::QueueManager, "simple publish / pop" do
   end
 
 
+  it "should allow a message to be deferred for future execution" do
+    execution_time = Time.now + 0.2
+    manager.publish("future-work", :run_at => execution_time )
+
+    consumer.pop.ack!
+    Time.now.should > execution_time
+  end
+
 
 
 end

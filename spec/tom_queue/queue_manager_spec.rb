@@ -81,6 +81,31 @@ describe TomQueue::QueueManager do
       }.should raise_exception(ArgumentError, /must be a string/)
     end
 
+    describe "deferred execution" do
+
+      it "should allow a run-at time to be specified" do
+        manager.publish("future", :run_at => Time.now + 2.2)
+      end
+
+      it "should throw an ArgumentError exception if :run_at isn't a Time object" do
+        lambda { 
+          manager.publish("future", :run_at => "around 10pm ?")
+        }.should raise_exception(ArgumentError, /must be a Time object/)
+      end
+
+      it "should write the run_at time in the message headers as an ISO-8601 timestamp, with 4-digits of decimal precision" do
+        execution_time = Time.now + 2.0
+        manager.publish("future", :run_at => execution_time)
+        manager.pop.ack!.headers[:headers]['run_at'].should == execution_time.iso8601(4)
+      end
+
+      it "should default to :run_at the current time" do
+        manager.publish("future")
+        future_time = Time.now
+        Time.parse(manager.pop.ack!.headers[:headers]['run_at']).should < future_time
+      end
+    end
+
     describe "message priorities" do
       it "should have an array of priorities, in the correct order" do
         TomQueue::PRIORITIES.should be_a(Array)
