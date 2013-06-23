@@ -36,6 +36,7 @@ module TomQueue
     def initialize(prefix, delegate)
       @prefix = prefix
       @delegate = delegate
+
     end
 
     # Public: Handle a deferred message
@@ -45,6 +46,12 @@ module TomQueue
     #   :run_at = (Time) when the work should be run
     #
     def handle_deferred(work, opts)
+      run_at = opts[:run_at]
+      raise ArgumentError, 'work must be a string' unless work.is_a?(String)
+      raise ArgumentError, ':run_at must be specified' if run_at.nil?
+      raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.is_a?(Time)
+
+      # Push this work on to the deferred queue
 
     end
 
