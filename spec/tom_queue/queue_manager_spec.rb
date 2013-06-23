@@ -135,18 +135,21 @@ describe TomQueue::QueueManager do
         queue.status[:consumer_count].should == 0
       end
     end
-    it "should establish an AMQP consumer on the first call" do
+
+    it "should not leave any running consumers for immediate messages" do
       manager.pop.ack!
       manager.queues.values.each do |queue|
-        queue.status[:consumer_count].should == 1
+        queue.status[:consumer_count].should == 0
       end
     end
 
-    it "should not setup any more consumers on subsequent calls" do
+    it "should not leave any running consumers after it has waited for a message " do
       manager.pop.ack!
+      manager.pop.ack!
+      Thread.new { sleep 0.1; manager.publish("baz") }
       manager.pop.ack!
       manager.queues.values.each do |queue|
-        queue.status[:consumer_count].should == 1
+        queue.status[:consumer_count].should == 0
       end
     end
 
