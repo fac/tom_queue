@@ -106,6 +106,7 @@ module TomQueue
     #
     def purge!
       @queues.values.each { |q| q.purge }
+      deferred_manager.purge!
     end
 
 
