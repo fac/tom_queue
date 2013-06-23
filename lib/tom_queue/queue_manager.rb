@@ -29,7 +29,7 @@ module TomQueue
   #
   # This array is where the priority ordering comes from, so get the
   # order right!
-  PRIORITIES = [HIGH_PRIORITY, NORMAL_PRIORITY, BULK_PRIORITY]
+  PRIORITIES = [HIGH_PRIORITY, NORMAL_PRIORITY, BULK_PRIORITY].freeze
 
   # Public: This is your interface to pushing work onto and
   #   pulling work off the work queue. Instantiate one of these
@@ -78,13 +78,16 @@ module TomQueue
       @exchanges = {}
       @queues = {}
 
+      # These are used when we block waiting for new messages, we declare here
+      # so we're not constantly blowing them away and re-creating.
+      @mutex = Mutex.new
+      @condvar = ConditionVariable.new
+
       PRIORITIES.each do |priority|
-        @exchanges[priority] = @channel.fanout("#{prefix}.work.#{priority}", :durable => true, :auto_delete => false)
+        @exchanges[priority] = @channel.fanout("#{@prefix}.work.#{priority}", :durable => true, :auto_delete => false)
         @queues[priority] = @channel.queue("#{@prefix}.balance.#{priority}", :durable => true)
         @queues[priority].bind(@exchanges[priority])
       end
-
-      @setup_consumer = false
     end
 
     # Public: Purges all messages from queues. Dangerous!
@@ -119,37 +122,7 @@ module TomQueue
       nil
     end
 
-    # Internal: Configures the AMQP channel as a work consumer
-    #
-    # We pre-fetch jobs from the queue when we're a consumer, so this requires some
-    # leg-work to set-up. We do this automatically, on the first call to pop.
-    #
-    def become_consumer!
-      @mutex = Mutex.new
-      @condvar = ConditionVariable.new
-
-      PRIORITIES.each do |priority|
-        @queues[priority].subscribe(:ack => true, &method(:amqp_notification))
-      end
-    end
-
-    # Internal: Called on a Bunny work-thread when a message has been sent
-    # from the broker
-    #
-    # delivery_info - the AMQP message operation object
-    # headers       - the AMQP message headers
-    # payload       - the AMQP message payload
-    def amqp_notification(delivery_info, headers, payload)
-      @mutex.synchronize do
-        @next_message = [delivery_info, headers, payload]
-        @condvar.signal
-      end
-    rescue
-      puts $!.inspect
-      exit(1)
-    end
-
-    # Internal: Acknowledge some work
+    # Public: Acknowledge some work
     #
     # work - the TomQueue::Work object to acknowledge
     # 
@@ -165,25 +138,36 @@ module TomQueue
     #
     # Returns QueueManager::Work instance
     def pop(opts={})
-      unless @setup_consumer
-        @setup_consumer = true
-        become_consumer!
+
+      # Poll each queue for a message
+      PRIORITIES.find do |priority|
+        @next_message = @channel.basic_get(@queues[priority].name, :ack => true)
+        @next_message.first  
       end
 
-      # Get the next message, or stall until we get a signal of it's arrival
-      response, header, payload, _ = @mutex.synchronize do
+      response, header, payload = if @next_message.first
+        @next_message
+      else
 
-        # This will block waiting on a signal above (#amqp_notification) unless
-        # @next_message has already been set!
-        unless @next_message
-          @condvar.wait(@mutex) 
+        consumers = PRIORITIES.map do |priority|
+          @queues[priority].subscribe(:ack => true) do |a, b, c|
+            @mutex.synchronize do
+              @next_message = [a,b,c]
+              @condvar.signal
+            end
+          end
         end
 
-        # aah, ruby. In one swoop, this returns the @next_message array and
-        # then sets @next_message to nil.
-        _,_,_,@next_message = @next_message
+        @mutex.synchronize do
+          @condvar.wait(@mutex) unless !@next_message
+        end
+
+        consumers.each { |c| c.cancel }
+      
+        @next_message
       end
 
+      @next_message = nil
       payload && TomQueue::Work.new(self, response, header, payload)      
     end
   end

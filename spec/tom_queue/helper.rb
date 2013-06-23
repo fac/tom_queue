@@ -5,12 +5,17 @@ RSpec.configure do |r|
 
   # Make sure all tests see the same Bunny instance
   r.around do |test|
-    Bunny.new(:host => "localhost").tap do |bunny|
-      bunny.start
+    bunny = Bunny.new(:host => "localhost")
+    bunny.start
       
-      TomQueue.bunny = bunny
-      test.call
+    TomQueue.bunny = bunny
+    test.call
+
+    begin
       bunny.close
+    rescue
+      puts "Failed to close bunny: #{$!.inspect}"
+    ensure
       TomQueue.bunny = nil
     end
   end
