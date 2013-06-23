@@ -139,16 +139,26 @@ module TomQueue
     # Returns QueueManager::Work instance
     def pop(opts={})
 
-      # Poll each queue for a message
+      # Synchronously poll the head of all the queues
       PRIORITIES.find do |priority|
+
+        # Perform a basic get. Calling Queue#get gets into a mess wrt the subscribe
+        # below. Don't do it.
         @next_message = @channel.basic_get(@queues[priority].name, :ack => true)
-        @next_message.first  
+        
+        # Find will break out of the loop if we return a non-nil value.
+        @next_message.first
       end
 
       response, header, payload = if @next_message.first
+
+        # The poll returned a waiting message, lets use that!
         @next_message
+
       else
 
+        # The poll returned nothing - setup a subscription to all the queues
+        # the channel pre-fetch will ensure we get exactly one message delivered
         consumers = PRIORITIES.map do |priority|
           @queues[priority].subscribe(:ack => true) do |a, b, c|
             @mutex.synchronize do
@@ -158,12 +168,19 @@ module TomQueue
           end
         end
 
+        # We /probably/ didn't get @next_message set already, but just in-case
+        # this thread stalled, we use a @mutex and only block on the condvar if
+        # @next-message is nil, as we expect.
         @mutex.synchronize do
           @condvar.wait(@mutex) unless !@next_message
         end
 
+        # We have a message - cancel the consumers.
+        # The prefetch ensures that we won't have been delivered any extra
+        # messages in the interviening time.
         consumers.each { |c| c.cancel }
       
+        # Return the message we got passed.
         @next_message
       end
 
