@@ -91,9 +91,6 @@ describe TomQueue::QueueManager do
         ]
       end
 
-      it "should have ordered the array of priorities in the correct order!" do
-
-      end
       it "should allow the message priority to be set" do
         manager.publish("foobar", :priority => TomQueue::BULK_PRIORITY)
       end
