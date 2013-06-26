@@ -283,8 +283,9 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       @source_order.should == @sink_order
     end
 
-    it "should work with lots of deferred work on the queue" do
-      sink_ids = []
+    it "should work with lots of deferred work on the queue, and still schedule all messages" do
+      sink = []
+      sink_mutex = Mutex.new
 
       # sit in a loop to pop it all off again
       consumers = 5.times.collect do |i|
@@ -293,12 +294,16 @@ describe TomQueue::QueueManager, "simple publish / pop" do
           loop do
             begin
               work = consumer.pop
-              puts "#{i}: Got work!"
-              work.ack!
+              Thread.exit if work.payload == "done"
+
               payload = JSON.load(work.payload)
+              
+              size = sink_mutex.synchronize do
+                sink << Time.now - Time.at(payload['run_at'])
+                sink.size
+              end
 
-              puts "#{i}:  Work executed #{Time.now - Time.at(payload['run_at'])}s late"
-
+              work.ack!
             rescue
               p $!
             end
@@ -307,12 +312,27 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       end
 
       # Generate some work
-      20.times do |i| 
-        run_at = Time.now + (rand * 2.0) + 2.0
+      max_run_at = Time.now
+      200.times do |i| 
+        run_at = Time.now + (rand * 6.0)
+        max_run_at = [max_run_at, run_at].max
         manager.publish(JSON.dump({:id => i, :run_at => run_at.to_f}), :run_at => run_at)
       end
 
+      consumers.size.times do
+        manager.publish("done", :run_at => max_run_at + 1.0)
+      end
+
       consumers.each { |t| t.join }
+
+      # Sink contains the difference between the run-at time and the 
+      # actual time the job was run!
+      sink.each do |delta|
+        # if the delta is < 0, the job was TOO EARLY! This is bad
+        delta.should_not < 0
+        # make sure it wasn't more than a second late!
+        delta.should_not > 1
+      end
     end
   end
 

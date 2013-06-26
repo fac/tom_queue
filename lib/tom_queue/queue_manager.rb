@@ -229,17 +229,19 @@ module TomQueue
             consumer_thread_value = args
             @condvar.signal
           end
-
-          consumers.each { |c| c.cancel } 
         end
       end
 
       # Back on the calling thread, block on the callback above and, when
       # it's signalled, pull the arguments over to this thread inside the mutex
       response, header, payload = @mutex.synchronize do
-        @condvar.wait(@mutex, 1.0) until consumer_thread_value
+        @condvar.wait(@mutex, 10.0) until consumer_thread_value
         consumer_thread_value
       end
+
+      # Now, cancel the consumers - the prefetch level on the channel will
+      # ensure we only got the message we're about to return.
+      consumers.each { |c| c.cancel }
 
       # Return the message we got passed.
       TomQueue::Work.new(self, response, header, payload)
