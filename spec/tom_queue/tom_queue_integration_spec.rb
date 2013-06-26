@@ -9,7 +9,9 @@ describe TomQueue::QueueManager, "simple publish / pop" do
   let(:consumer2) { TomQueue::QueueManager.new(manager.prefix, 'consumer2') }
 
   before do
+    manager.purge!
     consumer.purge!
+    consumer2.purge!
   end
 
   it "should pop a previously published message" do
@@ -179,7 +181,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     Time.now.to_f.should > execution_time.to_f
   end
 
-  describe "slow tests", :timeout => 10 do
+  describe "slow tests", :timeout => 100 do
 
     it "should work with lots of messages, without dropping and deliver FIFO" do
       @source_order = []
@@ -290,10 +292,12 @@ describe TomQueue::QueueManager, "simple publish / pop" do
           consumer = TomQueue::QueueManager.new(manager.prefix, "thread-#{i}")
           loop do
             begin
-              work = consumer.pop.ack!
-              payload = Marshal.load(work.payload)
+              work = consumer.pop
+              puts "#{i}: Got work!"
+              work.ack!
+              payload = JSON.load(work.payload)
 
-              puts "#{i}:  Work executed #{Time.now - payload[:run_at]}s late"
+              puts "#{i}:  Work executed #{Time.now - Time.at(payload['run_at'])}s late"
 
             rescue
               p $!
@@ -304,8 +308,8 @@ describe TomQueue::QueueManager, "simple publish / pop" do
 
       # Generate some work
       20.times do |i| 
-        run_at = Time.now + (rand*2) + 2.0
-        manager.publish(Marshal.dump({:id => i, :run_at => run_at}), :run_at => run_at)
+        run_at = Time.now + (rand * 2.0) + 2.0
+        manager.publish(JSON.dump({:id => i, :run_at => run_at.to_f}), :run_at => run_at)
       end
 
       consumers.each { |t| t.join }

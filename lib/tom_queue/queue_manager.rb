@@ -1,4 +1,6 @@
+require 'bunny'
 module TomQueue
+
 
   # Public: Priority values for QueueManager#publish
   #
@@ -75,6 +77,11 @@ module TomQueue
       end
     end
 
+    class PersistentWorkPool < ::Bunny::ConsumerWorkPool
+      def kill
+      end
+    end
+
     # Public: Create the manager.
     #
     # name  - used as a prefix for AMQP exchanges and queues.
@@ -87,13 +94,20 @@ module TomQueue
       @ident = ident
       @bunny = TomQueue.bunny
       @prefix = prefix
-  
+
+      # We create our on work pool so we don't continually create and
+      # destroy threads. This pool ignores the kill commands issued by
+      # the channels, so stays running, and is shared by all channels.
+      @work_pool = PersistentWorkPool.new(4)
+
       # Publishing is going to come in from the host app, as well as 
       # the Deferred thread, so create a dedicated channel and mutex
-      @publisher_channel = @bunny.create_channel
+      @publisher_channel = Bunny::Channel.new(@bunny, nil, @work_pool)
+      @publisher_channel.open
       @publisher_mutex = Mutex.new
 
-      @channel = @bunny.create_channel
+      @channel = Bunny::Channel.new(@bunny, nil, @work_pool)
+      @channel.open
       @channel.prefetch(1)
 
       @exchanges = {}
@@ -149,7 +163,6 @@ module TomQueue
         })
       else
         @publisher_mutex.synchronize do
-          puts "PUSH ONTO #{priority}..."
           @publisher_channel.fanout(@exchanges[priority].name, :passive=>true).publish(work, {
             :headers => {
               :job_priority => priority,
@@ -215,25 +228,21 @@ module TomQueue
           @mutex.synchronize do
             consumer_thread_value = args
             @condvar.signal
-         end
+          end
+
+          consumers.each { |c| c.cancel } 
         end
       end
 
       # Back on the calling thread, block on the callback above and, when
       # it's signalled, pull the arguments over to this thread inside the mutex
       response, header, payload = @mutex.synchronize do
-        puts "blocking"
-        @condvar.wait(@mutex) unless consumer_thread_value
+        @condvar.wait(@mutex, 1.0) until consumer_thread_value
         consumer_thread_value
       end
-
-      # Cancel all the consumers and block until the work pool threads have shut down
-      consumers.each { |c| c.cancel } 
-
+      puts "got a payload"
       # Return the message we got passed.
       TomQueue::Work.new(self, response, header, payload)
-    ensure
-      puts "returned"
     end
   end
 end
