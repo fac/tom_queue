@@ -1,3 +1,4 @@
+
 require 'net/http'
 require 'tom_queue/helper'
 
@@ -7,7 +8,11 @@ describe TomQueue::QueueManager, "simple publish / pop" do
   let(:consumer) { TomQueue::QueueManager.new(manager.prefix) }
   let(:consumer2) { TomQueue::QueueManager.new(manager.prefix) }
 
-  before { consumer.purge! }
+  before do
+    TomQueue.bunny.queue('fa.test.work.deferred', :passive => true).purge
+    # Since each will spawn a DeferredManager, gotta purge 'em all.
+    consumer.purge!
+  end
 
   it "should pop a previously published message" do
     manager.publish('some work')
@@ -168,15 +173,116 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     consumer2.pop.ack!.payload.should == "stuff 3"
   end
 
-
   it "should allow a message to be deferred for future execution" do
     execution_time = Time.now + 0.2
     manager.publish("future-work", :run_at => execution_time )
 
     consumer.pop.ack!
-    Time.now.should > execution_time
+    Time.now.to_f.should > execution_time.to_f
   end
 
+  describe "slow tests" do
 
+    it "should work with lots of messages, without dropping and deliver FIFO" do
+      @source_order = []
+      @sink_order = []
+      @mutex = Mutex.new
+
+      # Run both consumers, in parallel threads, so in some cases, 
+      # there should be a thread waiting for work
+      @threads = 10.times.collect do |i|
+        Thread.new do
+          loop do
+            thread_consumer = TomQueue::QueueManager.new(manager.prefix)
+
+            work = thread_consumer.pop
+
+            Thread.exit if work.payload == "the_end"            
+
+
+            @mutex.synchronize do
+              @sink_order << work.payload
+            end
+
+            sleep 0.5  # simulate /actual work/ by sleeping.
+            work.ack!
+          end
+        end
+      end 
+
+      # Now publish some work
+      50.times do |i|
+        work = "work #{i}"
+        @source_order << work
+        manager.publish(work)
+      end
+        
+      # Now publish a bunch of messages to cause the threads to exit the loop
+      @threads.size.times { manager.publish "the_end" }
+
+      # Wait for the workers to finish
+      @threads.each {|t| t.join}
+
+      # Compare what the publisher did to what the workers did.
+      @source_order.should == @sink_order
+    end
+
+    it "should be able to drain the queue, block and resume when new work arrives" do
+      @source_order = []
+      @sink_order = []
+      @mutex = Mutex.new
+
+      # Run both consumers, in parallel threads, so in some cases, 
+      # there should be a thread waiting for work
+      @threads = 10.times.collect do |i|
+        Thread.new do
+          loop do
+            thread_consumer = TomQueue::QueueManager.new(manager.prefix)
+
+            work = thread_consumer.pop
+
+            Thread.exit if work.payload == "the_end"            
+
+            @mutex.synchronize do
+              @sink_order << work.payload
+            end
+
+            sleep 0.5  # simulate /actual work/ by sleeping.
+            work.ack!
+          end
+        end
+      end 
+
+      # This sleep gives the workers enough time to block on the first call to pop
+      sleep 0.1 until manager.queues[TomQueue::NORMAL_PRIORITY].status[:consumer_count] == @threads.size
+
+      # Now publish some work
+      50.times do |i|
+        work = "work #{i}"
+        @source_order << work
+        manager.publish(work)
+      end
+
+      # Rough and ready - wait for the queue to empty
+      sleep 0.1 until manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count] == 0
+
+      # Now publish some more work
+      50.times do |i|
+        work = "work #{i}"
+        @source_order << work
+        manager.publish(work)
+      end
+
+      # Now publish a bunch of messages to cause the threads to exit the loop
+      @threads.size.times { manager.publish "the_end" }
+
+      # Wait for the workers to finish
+      @threads.each {|t| t.join }
+
+      # Compare what the publisher did to what the workers did.
+      @source_order.should == @sink_order
+    end
+
+  end
 
 end
