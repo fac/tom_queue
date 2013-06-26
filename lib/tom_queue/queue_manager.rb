@@ -67,6 +67,14 @@ module TomQueue
     # Returns a hash of { "priority" => <Bunny::Exchange>, ... }
     attr_reader :exchanges
 
+    def puts(*args)
+      if @ident
+        super(args.map { |a| "[#{@ident}] #{a}" })
+      else
+        super
+      end
+    end
+
     # Public: Create the manager.
     #
     # name  - used as a prefix for AMQP exchanges and queues.
@@ -75,10 +83,16 @@ module TomQueue
     #       prefix value.
     #
     # Returns an instance, duh!
-    def initialize(prefix)
+    def initialize(prefix, ident=nil)
+      @ident = ident
       @bunny = TomQueue.bunny
       @prefix = prefix
   
+      # Publishing is going to come in from the host app, as well as 
+      # the Deferred thread, so create a dedicated channel and mutex
+      @publisher_channel = @bunny.create_channel
+      @publisher_mutex = Mutex.new
+
       @channel = @bunny.create_channel
       @channel.prefetch(1)
 
@@ -96,7 +110,7 @@ module TomQueue
         @queues[priority].bind(@exchanges[priority])
       end
 
-     # @deferred_manager = DeferredWorkManager.new(@prefix, self)
+      @deferred_manager = DeferredWorkManager.new(@prefix, self)
 
     end
 
@@ -106,10 +120,9 @@ module TomQueue
     # function for tests to provide a blank slate
     #
     def purge!
-      #deferred_manager.purge!
+      deferred_manager.purge!
       @queues.values.each { |q| q.purge }
     end
-
 
     # Public: Publish some work to the queue
     #
@@ -128,22 +141,23 @@ module TomQueue
       raise ArgumentError, 'unknown priority level' unless PRIORITIES.include?(priority)
       raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.nil? or run_at.is_a?(Time)
 
-      #if run_at > Time.now
-        # Make sure we explicitly pass all options in, even if they're the defaulted values
-      #  deferred_manager.handle_deferred(work, {
-      #    :priority => priority,
-      #    :run_at   => run_at
-      #  })
-      #else
-
-        @channel.fanout(@exchanges[priority].name, :passive=>true).publish(work, {
-          :headers => {
-            :job_priority => priority,
-            :run_at       => run_at.iso8601(4)
-          }
+      if run_at > Time.now
+        #  Make sure we explicitly pass all options in, even if they're the defaulted values
+        deferred_manager.handle_deferred(work, {
+          :priority => priority,
+          :run_at   => run_at
         })
-
-      #end
+      else
+        @publisher_mutex.synchronize do
+          puts "PUSH ONTO #{priority}..."
+          @publisher_channel.fanout(@exchanges[priority].name, :passive=>true).publish(work, {
+            :headers => {
+              :job_priority => priority,
+              :run_at       => run_at.iso8601(4)
+            }
+          })
+        end
+      end
       nil
     end
 
@@ -184,7 +198,6 @@ module TomQueue
         # Array#find will break out of the loop if we return a non-nil value.
         payload
       end
-
       payload && Work.new(self, response, headers, payload)
     end
 
@@ -198,8 +211,8 @@ module TomQueue
       # Setup a subscription to all the queues. The channel pre-fetch
       # will ensure we get exactly one message delivered
       consumers = PRIORITIES.map do |priority|
-         @queues[priority].subscribe(:ack => true) do |*args|
-         @mutex.synchronize do
+        @queues[priority].subscribe(:ack => true) do |*args|
+          @mutex.synchronize do
             consumer_thread_value = args
             @condvar.signal
          end
@@ -209,17 +222,18 @@ module TomQueue
       # Back on the calling thread, block on the callback above and, when
       # it's signalled, pull the arguments over to this thread inside the mutex
       response, header, payload = @mutex.synchronize do
-        @condvar.wait(@mutex, 1.0) until consumer_thread_value
+        puts "blocking"
+        @condvar.wait(@mutex) unless consumer_thread_value
         consumer_thread_value
       end
 
       # Cancel all the consumers and block until the work pool threads have shut down
-      # This is how Bunny achieves blocking operations
-      consumers.each { |c| @channel.basic_cancel(c.consumer_tag) } 
-      @channel.work_pool.join
+      consumers.each { |c| c.cancel } 
 
       # Return the message we got passed.
-      TomQueue::Work.new(self, response, header, payload)       
+      TomQueue::Work.new(self, response, header, payload)
+    ensure
+      puts "returned"
     end
   end
 end

@@ -28,6 +28,10 @@ module TomQueue
         Time.at(headers[:headers]['run_at'])
       end
 
+      def run_now?
+        run_at < Time.now
+      end
+
     end
 
 
@@ -53,6 +57,9 @@ module TomQueue
       @delegate = delegate
       @bunny = TomQueue.bunny
 
+      @publisher_channel = @bunny.create_channel
+      @publisher_mutex = Mutex.new
+
 
       # Setup the storage area for deferred work!    
       @deferred_messages = []
@@ -75,19 +82,19 @@ module TomQueue
 
     def deferred_thread
       # Create the necessary AMQP gubbins
-      Thread.current[:channel] = @channel = TomQueue.bunny.create_channel
+      @channel = TomQueue.bunny.create_channel
       @channel.prefetch(0)
+      
+      # Creates a deferred exchange and queue
       @exchange = @channel.fanout("#{prefix}.work.deferred", :durable => true, :auto_delete => false)
       @queue = @channel.queue("#{prefix}.work.deferred", :durable => true, :auto_delete => false).bind(@exchange.name)
 
       # Subscribe to the queue immediately!
       @consumer = @queue.subscribe(:ack => true, &method(:queued_message))
-
+      
       loop do
         @deferred_mutex.synchronize do
-          
-          #return if @deferred_messages.empty? 
-          
+                    
           sleep_interval = if @deferred_messages.empty?
             60
           else
@@ -98,14 +105,11 @@ module TomQueue
             @deferred_condvar.wait(@deferred_mutex, sleep_interval)
           end
 
-
-          while @deferred_messages.first && @deferred_messages.first.run_at.to_f < Time.now.to_f
+          while @deferred_messages.first && @deferred_messages.first.run_now?
             message = @deferred_messages.shift
-
             message.headers[:headers].delete('run_at')
             @delegate.publish(message.payload, message.headers[:headers])
             @channel.ack(message.response.delivery_tag)
-
           end
 
         end
@@ -119,38 +123,27 @@ module TomQueue
 
     def update_deferred!
       @deferred_mutex.synchronize do
+
+        # let our caller do something whilst we're holding onto the mutex
         yield
 
-        # # if we have deferred items and no thread, try to launch a thread
-        # if !@deferred_thread && !@deferred_messages.empty?
-        #   @deferred_thread = Thread.new(&method(:deferred_thread))
+        # Signalling this will break out of the "sleep" above
+        # early, causing the loop to spin
+        @deferred_condvar.signal
 
-        # elsif @deferred_thread && @deferred_messages.empty?
-        #   # if we have a thread and no deferred items, kick the condvar
-        #   # so the thread quits
-        #   @deferred_condvar.signal
-        #   @deferred_thread.join
-        # else
-          # Get the loop to spin once
-          @deferred_condvar.signal
-        # end
       end
     end
 
     def purge!
-
       # Urgh, it's not as clean as just "purge" as, calling this will
       # get rid of the un-delivered messages, then we'll exit and the un-acked
       # messages will be re-queued.
       # So, first we need to explicitly ack any messages we're holding onto
-      #update_deferred! do
-      #  while (message = @deferred_messages.pop)
-      #    @channel.ack(message.response.delivery_tag)
-      #  end
-      #end
-
-      # Then we purge the queue
-      #@queue.purge
+      update_deferred! do
+       while (message = @deferred_messages.pop)
+         @channel.ack(message.response.delivery_tag)
+       end
+      end
     end
 
     # Public: Handle a deferred message
@@ -166,10 +159,11 @@ module TomQueue
       raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.is_a?(Time)
 
       # Push this work on to the deferred exchange
-      Thread.current[:channel] ||= @bunny.create_channel
-      Thread.current[:channel].fanout("#{@prefix}.work.deferred", :passive=> true).publish(work, {
-        :headers => opts.merge(:run_at => run_at.to_f)
-      })
+      @publisher_mutex.synchronize do
+        @publisher_channel.fanout("#{@prefix}.work.deferred", :passive=> true).publish(work, {
+          :headers => opts.merge(:run_at => run_at.to_f)
+        })
+      end
     end
 
   end

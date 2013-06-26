@@ -4,13 +4,11 @@ require 'tom_queue/helper'
 
 describe TomQueue::QueueManager, "simple publish / pop" do
 
-  let(:manager) { TomQueue::QueueManager.new('fa.test') }
-  let(:consumer) { TomQueue::QueueManager.new(manager.prefix) }
-  let(:consumer2) { TomQueue::QueueManager.new(manager.prefix) }
+  let(:manager) { TomQueue::QueueManager.new('fa.test', 'manager') }
+  let(:consumer) { TomQueue::QueueManager.new(manager.prefix, 'consumer1') }
+  let(:consumer2) { TomQueue::QueueManager.new(manager.prefix, 'consumer2') }
 
   before do
-    TomQueue.bunny.queue('fa.test.work.deferred', :passive => true).purge
-    # Since each will spawn a DeferredManager, gotta purge 'em all.
     consumer.purge!
   end
 
@@ -173,7 +171,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     consumer2.pop.ack!.payload.should == "stuff 3"
   end
 
-  xit "should allow a message to be deferred for future execution" do
+  it "should allow a message to be deferred for future execution" do
     execution_time = Time.now + 0.2
     manager.publish("future-work", :run_at => execution_time )
 
@@ -283,24 +281,30 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       @source_order.should == @sink_order
     end
 
-    xit "should work with lots of deferred work on the queue" do
+    it "should work with lots of deferred work on the queue" do
       sink_ids = []
 
       # sit in a loop to pop it all off again
-      consumers = 5.times.collect do
-        Thread.new do
-          work = consumer.pop
-          payload = Marshal.load(work.payload)
+      consumers = 5.times.collect do |i|
+        Thread.new do 
+          consumer = TomQueue::QueueManager.new(manager.prefix, "thread-#{i}")
+          loop do
+            begin
+              work = consumer.pop.ack!
+              payload = Marshal.load(work.payload)
 
-          puts "Work executed #{Time.now - payload[:run_at]}s late"
+              puts "#{i}:  Work executed #{Time.now - payload[:run_at]}s late"
 
-          work.ack!
+            rescue
+              p $!
+            end
+          end
         end
       end
 
       # Generate some work
       20.times do |i| 
-        run_at = Time.now + (rand*2)
+        run_at = Time.now + (rand*2) + 2.0
         manager.publish(Marshal.dump({:id => i, :run_at => run_at}), :run_at => run_at)
       end
 
