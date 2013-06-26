@@ -22,7 +22,12 @@ RSpec.configure do |r|
 
   # All tests should take < 2 seconds !!
   r.around do |test|
-    Timeout.timeout(2) { test.call }
+    timeout = self.class.metadata[:timeout] || 2
+    if timeout == false
+      test.call
+    else
+      Timeout.timeout(timeout) { test.call }
+    end
   end
 
 end

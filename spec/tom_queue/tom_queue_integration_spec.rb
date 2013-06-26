@@ -181,7 +181,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     Time.now.to_f.should > execution_time.to_f
   end
 
-  describe "slow tests" do
+  describe "slow tests", :timeout => 10 do
 
     it "should work with lots of messages, without dropping and deliver FIFO" do
       @source_order = []
@@ -283,6 +283,28 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       @source_order.should == @sink_order
     end
 
+    xit "should work with lots of deferred work on the queue" do
+
+      Thread.new do
+        # Generate some work
+        100.times do |i| 
+          run_at = Time.now + rand*2
+          manager.publish("work#{i}: #{run_at.to_f}", :run_at => run_at)
+          sleep 0.01
+        end
+        puts "All work pushed."
+      end
+
+      # sit in a loop to pop it all off again
+      100.times do
+        work = consumer.pop
+
+        puts "Got work: #{work.payload}"
+        work.ack!
+        puts "ACKED"
+      end
+
+    end
   end
 
 end
