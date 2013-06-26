@@ -163,58 +163,63 @@ module TomQueue
     #
     # Returns QueueManager::Work instance
     def pop(opts={})
+      work = sync_poll_queues
+      work ||= wait_for_message
+      work
+    end
+
+    # Internal: Synchronously poll priority queues in order
+    #
+    # Returns: highest priority TomQueue::Work instance; or
+    #          nil if no work is queued.
+    def sync_poll_queues
+      response, headers, payload = nil
 
       # Synchronously poll the head of all the queues in priority order
       PRIORITIES.find do |priority|
-        
         # Perform a basic get. Calling Queue#get gets into a mess wrt the subscribe
         # below. Don't do it.
-        @next_message = @channel.basic_get(@queues[priority].name, :ack => true)
+        response, headers, payload = @channel.basic_get(@queues[priority].name, :ack => true)
 
         # Array#find will break out of the loop if we return a non-nil value.
-        @next_message.first
-
+        payload
       end
 
-      response, header, payload = if @next_message.first
+      payload && Work.new(self, response, headers, payload)
+    end
 
-        # The poll returned a waiting message, lets use that!
-        @next_message
+    # Internal: Setup a consumer and block, waiting for the first message to arrive
+    # on any of the priority queues.
+    #
+    # Returns: TomQueue::Work instance
+    def wait_for_message
+      consumer_thread_value = nil
 
-      else
-        @next_message = nil
-
-        # The poll returned nothing - setup a subscription to all the queues
-        # the channel pre-fetch will ensure we get exactly one message delivered
-        @consumers = PRIORITIES.map do |priority|
-          @queues[priority].subscribe(:ack => true) do |a, b, c|
-
-           @mutex.synchronize do
-             @next_message = [a,b,c]
-             @condvar.signal
-           end
-          end
+      # Setup a subscription to all the queues. The channel pre-fetch
+      # will ensure we get exactly one message delivered
+      consumers = PRIORITIES.map do |priority|
+         @queues[priority].subscribe(:ack => true) do |*args|
+         @mutex.synchronize do
+            consumer_thread_value = args
+            @condvar.signal
+         end
         end
-
-        popped_message = @mutex.synchronize do
-          until @next_message
-            @condvar.wait(@mutex, 1.0)
-          end
-          @next_message
-        end
-
-        # Cancel all the consumers and block until the work pool threads have shut down
-        # This is how Bunny achieves blocking operations
-        @consumers.each { |c| @channel.basic_cancel(c.consumer_tag) } 
-        @channel.work_pool.join
-
-        # Return the message we got passed.
-        popped_message
       end
-      
-      if payload
-        @current_message = TomQueue::Work.new(self, response, header, payload)       
+
+      # Back on the calling thread, block on the callback above and, when
+      # it's signalled, pull the arguments over to this thread inside the mutex
+      response, header, payload = @mutex.synchronize do
+        @condvar.wait(@mutex, 1.0) until consumer_thread_value
+        consumer_thread_value
       end
+
+      # Cancel all the consumers and block until the work pool threads have shut down
+      # This is how Bunny achieves blocking operations
+      consumers.each { |c| @channel.basic_cancel(c.consumer_tag) } 
+      @channel.work_pool.join
+
+      # Return the message we got passed.
+      TomQueue::Work.new(self, response, header, payload)       
     end
   end
 end
