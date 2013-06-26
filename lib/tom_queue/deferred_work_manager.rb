@@ -1,3 +1,4 @@
+require 'tom_queue/work'
 module TomQueue
 
   # Internal: This is an internal class that oversees the delay of "deferred"
@@ -18,6 +19,20 @@ module TomQueue
   #
   class DeferredWorkManager
 
+    class DeferredWork < TomQueue::Work
+      def initialize(deferred_manager, amqp_response, headers, payload)
+        super(deferred_manager, amqp_response, headers, payload)
+      end
+
+      def run_at
+        Time.at(headers[:headers]['run_at'])
+      end
+
+    end
+
+
+
+
     # Public: The queue / exchange name prefix used by this class
     #
     # Returns a string
@@ -36,7 +51,106 @@ module TomQueue
     def initialize(prefix, delegate)
       @prefix = prefix
       @delegate = delegate
+      @bunny = TomQueue.bunny
 
+
+      # Setup the storage area for deferred work!    
+      @deferred_messages = []
+      @deferred_mutex = Mutex.new
+      @deferred_condvar = ConditionVariable.new
+
+      @deferred_thread = Thread.new(&method(:deferred_thread))
+    end
+
+    def queued_message(delivery, headers, payload)
+      update_deferred! do
+        work = DeferredWork.new(self, delivery, headers, payload)
+        
+        @deferred_messages << work
+        @deferred_messages.sort! { |a, b| a.run_at.to_f <=> b.run_at.to_f }
+      end
+    rescue 
+      puts $!.inspect
+    end
+
+    def deferred_thread
+      # Create the necessary AMQP gubbins
+      Thread.current[:channel] = @channel = TomQueue.bunny.create_channel
+      @channel.prefetch(0)
+      @exchange = @channel.fanout("#{prefix}.work.deferred", :durable => true, :auto_delete => false)
+      @queue = @channel.queue("#{prefix}.work.deferred", :durable => true, :auto_delete => false).bind(@exchange.name)
+
+      # Subscribe to the queue immediately!
+      @consumer = @queue.subscribe(:ack => true, &method(:queued_message))
+
+      loop do
+        @deferred_mutex.synchronize do
+          
+          #return if @deferred_messages.empty? 
+          
+          sleep_interval = if @deferred_messages.empty?
+            60
+          else
+            @deferred_messages.first.run_at - Time.now  
+          end
+
+          if sleep_interval > 0
+            @deferred_condvar.wait(@deferred_mutex, sleep_interval)
+          end
+
+
+          while @deferred_messages.first && @deferred_messages.first.run_at.to_f < Time.now.to_f
+            message = @deferred_messages.shift
+
+            message.headers[:headers].delete('run_at')
+            @delegate.publish(message.payload, message.headers[:headers])
+            @channel.ack(message.response.delivery_tag)
+
+          end
+
+        end
+      end
+
+    rescue
+      p $!.inspect
+    ensure
+      @deferred_thread = nil
+    end
+
+    def update_deferred!
+      @deferred_mutex.synchronize do
+        yield
+
+        # # if we have deferred items and no thread, try to launch a thread
+        # if !@deferred_thread && !@deferred_messages.empty?
+        #   @deferred_thread = Thread.new(&method(:deferred_thread))
+
+        # elsif @deferred_thread && @deferred_messages.empty?
+        #   # if we have a thread and no deferred items, kick the condvar
+        #   # so the thread quits
+        #   @deferred_condvar.signal
+        #   @deferred_thread.join
+        # else
+          # Get the loop to spin once
+          @deferred_condvar.signal
+        # end
+      end
+    end
+
+    def purge!
+
+      # Urgh, it's not as clean as just "purge" as, calling this will
+      # get rid of the un-delivered messages, then we'll exit and the un-acked
+      # messages will be re-queued.
+      # So, first we need to explicitly ack any messages we're holding onto
+      #update_deferred! do
+      #  while (message = @deferred_messages.pop)
+      #    @channel.ack(message.response.delivery_tag)
+      #  end
+      #end
+
+      # Then we purge the queue
+      #@queue.purge
     end
 
     # Public: Handle a deferred message
@@ -51,8 +165,11 @@ module TomQueue
       raise ArgumentError, ':run_at must be specified' if run_at.nil?
       raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.is_a?(Time)
 
-      # Push this work on to the deferred queue
-
+      # Push this work on to the deferred exchange
+      Thread.current[:channel] ||= @bunny.create_channel
+      Thread.current[:channel].fanout("#{@prefix}.work.deferred", :passive=> true).publish(work, {
+        :headers => opts.merge(:run_at => run_at.to_f)
+      })
     end
 
   end

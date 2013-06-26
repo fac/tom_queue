@@ -79,8 +79,6 @@ module TomQueue
       @bunny = TomQueue.bunny
       @prefix = prefix
   
-      @deferred_manager = DeferredWorkManager.new(@prefix, self)
-
       @channel = @bunny.create_channel
       @channel.prefetch(1)
 
@@ -97,6 +95,9 @@ module TomQueue
         @queues[priority] = @channel.queue("#{@prefix}.balance.#{priority}", :durable => true)
         @queues[priority].bind(@exchanges[priority])
       end
+
+     # @deferred_manager = DeferredWorkManager.new(@prefix, self)
+
     end
 
     # Public: Purges all messages from queues. Dangerous!
@@ -105,8 +106,8 @@ module TomQueue
     # function for tests to provide a blank slate
     #
     def purge!
+      #deferred_manager.purge!
       @queues.values.each { |q| q.purge }
-      deferred_manager.purge!
     end
 
 
@@ -120,27 +121,29 @@ module TomQueue
     # Raises an ArgumentError unless the work is a string
     # Returns nil
     def publish(work, opts={})
-      priority = opts.fetch(:priority, NORMAL_PRIORITY)
-      run_at = opts.fetch(:run_at, Time.now)
+      priority = opts.fetch('priority', opts.fetch(:priority, NORMAL_PRIORITY))
+      run_at = opts.fetch('run_at', opts.fetch(:run_at, Time.now))
 
       raise ArgumentError, 'work must be a string' unless work.is_a?(String)
       raise ArgumentError, 'unknown priority level' unless PRIORITIES.include?(priority)
       raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.nil? or run_at.is_a?(Time)
 
-      if run_at > Time.now
+      #if run_at > Time.now
         # Make sure we explicitly pass all options in, even if they're the defaulted values
-        deferred_manager.handle_deferred(work, {
-          :priority => priority,
-          :run_at   => run_at
-        })
-      else
-        @exchanges[priority].publish(work, {
+      #  deferred_manager.handle_deferred(work, {
+      #    :priority => priority,
+      #    :run_at   => run_at
+      #  })
+      #else
+
+        @channel.fanout(@exchanges[priority].name, :passive=>true).publish(work, {
           :headers => {
             :job_priority => priority,
             :run_at       => run_at.iso8601(4)
           }
         })
-      end
+
+      #end
       nil
     end
 
@@ -150,7 +153,7 @@ module TomQueue
     # 
     # Returns the work object passed.
     def ack(work)
-      @channel.acknowledge(work.response.delivery_tag)
+      @channel.ack(work.response.delivery_tag)
       work
     end
 
@@ -161,15 +164,16 @@ module TomQueue
     # Returns QueueManager::Work instance
     def pop(opts={})
 
-      # Synchronously poll the head of all the queues
+      # Synchronously poll the head of all the queues in priority order
       PRIORITIES.find do |priority|
-
+        
         # Perform a basic get. Calling Queue#get gets into a mess wrt the subscribe
         # below. Don't do it.
         @next_message = @channel.basic_get(@queues[priority].name, :ack => true)
-        
-        # Find will break out of the loop if we return a non-nil value.
+
+        # Array#find will break out of the loop if we return a non-nil value.
         @next_message.first
+
       end
 
       response, header, payload = if @next_message.first
@@ -178,36 +182,39 @@ module TomQueue
         @next_message
 
       else
+        @next_message = nil
 
         # The poll returned nothing - setup a subscription to all the queues
         # the channel pre-fetch will ensure we get exactly one message delivered
-        consumers = PRIORITIES.map do |priority|
+        @consumers = PRIORITIES.map do |priority|
           @queues[priority].subscribe(:ack => true) do |a, b, c|
-            @mutex.synchronize do
-              @next_message = [a,b,c]
-              @condvar.signal
-            end
+
+           @mutex.synchronize do
+             @next_message = [a,b,c]
+             @condvar.signal
+           end
           end
         end
 
-        # We /probably/ didn't get @next_message set already, but just in-case
-        # this thread stalled, we use a @mutex and only block on the condvar if
-        # @next-message is nil, as we expect.
-        @mutex.synchronize do
-          @condvar.wait(@mutex) unless !@next_message
+        popped_message = @mutex.synchronize do
+          until @next_message
+            @condvar.wait(@mutex, 1.0)
+          end
+          @next_message
         end
 
-        # We have a message - cancel the consumers.
-        # The prefetch ensures that we won't have been delivered any extra
-        # messages in the interviening time.
-        consumers.each { |c| c.cancel }
-      
-        # Return the message we got passed.
-        @next_message
-      end
+        # Cancel all the consumers and block until the work pool threads have shut down
+        # This is how Bunny achieves blocking operations
+        @consumers.each { |c| @channel.basic_cancel(c.consumer_tag) } 
+        @channel.work_pool.join
 
-      @next_message = nil
-      payload && TomQueue::Work.new(self, response, header, payload)      
+        # Return the message we got passed.
+        popped_message
+      end
+      
+      if payload
+        @current_message = TomQueue::Work.new(self, response, header, payload)       
+      end
     end
   end
 end

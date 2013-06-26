@@ -57,7 +57,7 @@ describe TomQueue::QueueManager do
       manager.purge!
     end
 
-    it "should purge the deferred_manager" do
+    xit "should purge the deferred_manager" do
       manager.deferred_manager.should_receive(:purge!)
       manager.purge!
     end
@@ -154,32 +154,32 @@ describe TomQueue::QueueManager do
 
   describe "QueueManager - deferred message handling" do
 
-    it "should create a deferred_manager object on creation" do
+    xit "should create a deferred_manager object on creation" do
       manager.deferred_manager.should be_a(TomQueue::DeferredWorkManager)
     end
 
-    it "should use the same prefix for the deferred work manager" do
+    xit "should use the same prefix for the deferred work manager" do
       manager.deferred_manager.prefix.should == manager.prefix
     end
 
-    it "should use itself as the delegate for the deferred work manager" do
+    xit "should use itself as the delegate for the deferred work manager" do
       manager.deferred_manager.delegate.should == manager
     end
 
     describe "when publishing a deferred message" do
-      it "should not publish to the normal AMQP queue" do
+      xit "should not publish to the normal AMQP queue" do
         manager.publish("work", :run_at => Time.now + 0.1)
         manager.queues.values.find { |q| channel.basic_get(q.name).first }.should be_nil
       end
-      it "should call deferred_manager.handle_deferred" do
+      xit "should call deferred_manager.handle_deferred" do
         manager.deferred_manager.should_receive(:handle_deferred)
         manager.publish("work", :run_at => Time.now + 0.1)
       end
-      it "should pass the original payload" do
+      xit "should pass the original payload" do
         manager.deferred_manager.should_receive(:handle_deferred).with("work", anything)
         manager.publish("work", :run_at => Time.now + 0.1)
       end
-      it "should pass the original options" do
+      xit "should pass the original options" do
         run_time = Time.now + 0.1
         manager.deferred_manager.should_receive(:handle_deferred).with(anything, hash_including(:priority => TomQueue::NORMAL_PRIORITY, :run_at => run_time))
         manager.publish("work", :run_at => run_time)

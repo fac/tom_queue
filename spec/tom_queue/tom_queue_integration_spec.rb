@@ -173,7 +173,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     consumer2.pop.ack!.payload.should == "stuff 3"
   end
 
-  it "should allow a message to be deferred for future execution" do
+  xit "should allow a message to be deferred for future execution" do
     execution_time = Time.now + 0.2
     manager.publish("future-work", :run_at => execution_time )
 
@@ -284,26 +284,27 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     end
 
     xit "should work with lots of deferred work on the queue" do
-
-      Thread.new do
-        # Generate some work
-        100.times do |i| 
-          run_at = Time.now + rand*2
-          manager.publish("work#{i}: #{run_at.to_f}", :run_at => run_at)
-          sleep 0.01
-        end
-        puts "All work pushed."
-      end
+      sink_ids = []
 
       # sit in a loop to pop it all off again
-      100.times do
-        work = consumer.pop
+      consumers = 5.times.collect do
+        Thread.new do
+          work = consumer.pop
+          payload = Marshal.load(work.payload)
 
-        puts "Got work: #{work.payload}"
-        work.ack!
-        puts "ACKED"
+          puts "Work executed #{Time.now - payload[:run_at]}s late"
+
+          work.ack!
+        end
       end
 
+      # Generate some work
+      20.times do |i| 
+        run_at = Time.now + (rand*2)
+        manager.publish(Marshal.dump({:id => i, :run_at => run_at}), :run_at => run_at)
+      end
+
+      consumers.each { |t| t.join }
     end
   end
 

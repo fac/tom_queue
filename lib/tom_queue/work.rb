@@ -49,7 +49,6 @@ module TomQueue
       @payload = payload
     end
 
-
     # Public: Ack this message, meaning the broker won't attempt to re-deliver 
     # the message.
     #
