@@ -240,7 +240,7 @@ module TomQueue
         @condvar.wait(@mutex, 1.0) until consumer_thread_value
         consumer_thread_value
       end
-      puts "got a payload"
+
       # Return the message we got passed.
       TomQueue::Work.new(self, response, header, payload)
     end
