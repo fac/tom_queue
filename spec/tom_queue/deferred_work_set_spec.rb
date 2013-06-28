@@ -34,11 +34,15 @@ describe TomQueue::DeferredWorkSet do
 
   end
 
-  describe "sleep" do
+  describe "pop" do
+
+    it "should return nil when the timeout expires" do
+      set.pop(0.1).should be_nil
+    end
 
     it "should block for the timeout value if there is no work in the queue" do
       start_time = Time.now
-      set.sleep(0.1)
+      set.pop(0.1)
       Time.now.should > start_time + 0.1
     end
 
@@ -46,9 +50,33 @@ describe TomQueue::DeferredWorkSet do
       start_time = Time.now
       set.schedule(start_time + 1.5, "work")
       set.schedule(start_time + 0.1, "work")
-      set.sleep(10)
+      set.pop(10)
       Time.now.should > start_time + 0.1
       Time.now.should < start_time + 0.2
+    end
+
+    it "should return immediately if tehre is work scheduled in the past" do
+      set.schedule(Time.now - 0.1, "work")
+      set.pop(10).should == "work"
+    end
+
+    it "should have removed the returned work from the set" do
+      set.schedule(Time.now - 0.1, "work")
+      set.pop(10)
+      set.size.should == 0
+    end
+
+    it "should return old work in temporal order" do
+      set.schedule(Time.now - 0.1, "work2")
+      set.schedule(Time.now - 0.2, "work1")
+      set.pop(10).should == "work1"
+      set.pop(10).should == "work2"
+    end
+
+    it "should return the earliest work" do
+      start_time = Time.now
+      set.schedule(start_time + 0.1, "work")
+      set.pop(10).should == "work"
     end
 
     it "should return immediately if it is interrupted by an external thread" do
@@ -56,7 +84,7 @@ describe TomQueue::DeferredWorkSet do
       start_time = Time.now
       set.schedule(start_time + 1.5, "work")
       set.schedule(start_time + 5, "work")
-      set.sleep(10)
+      set.pop(10)
       Time.now.should > start_time + 0.1
       Time.now.should < start_time + 0.2
     end
@@ -68,7 +96,7 @@ describe TomQueue::DeferredWorkSet do
         set.schedule(start_time + 0.2, "early")
       end
       set.schedule(start_time + 1.5, "late")
-      set.sleep(10)
+      set.pop(10)
       Time.now.should > start_time + 0.2
       Time.now.should < start_time + 0.3
 

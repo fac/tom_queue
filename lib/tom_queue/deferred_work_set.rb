@@ -36,18 +36,29 @@ module TomQueue
     #
     # timeout - (Fixnum, seconds) how long to wait before timing out
     #
-    def sleep(timeout)
+    # Returns previously scheduled work, or
+    #         nil if the thread was interrupted or the timeout expired
+    def pop(timeout)
       timeout_end = Time.now + timeout
-      
+      returned_work = nil
+
       @interrupt = false
 
       @mutex.synchronize do
         begin
           end_time = [earliest_element.try(:run_at), timeout_end].compact.min
-          @condvar.wait(@mutex, end_time - Time.now)
+          @condvar.wait(@mutex, end_time - Time.now) if end_time > Time.now
         end while Time.now < end_time and @interrupt == false
+
+        element = earliest_element
+        if element && element.run_at < Time.now
+          @work.delete(element)
+          returned_work = element.work
+        end
+
       end
 
+      returned_work
     end
     
     # Public: Interrupt anything sleeping on this set
