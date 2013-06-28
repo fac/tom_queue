@@ -21,8 +21,16 @@ module TomQueue
   #
   # Returns whatever was passed to TomQueue.bunny = 
   def bunny
-    @@bunny
+    defined?(@@bunny) && @@bunny
   end
   module_function :bunny, :bunny=
+
+  def default_prefix=(new_default_prefix)
+    @@default_prefix=new_default_prefix
+  end
+  def default_prefix
+    defined?(@@default_prefix) && @@default_prefix
+  end
+  module_function :default_prefix=, :default_prefix
 
 end

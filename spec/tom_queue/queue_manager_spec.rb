@@ -20,6 +20,18 @@ describe TomQueue::QueueManager do
       manager.prefix.should == 'fa.test'
     end
 
+    it "should default the prefix to TomQueue.default_prefix if available" do
+      TomQueue.default_prefix = "foobarbaz"
+      TomQueue::QueueManager.new.prefix.should == "foobarbaz"
+    end
+
+    it "should raise an ArgumentError if no prefix is specified and no default is available" do
+      TomQueue.default_prefix = nil
+      lambda {
+        TomQueue::QueueManager.new
+      }.should raise_exception(ArgumentError, /prefix is required/)
+    end
+
     it "should use the TomQueue.bunny object" do
       manager.bunny.should == TomQueue.bunny
     end
