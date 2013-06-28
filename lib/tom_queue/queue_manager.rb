@@ -85,15 +85,16 @@ module TomQueue
     # Public: Create the manager.
     #
     # name  - used as a prefix for AMQP exchanges and queues.
+    #         (this will default to TomQueue.default_prefix if set)
     #
     # NOTE: All consumers and producers sharing work must have the same 
     #       prefix value.
     #
     # Returns an instance, duh!
-    def initialize(prefix, ident=nil)
+    def initialize(prefix = nil, ident=nil)
       @ident = ident
       @bunny = TomQueue.bunny
-      @prefix = prefix
+      @prefix = prefix || TomQueue.default_prefix || raise(ArgumentError, 'prefix is required')
 
       # We create our on work pool so we don't continually create and
       # destroy threads. This pool ignores the kill commands issued by
@@ -125,7 +126,6 @@ module TomQueue
       end
 
       @deferred_manager = DeferredWorkManager.new(@prefix, self)
-
     end
 
     # Public: Purges all messages from queues. Dangerous!

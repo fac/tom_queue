@@ -26,7 +26,7 @@ module TomQueue
   module_function :bunny, :bunny=
 
   def default_prefix=(new_default_prefix)
-    @@default_prefix=new_default_prefix
+    @@default_prefix = new_default_prefix
   end
   def default_prefix
     defined?(@@default_prefix) && @@default_prefix

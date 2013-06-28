@@ -17,6 +17,9 @@ describe TomQueue, "module functions" do
   end
 
   it "should default the default_prefix to nil" do
+    module TomQueue
+      remove_class_variable(:@@default_prefix) if defined?(@@default_prefix)
+    end
     TomQueue.default_prefix.should be_nil
   end
   it "should store and return a default_prefix" do

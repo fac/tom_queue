@@ -116,7 +116,8 @@ module TomQueue
       end
 
     rescue
-      p $!.inspect
+      p $!
+      $!.backtrace.each {|l| puts "\t#{l}" }
     ensure
       @deferred_thread = nil
     end
