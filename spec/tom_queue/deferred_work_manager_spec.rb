@@ -3,6 +3,59 @@ require 'tom_queue/helper'
 describe TomQueue::DeferredWorkManager do
 
 
+  describe "thread control" do
+    let(:manager) { TomQueue::DeferredWorkManager.instance('test') }
+
+    it "should expose the thread via a #thread accessor" do
+      manager.thread.should be_nil
+      manager.ensure_running
+      manager.thread.should be_a(Thread)
+    end
+
+    describe "ensure_running" do
+      it "should start the thread if it's not running" do
+        manager.ensure_running
+        manager.thread.should be_alive
+      end
+
+      it "should do nothing if the thread is already running" do
+        manager.ensure_running
+        first_thread = manager.thread
+        manager.ensure_running
+        manager.thread.should == first_thread
+      end
+
+      it "should re-start a dead thread" do
+        manager.ensure_running
+        manager.thread.kill
+        manager.thread.join
+        manager.ensure_running
+        manager.thread.should be_alive
+      end
+    end
+
+    describe "ensure_stopped" do
+      it "should block until the thread has stopped" do
+        manager.ensure_running
+        thread = manager.thread
+        manager.ensure_stopped
+        thread.should_not be_alive
+      end
+
+      it "should set the thread to nil" do
+        manager.ensure_running
+        manager.ensure_stopped
+        manager.thread.should be_nil
+      end
+
+      it "should do nothing if the thread is already stopped" do
+        manager.ensure_running
+        manager.ensure_stopped
+        manager.ensure_stopped
+      end
+    end
+  end
+
   describe "DeferredWorkManager.instance - singleton accessor" do
 
     it "should return a DelayedWorkManager instance" do

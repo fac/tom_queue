@@ -41,6 +41,40 @@ module TomQueue
     #
     def initialize(prefix)
       @prefix = prefix
+      @thread = nil
+    end
+
+
+
+    # Public: Return the Thread associated with this manager
+    #
+    # Returns Ruby Thread object, or nil if it's not running
+    attr_reader :thread
+    
+
+    # Public: Ensure the thread is running, starting if necessary
+    #
+    def ensure_running
+      @thread = nil unless @thread && @thread.alive?
+      @thread ||= Thread.new(&method(:thread_main))
+    end
+
+    # Public: Ensure the thread shuts-down and stops. Blocks until
+    # the thread has actually shut down
+    #
+    def ensure_stopped
+      if @thread
+        @thread.kill
+        @thread.join
+      end
+      @thread = nil
+    end
+
+    # Internal: The main loop of the thread
+    #
+    def thread_main
+      puts "Threa starting!"
+      Thread.stop
     end
 
   end
