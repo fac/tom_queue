@@ -1,6 +1,22 @@
 require 'tom_queue/work'
 module TomQueue
 
+  # Internal: This is an internal class that oversees the delay of "deferred"
+  #  work, that is, work with a future :run_at value.
+  #
+  # This is created by, and associated with, a QueueManager object. The queue manager
+  # pushes work into this method by calling the handle_deferred(...) method, and work
+  # is passed back by simply calling the #publish(...) method on the QeueManager (which is
+  # this classes delegate).
+  #
+  # Internally, this class opens a separate AMQP channel (without a prefetch limit) and
+  # leaves all the deferred messages in an un-acked state. An internal timer is maintained
+  # to delay until the next message is ready to be sent, at which point the message is
+  # dispatched back to the QueueManager, and at some point will be processed by a worker.
+  #
+  # If the host process of this manager dies for some reason, the broker will re-queue the
+  # un-acked messages onto the deferred queue, to be re-popped by another worker in the pool.
+  #
   class DeferredWorkManager
 
 
@@ -28,7 +44,6 @@ module TomQueue
       end
       nil
     end
-
 
     # Public: Return the AMQP prefix used by this manager
     #
@@ -70,32 +85,97 @@ module TomQueue
       @thread = nil
     end
 
+
+
+
+
+
+    ##### Thread Internals #####
+    #
+    # Cross this barrier with care :)
+    #
+
+
+    # Internal: Return the next message (chronologically) that will 
+    # need to be handled
+    #
+    # Returns DeferredWork object, or nil if there are no deferred messages
+    def next_mesage
+
+    end
+
     # Internal: The main loop of the thread
     #
     def thread_main
+      # Create a dedicated channel, and ensure it's prefetch 
+      # means we'll empty the queue
+      channel = TomQueue.bunny.create_channel
+      channel.prefetch(0)
+
+      # Create an exchange and queue
+      exchange = channel.fanout("#{prefix}.work.deferred", :durable => true, :auto_delete => false)
+      queue = channel.queue("#{prefix}.work.deferred", :durable => true, :auto_delete => false).bind(exchange.name)
+
+      # This block will get called-back for new messages
+      consumer = queue.subscribe(:ack => true) do |response, headers, payload|
+
+
+      end
+
+      loop do
+
+        # Block until the next message is ready for handling
+        deferred_messages.wait!
+
+
+        # Grab the earliest message again, and 
+        deferred_messages.update! do
+          next_message = deferred_messages.earliest
+          if next_message.should_run?
+
+
+          end
+        end
+
+      end
+
+
+
       puts "Threa starting!"
       Thread.stop
+    rescue
+      puts $!
+    ensure
+      channel.close
     end
 
   end
 
 end
-#   # Internal: This is an internal class that oversees the delay of "deferred"
-#   #  work, that is, work with a future :run_at value.
-#   #
-#   # This is created by, and associated with, a QueueManager object. The queue manager
-#   # pushes work into this method by calling the handle_deferred(...) method, and work
-#   # is passed back by simply calling the #publish(...) method on the QeueManager (which is
-#   # this classes delegate).
-#   #
-#   # Internally, this class opens a separate AMQP channel (without a prefetch limit) and
-#   # leaves all the deferred messages in an un-acked state. An internal timer is maintained
-#   # to delay until the next message is ready to be sent, at which point the message is
-#   # dispatched back to the QueueManager, and at some point will be processed by a worker.
-#   #
-#   # If the host process of this manager dies for some reason, the broker will re-queue the
-#   # un-acked messages onto the deferred queue, to be re-popped by another worker in the pool.
-#   #
+
+class DeferredWorkSet
+
+
+  # Public: Return the temporaily "earliest" work
+  #
+  # i.e. the work who's run_at is soonest
+  #
+  # Returns DeferredWork instance, or nil if there is no work in the queue
+  def earliest
+
+  end
+
+  # Public: Block the calling thread until the earliest message should be run
+  # or until the set is signalled
+  #
+  # Returns nil
+  def block!
+
+  end
+
+
+end
+
 #   class DeferredWorkManager
 
 #     class DeferredWork < TomQueue::Work

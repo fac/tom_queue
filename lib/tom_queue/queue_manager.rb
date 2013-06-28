@@ -124,8 +124,6 @@ module TomQueue
         @queues[priority] = @channel.queue("#{@prefix}.balance.#{priority}", :durable => true)
         @queues[priority].bind(@exchanges[priority])
       end
-
-      @deferred_manager = DeferredWorkManager.new(@prefix, self)
     end
 
     # Public: Purges all messages from queues. Dangerous!
@@ -134,7 +132,6 @@ module TomQueue
     # function for tests to provide a blank slate
     #
     def purge!
-      deferred_manager.purge!
       @queues.values.each { |q| q.purge }
     end
 
@@ -157,7 +154,7 @@ module TomQueue
 
       if run_at > Time.now
         #  Make sure we explicitly pass all options in, even if they're the defaulted values
-        deferred_manager.handle_deferred(work, {
+        DeferredWorkManager.instance(self.prefix).handle_deferred(work, {
           :priority => priority,
           :run_at   => run_at
         })
@@ -190,6 +187,8 @@ module TomQueue
     #
     # Returns QueueManager::Work instance
     def pop(opts={})
+      DeferredWorkManager.instance(self.prefix).ensure_running
+
       work = sync_poll_queues
       work ||= wait_for_message
       work
