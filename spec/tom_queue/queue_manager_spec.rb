@@ -69,11 +69,6 @@ describe TomQueue::QueueManager do
       manager.purge!
     end
 
-    xit "should purge the deferred_manager" do
-      manager.deferred_manager.should_receive(:purge!)
-      manager.purge!
-    end
-
     TomQueue::PRIORITIES.each do |priority|
       it "should empty the '#{priority}' priority queue" do
         manager.queues[priority].status[:message_count].should == 0
