@@ -122,7 +122,7 @@ module TomQueue
       channel = TomQueue.bunny.create_channel
       channel.queue("#{prefix}.work.deferred", :passive => true).purge()
       channel.close
-    rescue
+    rescue Bunny::NotFound
     end
 
 
