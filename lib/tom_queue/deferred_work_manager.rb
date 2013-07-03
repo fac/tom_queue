@@ -81,6 +81,7 @@ module TomQueue
     #   :run_at = (Time) when the work should be run
     #
     def handle_deferred(work, opts)
+      puts "HANDLE DEFERRED #{work}"
       run_at = opts[:run_at]
       raise ArgumentError, 'work must be a string' unless work.is_a?(String)
       raise ArgumentError, ':run_at must be specified' if run_at.nil?
@@ -110,7 +111,6 @@ module TomQueue
     # the thread has actually shut down
     #
     def ensure_stopped
-
       if @thread
         @thread.kill
         @thread.join
@@ -151,7 +151,8 @@ module TomQueue
       # schedule it in the work set
       @deferred_set.schedule(run_at, [response, headers, payload])
     rescue
-      #TODO: reject the message?
+      # Avoid tight spinning workers by not re-queueing redlivered messages!
+      response.channel.reject(response.delivery_tag, !response.redelivered?)
     end
 
 
@@ -164,9 +165,15 @@ module TomQueue
       channel.prefetch(0)
 
       # Create an exchange and queue
-      exchange = channel.fanout("#{prefix}.work.deferred", :durable => true, :auto_delete => false)
-      queue = channel.queue("#{prefix}.work.deferred", :durable => true, :auto_delete => false).bind(exchange.name)
+      exchange = channel.fanout("#{prefix}.work.deferred", 
+          :durable => true,
+          :auto_delete => false)
 
+      queue = channel.queue("#{prefix}.work.deferred",
+          :durable => true,
+          :auto_delete => false).bind(exchange.name)
+
+      
       @deferred_set = DeferredWorkSet.new
       
       out_manager = QueueManager.new(prefix)
@@ -196,11 +203,9 @@ module TomQueue
       reporter && reporter.notify($!)
 
     ensure
+      channel && channel.close
       @deferred_set = nil
       @thread = nil
-
-      # This will ensure any un-acked messages don't get "stuck" in this thread
-      channel && channel.close
     end
 
   end

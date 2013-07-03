@@ -39,7 +39,9 @@ module TomQueue
   # Public: Set an object to receive notifications if an internal exception
   # is caught and handled.
   #
-  # IT should be an object that responds to #notify(exception)
+  # IT should be an object that responds to #notify(exception) and should be 
+  # thread safe as reported exceptions will be from background threads crashing.
+  #
   class << self
     attr_accessor :exception_reporter
   end
