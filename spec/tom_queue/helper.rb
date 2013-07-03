@@ -20,11 +20,10 @@ RSpec.configure do |r|
     test.call
 
     begin
-      
+      bunny.close      
     rescue
       puts "Failed to close bunny: #{$!.inspect}"
     ensure
-      bunny.close
       TomQueue.bunny = nil
     end
   end
