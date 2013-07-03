@@ -46,13 +46,6 @@ module TomQueue
     # Public: Returns the instance of Bunny that this object uses
     attr_reader :bunny
 
-    # Internal: The DeferredManager object created to handle deferred work
-    #
-    # Internal, this accessor is to make for convenient testing.#
-    #
-    # Returns TomQueue::DeferredWorkManager
-    attr_reader :deferred_manager
-
     # Internal: The work queues used by consumers
     #
     # Internal, this is an implementation detail. Accessor is mainly for 

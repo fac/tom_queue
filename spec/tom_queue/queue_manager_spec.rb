@@ -161,34 +161,30 @@ describe TomQueue::QueueManager do
 
   describe "QueueManager - deferred message handling" do
 
-    xit "should create a deferred_manager object on creation" do
-      manager.deferred_manager.should be_a(TomQueue::DeferredWorkManager)
-    end
-
-    xit "should use the same prefix for the deferred work manager" do
-      manager.deferred_manager.prefix.should == manager.prefix
-    end
-
-    xit "should use itself as the delegate for the deferred work manager" do
-      manager.deferred_manager.delegate.should == manager
+    describe "when popping a message" do
+      it "should ensure a deferred manager with the same prefix is running" do
+        manager.publish("work")
+        TomQueue::DeferredWorkManager.instance(manager.prefix).should_receive(:ensure_running)
+        manager.pop
+      end
     end
 
     describe "when publishing a deferred message" do
-      xit "should not publish to the normal AMQP queue" do
+      it "should not publish to the normal AMQP queue" do
         manager.publish("work", :run_at => Time.now + 0.1)
         manager.queues.values.find { |q| channel.basic_get(q.name).first }.should be_nil
       end
-      xit "should call deferred_manager.handle_deferred" do
-        manager.deferred_manager.should_receive(:handle_deferred)
+      it "should call #handle_deferred on the appropriate deferred work manager" do
+        TomQueue::DeferredWorkManager.instance(manager.prefix).should_receive(:handle_deferred)
         manager.publish("work", :run_at => Time.now + 0.1)
       end
-      xit "should pass the original payload" do
-        manager.deferred_manager.should_receive(:handle_deferred).with("work", anything)
+      it "should pass the original payload" do
+        TomQueue::DeferredWorkManager.instance(manager.prefix).should_receive(:handle_deferred).with("work", anything)
         manager.publish("work", :run_at => Time.now + 0.1)
       end
-      xit "should pass the original options" do
+      it "should pass the original options" do
         run_time = Time.now + 0.1
-        manager.deferred_manager.should_receive(:handle_deferred).with(anything, hash_including(:priority => TomQueue::NORMAL_PRIORITY, :run_at => run_time))
+        TomQueue::DeferredWorkManager.instance(manager.prefix).should_receive(:handle_deferred).with(anything, hash_including(:priority => TomQueue::NORMAL_PRIORITY, :run_at => run_time))
         manager.publish("work", :run_at => run_time)
       end
     end
