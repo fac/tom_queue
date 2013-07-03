@@ -34,9 +34,9 @@ module TomQueue
     end
 
 
-    # Public: Return a hash of all prefixed singledtons, keyed on the prefix
+    # Public: Return a hash of all prefixed singletons, keyed on their prefix
     #
-    # This method really is just for testing convenience.
+    # This method really is just a convenience method for testing.
     #
     # NOTE: The returned hash is both a dupe and frozen, so should be safe to 
     # iterate and mutate instances.
