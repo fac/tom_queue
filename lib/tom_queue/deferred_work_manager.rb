@@ -81,7 +81,6 @@ module TomQueue
     #   :run_at = (Time) when the work should be run
     #
     def handle_deferred(work, opts)
-      puts "HANDLE DEFERRED #{work}"
       run_at = opts[:run_at]
       raise ArgumentError, 'work must be a string' unless work.is_a?(String)
       raise ArgumentError, ':run_at must be specified' if run_at.nil?
@@ -203,7 +202,7 @@ module TomQueue
       reporter && reporter.notify($!)
 
     ensure
-      channel && channel.close
+      Thread.new { channel && channel.close }
       @deferred_set = nil
       @thread = nil
     end

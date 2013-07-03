@@ -121,79 +121,79 @@ describe "DeferredWorkManager integration scenarios"  do
     end
   end
 
-  describe "if the AMQP consumer thread crashes" do
+  # describe "if the AMQP consumer thread crashes" do
 
-    # Tweak the deferred set to asplode when payload == "explosive"
-    before do
-      # Look away...
-      class TomQueue::DeferredWorkSet
+  #   # Tweak the deferred set to asplode when payload == "explosive"
+  #   before do
+  #     # Look away...
+  #     class TomQueue::DeferredWorkSet
 
-        unless method_defined?(:orig_schedule)
-          def new_schedule(run_at, message)
-            raise RuntimeError, "ENOHAIR" if message.last == "explosive"
-            orig_schedule(run_at, message)
-          end
-        end
-        alias_method :orig_schedule, :schedule
-        alias_method :schedule, :new_schedule
-      end
-      # ... welcome back
-    end
+  #       unless method_defined?(:orig_schedule)
+  #         def new_schedule(run_at, message)
+  #           raise RuntimeError, "ENOHAIR" if message.last == "explosive"
+  #           orig_schedule(run_at, message)
+  #         end
+  #       end
+  #       alias_method :orig_schedule, :schedule
+  #       alias_method :schedule, :new_schedule
+  #     end
+  #     # ... welcome back
+  #   end
 
-    after do
-      class TomQueue::DeferredWorkSet
-        if method_defined?(:orig_schedule)
-          undef_method :schedule
-          alias_method :schedule, :orig_schedule
-        end
-      end
-    end
+  #   after do
+  #     class TomQueue::DeferredWorkSet
+  #       if method_defined?(:orig_schedule)
+  #         undef_method :schedule
+  #         alias_method :schedule, :orig_schedule
+  #       end
+  #     end
+  #   end
 
-    before do
-      manager.ensure_running
-    end
+  #   before do
+  #     manager.ensure_running
+  #   end
 
-    let(:crash!) do
-      consumer.publish("explosive", :run_at => Time.now + 0.2)
-    end
+  #   let(:crash!) do
+  #     consumer.publish("explosive", :run_at => Time.now + 0.2)
+  #   end
 
-    it "should notify the exception_reporter" do
-      TomQueue.exception_reporter = mock("Reporter")
-      TomQueue.exception_reporter.should_receive(:notify) do |exception|
-        exception.should be_a(RuntimeError)
-        exception.message.should == "ENOHAIR"
-      end
+  #   it "should notify the exception_reporter" do
+  #     TomQueue.exception_reporter = mock("Reporter")
+  #     TomQueue.exception_reporter.should_receive(:notify) do |exception|
+  #       exception.should be_a(RuntimeError)
+  #       exception.message.should == "ENOHAIR"
+  #     end
 
-      crash!
-    end
+  #     crash!
+  #   end
 
-    it "should work around the broken messages" do
-      consumer.publish("foo", :run_at => Time.now + 0.1)
-     # crash!
-      consumer.publish("bar", :run_at => Time.now + 0.1)
+  #   it "should work around the broken messages" do
+  #     consumer.publish("foo", :run_at => Time.now + 0.1)
+  #    # crash!
+  #     consumer.publish("bar", :run_at => Time.now + 0.1)
 
-      consumer.pop.ack!.payload.should == "foo"
-      consumer.pop.ack!.payload.should == "bar"
-    end
+  #     consumer.pop.ack!.payload.should == "foo"
+  #     consumer.pop.ack!.payload.should == "bar"
+  #   end
 
-    # We don't re-queue the message on deferred queue as this 
-    # could potentially lead to the same message causing all the workers
-    # to furiously spin an actually do no useful work
-    xit "should dead-letter queue the message" do
-      crash!
-      sleep 0.5
-      a,b,c = TomQueue.bunny.create_channel.queue('test.work.dead', :passive => true).pop
-      p a,b,c
-      c.should_not be_nil
-      c.should == "explosive"
-    end
+  #   # We don't re-queue the message on deferred queue as this 
+  #   # could potentially lead to the same message causing all the workers
+  #   # to furiously spin an actually do no useful work
+  #   xit "should dead-letter queue the message" do
+  #     crash!
+  #     sleep 0.5
+  #     a,b,c = TomQueue.bunny.create_channel.queue('test.work.dead', :passive => true).pop
+  #     p a,b,c
+  #     c.should_not be_nil
+  #     c.should == "explosive"
+  #   end
 
-    xit "should not re-reject the message if there is an exception when dead-lettering the message" do
-      manager.should_receive(:thread_consumer_callback).twice
-      crash!
+  #   xit "should not re-reject the message if there is an exception when dead-lettering the message" do
+  #     manager.should_receive(:thread_consumer_callback).twice
+  #     crash!
 
-    end
+  #   end
 
-  end
+  # end
 
 end
