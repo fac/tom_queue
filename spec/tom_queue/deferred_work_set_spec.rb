@@ -99,7 +99,16 @@ describe TomQueue::DeferredWorkSet do
       set.pop(10)
       Time.now.should > start_time + 0.2
       Time.now.should < start_time + 0.3
+    end
 
+    it "should raise an exception if two threads try to block on the same work set" do
+      Thread.new do
+        set.pop(1)
+      end
+      sleep 0.1
+      lambda {
+        set.pop(1)
+      }.should raise_exception(/another thread is already blocked/)
     end
 
   end

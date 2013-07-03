@@ -32,7 +32,11 @@ module TomQueue
     end
 
     # Public: Block the calling thread until some work is ready to run
-    # or the timeout expires
+    # or the timeout expires.
+    #
+    # This is intended to be called from a single worker thread, for the
+    # time being, if you try and block on this method concurrently in 
+    # two threads, it will raise an exception!
     #
     # timeout - (Fixnum, seconds) how long to wait before timing out
     #
@@ -45,23 +49,34 @@ module TomQueue
       @interrupt = false
 
       @mutex.synchronize do
+        raise RuntimeError, 'DeferredWorkSet: another thread is already blocked on a pop' unless @blocked_thread.nil? 
+
         begin
-          end_time = [earliest_element.try(:run_at), timeout_end].compact.min
-          @condvar.wait(@mutex, end_time - Time.now) if end_time > Time.now
-        end while Time.now < end_time and @interrupt == false
+          @blocked_thread = Thread.current
+          begin
+            end_time = [earliest_element.try(:run_at), timeout_end].compact.min
+            @condvar.wait(@mutex, end_time - Time.now) if end_time > Time.now
+          end while Time.now < end_time and @interrupt == false
 
-        element = earliest_element
-        if element && element.run_at < Time.now
-          @work.delete(element)
-          returned_work = element.work
+          element = earliest_element
+          if element && element.run_at < Time.now
+            @work.delete(element)
+            returned_work = element.work
+          end
+
+        ensure
+          @blocked_thread = nil
         end
-
       end
 
       returned_work
     end
     
     # Public: Interrupt anything sleeping on this set
+    #
+    # This is "thread-safe" and is designed to be called from threads
+    # to interrupt the work loop thread blocked on a pop.
+    #
     def interrupt
       @mutex.synchronize do
         @interrupt = true
@@ -70,6 +85,10 @@ module TomQueue
     end
 
     # Public: Add some work to the set
+    #
+    # This is "threa-safe" in that it can be (and is intended to
+    # be) called from threads other than the one calling pop without
+    # any additional synchronization.
     #
     # run_at - (Time) when the work is to be run
     # work   - the DeferredWork object
