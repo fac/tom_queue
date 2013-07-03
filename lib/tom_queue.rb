@@ -47,3 +47,32 @@ module TomQueue
   end
 
 end
+
+class VerboseMutex < Mutex
+  def initialize
+    @lockers = {}
+  end
+  def lock
+    @lockers[Thread.current] = caller
+    super
+  rescue
+    puts "EXCEPTION: #{$!.inspect}"
+    @lockers.each_pair do |thread, caller|
+      puts "Thread #{thread}:"
+      puts caller.join("\n\t")
+    end
+  end
+  def unlock
+    super
+  ensure
+    @lockers.delete(Thread.current)
+  end
+
+end
+class Bunny::Transport
+  alias_method :old_initialize, :initialize
+  def initialize(*args)
+    old_initialize(*args)
+   # @writes_mutex = VerboseMutex.new
+  end
+end

@@ -102,6 +102,7 @@ module TomQueue
     # Public: Ensure the thread is running, starting if necessary
     #
     def ensure_running
+      @thread_shutdown = false
       @thread = nil unless @thread && @thread.alive?
       @thread ||= Thread.new(&method(:thread_main))
     end
@@ -111,11 +112,10 @@ module TomQueue
     #
     def ensure_stopped
       if @thread
-        @thread.kill
+        @thread_shutdown = true
+        @deferred_set && @deferred_set.interrupt
         @thread.join
       end
-
-      @thread = nil
     end
 
     def purge!
@@ -149,62 +149,68 @@ module TomQueue
 
       # schedule it in the work set
       @deferred_set.schedule(run_at, [response, headers, payload])
-    rescue
-      # Avoid tight spinning workers by not re-queueing redlivered messages!
-      response.channel.reject(response.delivery_tag, !response.redelivered?)
+    rescue Exception => e
+      r = TomQueue.exception_reporter
+      r && r.notify(e)
+      
+      ### Avoid tight spinning workers by not re-queueing redlivered messages!
+      ## response.channel.reject(response.delivery_tag, !response.redelivered?)
     end
 
 
     # Internal: The main loop of the thread
     #
     def thread_main
+
       # Create a dedicated channel, and ensure it's prefetch 
       # means we'll empty the queue
-      channel = TomQueue.bunny.create_channel
-      channel.prefetch(0)
+      @channel = TomQueue.bunny.create_channel
+      @channel.prefetch(0)
 
       # Create an exchange and queue
-      exchange = channel.fanout("#{prefix}.work.deferred", 
-          :durable => true,
+      exchange = @channel.fanout("#{prefix}.work.deferred", 
+          :durable     => true,
           :auto_delete => false)
 
-      queue = channel.queue("#{prefix}.work.deferred",
-          :durable => true,
+      queue = @channel.queue("#{prefix}.work.deferred",
+          :durable     => true,
           :auto_delete => false).bind(exchange.name)
 
       
       @deferred_set = DeferredWorkSet.new
       
-      out_manager = QueueManager.new(prefix)
+      @out_manager = QueueManager.new(prefix)
 
       # This block will get called-back for new messages
       consumer = queue.subscribe(:ack => true, &method(:thread_consumer_callback)) 
-    
+
       # This is the core event loop - we block on the deferred set to return messages
       # (which have been scheduled by the AMQP consumer). If a message is returned
       # then we re-publish the messages to our internal QueueManager and ack the deferred
       # message
-      loop do
+      until @thread_shutdown
         
         # This will block until work is ready to be returned, interrupt
         # or the 10-second timeout value.
-        response, headers, payload = @deferred_set.pop(10)
+        response, headers, payload = @deferred_set.pop(2)
 
         if response
           headers[:headers].delete('run_at')
-          out_manager.publish(payload, headers[:headers])
-          channel.ack(response.delivery_tag)
+          @out_manager.publish(payload, headers[:headers])
+          @channel.ack(response.delivery_tag)
         end
       end
+
+      consumer.cancel
 
     rescue
       reporter = TomQueue.exception_reporter
       reporter && reporter.notify($!)
 
     ensure
-      Thread.new { channel && channel.close }
+      @channel && @channel.close
       @deferred_set = nil
-      @thread = nil
+      @thread = nil      
     end
 
   end

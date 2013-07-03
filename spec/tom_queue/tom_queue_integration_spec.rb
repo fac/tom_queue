@@ -206,7 +206,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
               @sink_order << work.payload
             end
 
-            sleep 0.5  # simulate /actual work/ by sleeping.
+            sleep 0.1  # simulate /actual work/ by sleeping.
             work.ack!
           end
         end

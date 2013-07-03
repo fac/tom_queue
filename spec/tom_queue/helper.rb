@@ -5,6 +5,7 @@ require 'bunny'
 TomQueue.exception_reporter = Class.new do
   def notify(exception)
     puts "Exception reported: #{exception.inspect}"
+    puts exception.backtrace.join("\n")
   end
 end.new
 
@@ -19,10 +20,11 @@ RSpec.configure do |r|
     test.call
 
     begin
-      bunny.close
+      
     rescue
       puts "Failed to close bunny: #{$!.inspect}"
     ensure
+      bunny.close
       TomQueue.bunny = nil
     end
   end
@@ -38,14 +40,19 @@ RSpec.configure do |r|
   end
 
   r.around do |test|
-    test.call
+    begin
+      TomQueue::DeferredWorkManager.reset!
 
-    # Tidy up any deferred work managers!
-    TomQueue::DeferredWorkManager.instances.each_pair do |prefix, i|
-      i.ensure_stopped
-      i.purge!
+      test.call
+
+    ensure
+      # Tidy up any deferred work managers!
+      TomQueue::DeferredWorkManager.instances.each_pair do |prefix, i|
+        i.ensure_stopped
+        i.purge!
+      end
+      TomQueue::DeferredWorkManager.reset!
     end
-    TomQueue::DeferredWorkManager.reset!
   end
 
 end
