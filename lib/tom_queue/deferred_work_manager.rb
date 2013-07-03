@@ -157,7 +157,6 @@ module TomQueue
         # This will block until work is ready to be returned, interrupt
         # or the 10-second timeout value.
         response, headers, payload = deferred_set.pop(10)
-        puts "deferred set returned #{response}"
 
         if response
           headers[:headers].delete('run_at')
