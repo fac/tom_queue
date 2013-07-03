@@ -178,6 +178,13 @@ describe "DeferredWorkManager integration scenarios"  do
       consumer.pop.ack!.payload.should == "bar"
     end
 
+    it "should re-queue the message once" do
+      TomQueue.exception_reporter = mock("Reporter")
+      TomQueue.exception_reporter.should_receive(:notify).twice
+      crash!
+      consumer.publish("bar", :run_at => Time.now + 0.1)
+      consumer.pop.ack!
+    end
   end
 
 end

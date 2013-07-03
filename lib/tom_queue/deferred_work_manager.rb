@@ -153,8 +153,8 @@ module TomQueue
       r = TomQueue.exception_reporter
       r && r.notify(e)
       
-      ### Avoid tight spinning workers by not re-queueing redlivered messages!
-      ## response.channel.reject(response.delivery_tag, !response.redelivered?)
+      ### Avoid tight spinning workers by not re-queueing redlivered messages more than once!
+      response.channel.reject(response.delivery_tag, !response.redelivered?)
     end
 
 
