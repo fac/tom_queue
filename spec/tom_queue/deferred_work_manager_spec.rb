@@ -88,6 +88,35 @@ describe TomQueue::DeferredWorkManager do
     end
   end
 
+  describe "DeferredWorkManager.instances - running instance collection" do
+
+    it "should return an empty hash if no instances have been created" do
+      TomQueue::DeferredWorkManager.instances.should == {}
+    end
+
+    it "should return a hash of created instances, keyed on the prefix" do
+      some_prefix = TomQueue::DeferredWorkManager.instance('some.prefix')
+      another_prefix = TomQueue::DeferredWorkManager.instance('another.prefix')
+
+      TomQueue::DeferredWorkManager.instances.should == {
+        "some.prefix"    => some_prefix,
+        "another.prefix" => another_prefix
+      }
+    end
+
+    it "should dupe the hash before returning" do
+      value = TomQueue::DeferredWorkManager.instances
+      TomQueue::DeferredWorkManager.instance('some.prefix')
+      value.should == {}
+    end
+
+    it "should freeze the hash before returning" do
+      lambda {
+        TomQueue::DeferredWorkManager.instances['foo'] = 'bar'
+      }.should raise_exception(/frozen/)
+    end
+  end
+
   describe "for testing - DeferredWorkManager.reset! method" do
 
     it "should return nil" do
@@ -99,6 +128,12 @@ describe TomQueue::DeferredWorkManager do
       TomQueue::DeferredWorkManager.reset!
       TomQueue::DeferredWorkManager.instance('prefix').should_not == first_singleton
     end
+  end
+
+  describe "for testing - DeferredWorkManager#purge!" do
+    it "should delete the queue and contents"
+    it "should delete the exchange"
+    it "should not fail if the queue hasn't been created"
   end
 
 

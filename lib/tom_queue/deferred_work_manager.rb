@@ -19,7 +19,6 @@ module TomQueue
   #
   class DeferredWorkManager
 
-
     # Public: Scoped singleton accessor
     #
     # This returns the shared work manager instance, creating it if necessary.
@@ -34,12 +33,28 @@ module TomQueue
       @@singletons_mutex.synchronize { @@singletons[prefix] ||= self.new(prefix) }
     end
 
+
+    # Public: Return a hash of all prefixed singledtons, keyed on the prefix
+    #
+    # This method really is just for testing convenience.
+    #
+    # NOTE: The returned hash is both a dupe and frozen, so should be safe to 
+    # iterate and mutate instances.
+    # 
+    # Returns: { "prefix" => DeferredWorkManager(prefix),  ... }
+    def self.instances
+      @@singletons.dup.freeze
+    end
+
     # Public: Shutdown all managers and wipe the singleton objects.
     # This method is really just a hook for testing convenience.
     #
     # Returns nil
     def self.reset!
       @@singletons_mutex.synchronize do
+        @@singletons.each_pair do |k,v|
+          v.ensure_stopped
+        end
         @@singletons = {}
       end
       nil
@@ -59,14 +74,31 @@ module TomQueue
       @thread = nil
     end
 
+    # Public: Handle a deferred message
+    #
+    # work - (String) the work payload
+    # opts - (Hash) the options of the message. See QueueManager#publish, but must include:
+    #   :run_at = (Time) when the work should be run
+    #
+    def handle_deferred(work, opts)
+      run_at = opts[:run_at]
+      raise ArgumentError, 'work must be a string' unless work.is_a?(String)
+      raise ArgumentError, ':run_at must be specified' if run_at.nil?
+      raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.is_a?(Time)
 
+      # Push this work on to the deferred exchange
+      channel = TomQueue.bunny.create_channel
+      channel.fanout("#{@prefix}.work.deferred", :passive => true).publish(work, {
+          :headers => opts.merge(:run_at => run_at.to_f)
+        })
+      channel.close
+    end
 
     # Public: Return the Thread associated with this manager
     #
     # Returns Ruby Thread object, or nil if it's not running
     attr_reader :thread
     
-
     # Public: Ensure the thread is running, starting if necessary
     #
     def ensure_running
@@ -85,24 +117,18 @@ module TomQueue
       @thread = nil
     end
 
-
-
-
+    def purge!
+      channel = TomQueue.bunny.create_channel
+      channel.queue("#{prefix}.work.deferred", :passive => true).purge()
+      channel.close
+    rescue
+    end
 
 
     ##### Thread Internals #####
     #
     # Cross this barrier with care :)
     #
-
-
-    # Internal: Return the next message (chronologically) that will 
-    # need to be handled
-    #
-    # Returns DeferredWork object, or nil if there are no deferred messages
-    def next_mesage
-
-    end
 
     # Internal: The main loop of the thread
     #
@@ -116,65 +142,41 @@ module TomQueue
       exchange = channel.fanout("#{prefix}.work.deferred", :durable => true, :auto_delete => false)
       queue = channel.queue("#{prefix}.work.deferred", :durable => true, :auto_delete => false).bind(exchange.name)
 
+      deferred_set = DeferredWorkSet.new
+
+      out_manager = QueueManager.new(prefix)
+
       # This block will get called-back for new messages
       consumer = queue.subscribe(:ack => true) do |response, headers, payload|
-
-
+        run_at = Time.at(headers[:headers]['run_at'])
+        deferred_set.schedule(run_at, [response, headers, payload])
       end
 
       loop do
+        
+        # This will block until work is ready to be returned, interrupt
+        # or the 10-second timeout value.
+        response, headers, payload = deferred_set.pop(10)
+        puts "deferred set returned #{response}"
 
-        # Block until the next message is ready for handling
-        deferred_messages.wait!
-
-
-        # Grab the earliest message again, and 
-        deferred_messages.update! do
-          next_message = deferred_messages.earliest
-          if next_message.should_run?
-
-
-          end
+        if response
+          headers[:headers].delete('run_at')
+          out_manager.publish(payload, headers[:headers])
+          channel.ack(response.delivery_tag)
         end
 
       end
 
-
-
-      puts "Threa starting!"
-      Thread.stop
     rescue
+      puts "EXCEPTION IN DEFERRED THREAD"
       puts $!
-    ensure
-      channel.close
     end
 
   end
 
 end
 
-class DeferredWorkSet
 
-
-  # Public: Return the temporaily "earliest" work
-  #
-  # i.e. the work who's run_at is soonest
-  #
-  # Returns DeferredWork instance, or nil if there is no work in the queue
-  def earliest
-
-  end
-
-  # Public: Block the calling thread until the earliest message should be run
-  # or until the set is signalled
-  #
-  # Returns nil
-  def block!
-
-  end
-
-
-end
 
 #   class DeferredWorkManager
 
@@ -306,25 +308,6 @@ end
 #       end
 #     end
 
-#     # Public: Handle a deferred message
-#     #
-#     # work - (String) the work payload
-#     # opts - (Hash) the options of the message. See QueueManager#publish, but must include:
-#     #   :run_at = (Time) when the work should be run
-#     #
-#     def handle_deferred(work, opts)
-#       run_at = opts[:run_at]
-#       raise ArgumentError, 'work must be a string' unless work.is_a?(String)
-#       raise ArgumentError, ':run_at must be specified' if run_at.nil?
-#       raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.is_a?(Time)
-
-#       # Push this work on to the deferred exchange
-#       @publisher_mutex.synchronize do
-#         @publisher_channel.fanout("#{@prefix}.work.deferred", :passive=> true).publish(work, {
-#           :headers => opts.merge(:run_at => run_at.to_f)
-#         })
-#       end
-#     end
 
 #   end
 
