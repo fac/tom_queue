@@ -88,7 +88,7 @@ module TomQueue
 
       # Push this work on to the deferred exchange
       channel = TomQueue.bunny.create_channel
-      channel.fanout("#{@prefix}.work.deferred", :passive => true).publish(work, {
+      channel.fanout("#{@prefix}.work.deferred", :durable => true, :auto_delete => false).publish(work, {
           :headers => opts.merge(:run_at => run_at.to_f)
         })
       channel.close
