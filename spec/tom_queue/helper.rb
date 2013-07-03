@@ -1,6 +1,13 @@
 require 'helper'
 require 'bunny'
 
+# Install a simple exception reporter that just makes noise!
+TomQueue.exception_reporter = Class.new do
+  def notify(exception)
+    puts "Exception reported: #{exception.inspect}"
+  end
+end.new
+
 RSpec.configure do |r|
 
   # Make sure all tests see the same Bunny instance
