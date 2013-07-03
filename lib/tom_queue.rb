@@ -35,4 +35,13 @@ module TomQueue
   end
   module_function :default_prefix=, :default_prefix
 
+
+  # Public: Set an object to receive notifications if an internal exception
+  # is caught and handled.
+  #
+  # IT should be an object that responds to #notify(exception)
+  class << self
+    attr_accessor :exception_reporter
+  end
+
 end

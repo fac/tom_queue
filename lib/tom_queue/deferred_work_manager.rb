@@ -110,10 +110,12 @@ module TomQueue
     # the thread has actually shut down
     #
     def ensure_stopped
+
       if @thread
         @thread.kill
         @thread.join
       end
+
       @thread = nil
     end
 
@@ -130,6 +132,29 @@ module TomQueue
     # Cross this barrier with care :)
     #
 
+    # Internal: This is called on a bunny internal work thread when
+    # a new message arrives on the deferred work queue.
+    #
+    # A given message will be delivered only to one deferred manager
+    # so we simply schedule the message in our DeferredWorkSet (which
+    # helpfully deals with all the cross-thread locking, etc.)
+    #
+    # response - the AMQP response object from Bunny
+    # headers  - (Hash) a hash of headers associated with the message
+    # payload  - (String) the message payload
+    #
+    #
+    def thread_consumer_callback(response, headers, payload)
+      # Extract when we want to run this
+      run_at = Time.at(headers[:headers]['run_at'])
+
+      # schedule it in the work set
+      @deferred_set.schedule(run_at, [response, headers, payload])
+    rescue
+      #TODO: reject the message?
+    end
+
+
     # Internal: The main loop of the thread
     #
     def thread_main
@@ -142,33 +167,40 @@ module TomQueue
       exchange = channel.fanout("#{prefix}.work.deferred", :durable => true, :auto_delete => false)
       queue = channel.queue("#{prefix}.work.deferred", :durable => true, :auto_delete => false).bind(exchange.name)
 
-      deferred_set = DeferredWorkSet.new
-
+      @deferred_set = DeferredWorkSet.new
+      
       out_manager = QueueManager.new(prefix)
 
       # This block will get called-back for new messages
-      consumer = queue.subscribe(:ack => true) do |response, headers, payload|
-        run_at = Time.at(headers[:headers]['run_at'])
-        deferred_set.schedule(run_at, [response, headers, payload])
-      end
-
+      consumer = queue.subscribe(:ack => true, &method(:thread_consumer_callback)) 
+    
+      # This is the core event loop - we block on the deferred set to return messages
+      # (which have been scheduled by the AMQP consumer). If a message is returned
+      # then we re-publish the messages to our internal QueueManager and ack the deferred
+      # message
       loop do
         
         # This will block until work is ready to be returned, interrupt
         # or the 10-second timeout value.
-        response, headers, payload = deferred_set.pop(10)
+        response, headers, payload = @deferred_set.pop(10)
 
         if response
           headers[:headers].delete('run_at')
           out_manager.publish(payload, headers[:headers])
           channel.ack(response.delivery_tag)
         end
-
       end
 
     rescue
-      puts "EXCEPTION IN DEFERRED THREAD"
-      puts $!
+      reporter = TomQueue.exception_reporter
+      reporter && reporter.notify($!)
+
+    ensure
+      @deferred_set = nil
+      @thread = nil
+
+      # This will ensure any un-acked messages don't get "stuck" in this thread
+      channel && channel.close
     end
 
   end

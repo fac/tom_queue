@@ -137,7 +137,6 @@ describe TomQueue::DeferredWorkManager do
   end
 
 
-
   # let(:queue_manager) { TomQueue::QueueManager.new('fa.test')}
   # let(:manager) { TomQueue::DeferredWorkManager.new('fa.test', queue_manager)}
 
