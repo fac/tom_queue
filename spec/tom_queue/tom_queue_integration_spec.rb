@@ -9,6 +9,8 @@ describe TomQueue::QueueManager, "simple publish / pop" do
   let(:consumer2) { TomQueue::QueueManager.new(manager.prefix, 'consumer2') }
 
   before do
+    TomQueue::DeferredWorkManager.instance('fa.test').purge!
+
     manager.purge!
     consumer.purge!
     consumer2.purge!

@@ -30,4 +30,15 @@ RSpec.configure do |r|
     end
   end
 
+  r.around do |test|
+    test.call
+
+    # Tidy up any deferred work managers!
+    TomQueue::DeferredWorkManager.instances.each_pair do |prefix, i|
+      i.ensure_stopped
+      i.purge!
+    end
+    TomQueue::DeferredWorkManager.reset!
+  end
+
 end
