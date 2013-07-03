@@ -112,7 +112,13 @@ describe "DeferredWorkManager integration scenarios"  do
 
   describe "if the AMQP consumer thread crashes" do
 
+    it "should notify the exception_reporter"
+
     it "should reject the messages"
+
+    it "should reject the message without requeieing"
+
+    it "should make messages get posted to a dead-letter-queue for later inspection"
 
   end
 
