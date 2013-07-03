@@ -192,7 +192,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
 
       # Run both consumers, in parallel threads, so in some cases, 
       # there should be a thread waiting for work
-      @threads = 10.times.collect do |i|
+      @threads = 4.times.collect do |i|
         Thread.new do
           loop do
             thread_consumer = TomQueue::QueueManager.new(manager.prefix)
