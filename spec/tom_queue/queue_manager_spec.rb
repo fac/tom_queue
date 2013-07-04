@@ -124,6 +124,7 @@ describe TomQueue::QueueManager do
         TomQueue::PRIORITIES.should == [
           TomQueue::HIGH_PRIORITY,
           TomQueue::NORMAL_PRIORITY,
+          TomQueue::LOW_PRIORITY,
           TomQueue::BULK_PRIORITY
         ]
       end

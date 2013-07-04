@@ -25,13 +25,14 @@ module TomQueue
   #
   HIGH_PRIORITY = "high"
   NORMAL_PRIORITY = "normal"
+  LOW_PRIORITY = "low"
   BULK_PRIORITY = "bulk"
 
   # Internal: A list of all the known priority values
   #
   # This array is where the priority ordering comes from, so get the
   # order right!
-  PRIORITIES = [HIGH_PRIORITY, NORMAL_PRIORITY, BULK_PRIORITY].freeze
+  PRIORITIES = [HIGH_PRIORITY, NORMAL_PRIORITY, LOW_PRIORITY, BULK_PRIORITY].freeze
 
   # Public: This is your interface to pushing work onto and
   #   pulling work off the work queue. Instantiate one of these
