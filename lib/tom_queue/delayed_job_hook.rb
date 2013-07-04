@@ -33,7 +33,7 @@ module TomQueue
       def tomqueue_publish
         self.class.tomqueue_manager.publish(JSON.dump({"delayed_job_id" => self.id}), {
           :run_at => self.run_at,
-          :priority => self.class.tomqueue_priority_map.fetch(self.priority)
+          :priority => self.class.tomqueue_priority_map.fetch(self.priority, TomQueue::NORMAL_PRIORITY)
         })
       end
 
