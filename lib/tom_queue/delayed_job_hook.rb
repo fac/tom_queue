@@ -23,7 +23,7 @@ module TomQueue
       # this job
       attr_accessor :tomqueue_work
 
-      after_create :tomqueue_publish
+      after_commit :tomqueue_publish, :on => :create
 
       # Map External priority values to the TomQueue priority levels
       cattr_reader :tomqueue_priority_map
