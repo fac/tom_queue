@@ -4,10 +4,9 @@ module TomQueue
   # Internal: This is an internal class that oversees the delay of "deferred"
   #  work, that is, work with a future :run_at value.
   #
-  # This is created by, and associated with, a QueueManager object. The queue manager
-  # pushes work into this method by calling the handle_deferred(...) method, and work
-  # is passed back by simply calling the #publish(...) method on the QeueManager (which is
-  # this classes delegate).
+  # There is a singleton object for each prefix value (really, there should only be a single
+  # prefix used. The queue manager ensures this thread is running whenever #pop is called.
+  # Work is also pushed to this maanger by the QueueManager when it needs to be deferred.
   #
   # Internally, this class opens a separate AMQP channel (without a prefetch limit) and
   # leaves all the deferred messages in an un-acked state. An internal timer is maintained
