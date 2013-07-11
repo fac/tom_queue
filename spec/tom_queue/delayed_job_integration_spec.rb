@@ -70,6 +70,14 @@ describe TomQueue, "once hooked" do
       }.should raise_exception(ArgumentError, /cannot publish an unsaved Delayed::Job/)
     end
 
+    it "should not publish a message if the job has a non-nil failed_at" do
+      # This is a ball-ache. after_commit swallows all exceptions, including the Mock::ExpectationFailed 
+      # ones that would otherwise fail this spec if should_not_receive were used.
+      job.stub!(:tomqueue_publish) { @called = true }
+      job.update_attributes(:failed_at => Time.now)
+      @called.should be_nil
+    end
+
     describe "when it is called on a saved job" do
       before do
         job # create the job first so we don't trigger the expectation twice
@@ -127,10 +135,9 @@ describe TomQueue, "once hooked" do
         it "should contain the current updated_at timestamp (with second-level precision)" do
           job.tomqueue_publish
           job.reload
-          decoded_payload['updated_at'].should == job.updated_at.iso8601(0)
+          decoded_payload['delayed_job_updated_at'].should == job.updated_at.iso8601(0)
         end
       end
-
     end
 
     describe "callback triggering" do
@@ -146,21 +153,23 @@ describe TomQueue, "once hooked" do
       end
 
       it "should be called after commit, when a record is saved" do
-        new_job.should_not_receive(:tomqueue_publish)
+        new_job.stub!(:tomqueue_publish) { @called = true }
 
         Delayed::Job.transaction do
           new_job.save!
+          @called.should be_nil
           new_job.rspec_reset
           new_job.should_receive(:tomqueue_publish).with(no_args)
         end
       end
 
       it "should be called after commit, when a record is updated" do
-        job.should_not_receive(:tomqueue_publish)
+        job.stub!(:tomqueue_publish) { @called = true }
 
         Delayed::Job.transaction do
           job.run_at = Time.now + 10.seconds
           job.save!
+          @called.should be_nil
 
           job.rspec_reset
           job.should_receive(:tomqueue_publish).with(no_args)
@@ -168,13 +177,15 @@ describe TomQueue, "once hooked" do
       end
 
       it "should not be called when a record is destroyed" do
-        job.should_not_receive(:tomqueue_publish)
+        job.stub!(:tomqueue_publish) { @called = true } # See first use of this for explaination
         job.destroy
+        @called.should be_nil
       end
 
       it "should not be called by a destroy in a transaction" do
-        job.should_not_receive(:tomqueue_publish)
+        job.stub!(:tomqueue_publish) { @called = true } # See first use of this for explaination
         Delayed::Job.transaction { job.destroy }
+        @called.should be_nil
       end
     end
 
@@ -257,6 +268,8 @@ describe TomQueue, "once hooked" do
     end
 
     describe "when a TomQueue::Work object is returned" do
+      # The good ol' happy path.
+
       let(:the_time) { Time.now }
       before { Delayed::Job.stub!(:db_time_now => the_time) }
 
@@ -278,14 +291,26 @@ describe TomQueue, "once hooked" do
 
         it "should tomqueue_publish the job after the Delayed::Worker.max_run_time, by default" do
           job
-          Delayed::Job.tomqueue_manager.should_receive(:publish).with(job.tomqueue_payload, hash_including(:run_at => (the_time + Delayed::Worker.max_run_time)))
+          Delayed::Job.tomqueue_manager.should_receive(:publish).with(anything, hash_including(:run_at => (the_time + Delayed::Worker.max_run_time)))
           Delayed::Job.reserve(worker)
         end
 
-        it "should tomqueue_publish the job after the second arg if supplied" do
+        # We don't use this argument, we use the Delayed::Worker.max_run_time configuration option
+        xit "should tomqueue_publish the job after the second arg if supplied" do
           job
-          Delayed::Job.tomqueue_manager.should_receive(:publish).with(job.tomqueue_payload, hash_including(:run_at => (the_time + 99)))
+          Delayed::Job.tomqueue_manager.should_receive(:publish).with(anything, hash_including(:run_at => (the_time + 99)))
           Delayed::Job.reserve(worker, 99)
+        end
+
+        it "should tomqueue_publish the job with the updated (post-locking) payload" do
+          job
+          Delayed::Job.tomqueue_manager.should_receive(:publish) do |payload, opts|
+            @posted_payload = payload
+          end
+
+          Delayed::Job.reserve(worker, 99)
+          job.reload
+          @posted_payload.should == job.tomqueue_payload
         end
 
         describe "if there is an error during reserve" do
@@ -304,40 +329,112 @@ describe TomQueue, "once hooked" do
             }.should raise_exception(RuntimeError, "YAK NOT FOUND")
           end
         end
+      end
+
+      describe "if the job has been updated since the message" do
+        before do
+          job.update_attributes!(:run_at => Time.now + 5)
+        end
+        it "should ack the message" do
+          work.should_receive(:ack!)
+          Delayed::Job.reserve(worker)
+        end
+        it "should return nil" do
+          Delayed::Job.reserve(worker).should be_nil
+        end
+        it "should not have locked the job" do
+          Delayed::Job.reserve(worker)
+          job.reload
+          job.locked_by.should be_nil
+        end
+      end
+
+      # describe "if the job is locked, less than max_run_time ago" do
+      #   # Really, this shouldn't happen as locking a job should touch
+      #   # updated_at meaning the job is immediately disregarded.
+      #   #
+      #   it "should return nil" do
+      #   it "should ack the message"
+      #   it "should"
+      # end
+
+      describe "if the job is locked, more than max_run_time ago" do
+        # Looks like, according to DJ, this job has crashed. Boo Hoo.
+        # 
+        # The worker should carry on as if the job weren't locked.
+
+        before do
+          # First worker pops the job
+          Delayed::Job.reserve(worker).should == job
+          job.reload
+
+          # Fake out the message an updated message
+          work.stub!(:payload => job.tomqueue_payload)
+
+          # Fake out "the future"...
+          Delayed::Job.stub!(:db_time_now => job.locked_at + Delayed::Worker.max_run_time)
+        end
+
+        it "should return the job" do
+          Delayed::Job.reserve(worker).should == job
+        end
+
+        it "should re-lock the job" do
+          worker.stub!(:name => "new_name_#{Time.now.to_f}")
+          Delayed::Job.reserve(worker)
+          job.reload
+          job.locked_at.should == Delayed::Job.db_time_now
+          job.locked_by.should == worker.name
+        end
+
+        it "should ack the message" do
+          work.should_receive(:ack!)
+          Delayed::Job.reserve(worker)
+        end
+      end
+
+      # describe "if the job has a run_at in the future" do
+      #   # Hmm, this is a tricky one. Again this message should have been delivered
+      #   # on time and any updates to the job should have invalidated the updated_at
+      #   # field.
+      #   #
+      #   # So I think in this case we'll just presume the message is OK and chalk the
+      #   # problem down to clock sync issues between the deferred worker and the 
+      #   # running worker
+      #   it "shoudl lock teh job" do
+
+      #     job.locked_at
+      #   end
+      #   it "should return the job"
+      #   it "shoudl ack the message"
+
+      # end
+      
+      describe "if the job's failed_at value is non-nil" do
+        before do
+          job.failed_at = Time.now
+          job.save
+        end
+        it "should return nil" do
+          Delayed::Job.reserve(worker).should be_nil
+        end
+        it "should not lock the job" do
+          Delayed::Job.reserve(worker)
+          job.reload
+          job.locked_by.should be_nil
+        end
+        it "should ack the message" do
+          work.should_receive(:ack!)
+          Delayed::Job.reserve(worker)
+        end
+      end
+
+      describe "if someone tries to update the object after a worker has locked it" do
+        # We need to be careful if someone on the console tweaks a job that has started
+        # so we'll need to wrap updates with some implicit locking and alerting.
 
       end
 
-      # describe "when a job is, somehow, locked by another worker" do
-
-      #   it "should ack the message" do
-      #     work.should_receive(:ack!)
-      #     Delayed::Job.reserve(worker)
-      #   end
-      #   it "should return nil" do
-      #     Delayed::Job.reserve(worker).should be_nil
-      #   end
-      # end
-
-      # describe "when a job has run_at in the future"
-      
-      # describe "when the job has a different updated_at value"
-
-      # # job has run_at in the past ?
-
-      # # job has been updated since the message ?
-
-      # # job save crashes ? - don't ack message, bail!
-
-      # it "should return the job object" do
-      #   Delayed::Job.reserve(worker).tap do |response|
-      #     response.should be_a(Delayed::Job)
-      #     response.id.should == job.id
-      #   end
-      # end
-
-      # it "should only be locked by one worker"
-
-      # it "should hold a pessemistic lock"
     end
 
   end

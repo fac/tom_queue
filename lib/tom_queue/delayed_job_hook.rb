@@ -83,13 +83,16 @@ module TomQueue
         self.find_each { |instance| instance.tomqueue_publish }
       end
 
+      # Private: Skip the implicit tomqueue_publish when a record is being saved
+      attr_accessor :skip_publish
+
       # This triggers the publish whenever a record is saved (and committed to
       # stable storage).
       #
       # It's also worth noting that after_commit masks exceptions, so a failed
       # publish won't bring down the caller.
       #
-      after_commit :tomqueue_publish, :if => :persisted?
+      after_commit :tomqueue_publish, :if => lambda { persisted? && !!run_at && !failed_at }
 
       # Public: Send a notification to a worker to consider this job, 
       # via AMQP. This is called automatically when a job is created
@@ -102,6 +105,10 @@ module TomQueue
       # Returns nil
       def tomqueue_publish(custom_run_at=nil)
         raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if new_record?
+
+        if locked_at && locked_by
+          custom_run_at = self.locked_at + Delayed::Worker.max_run_time
+        end
 
         self.class.tomqueue_manager.publish(tomqueue_payload, {
           :run_at   => custom_run_at || self.run_at,
@@ -124,9 +131,20 @@ module TomQueue
       # Returns a string
       def tomqueue_payload
         JSON.dump({
-          "delayed_job_id" => self.id,
-          "updated_at"     => self.updated_at.iso8601(0)
+          "delayed_job_id"         => self.id,
+          "delayed_job_digest"     => tomqueue_digest,
+          "delayed_job_updated_at" => self.updated_at.iso8601(0)
         })
+      end
+
+      # Private: Calculate a hexdigest of the attributes
+      #
+      # This is used to detect if the received message is stale, as it's sent as part of the
+      # AMQP payload and then re-calculated when the worker is about to run the job.
+      #
+      # Returns a string
+      def tomqueue_digest
+        Digest::MD5.hexdigest(self.attributes.to_s)
       end
 
       # Public: Called by Delayed::Worker to retrieve the next job to process
@@ -150,27 +168,39 @@ module TomQueue
         # a write lock on the record to avoid potential race conditions with other workers
         # doing the same...
         job = Delayed::Job.transaction do
+          decoded_payload = JSON.load(work.payload)
 
-          job = Delayed::Job.find_by_id(JSON.load(work.payload)['delayed_job_id'], :lock => true)
+          # Load the job, ensuring we have a write lock so other workers in the same position
+          # block whilst we grab a lock
+          job = Delayed::Job.find_by_id(decoded_payload['delayed_job_id'], :lock => true)
 
-          if job.locked_by.nil? && job.locked_at.nil?
+          # Has the job changed since the message was published?
+          if decoded_payload['delayed_job_digest'] && job.tomqueue_digest != decoded_payload['delayed_job_digest']
+            job = nil
+
+          # is the job locked by someone else?
+          elsif job.locked_by && job.locked_at && job.locked_at > (self.db_time_now - max_run_time)
+            job = nil
+
+          end
+
+          if job
+            # Now lock it!
             job.locked_by = worker.name
             job.locked_at = self.db_time_now
             job.save!
-          else
-            puts "WAH, someone else is holding this lock!"
-            job = nil
+
+            # This is a cleanup job, just in case the worker crashes whilst running the job
+            # or anything, in fact, whilst the DJ lock is held!
+            #job.tomqueue_publish(self.db_time_now + max_run_time)
           end
 
           job
         end
 
-        if job
-          # This is a cleanup job, just in case the worker crashes whilst running the job
-          job.tomqueue_publish(self.db_time_now + max_run_time)
-        end
-        
+        # OK! We made it here, how exciting. Ack the message so it doesn't get re-delivered
         work.ack!
+
         job
       end
 
