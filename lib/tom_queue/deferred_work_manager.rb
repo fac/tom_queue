@@ -161,6 +161,9 @@ module TomQueue
     #
     def thread_main
 
+      # Make sure we're low priority!
+      Thread.current.priority = -10
+
       # Create a dedicated channel, and ensure it's prefetch 
       # means we'll empty the queue
       @channel = TomQueue.bunny.create_channel
