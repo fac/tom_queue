@@ -176,10 +176,11 @@ module TomQueue
           # block whilst we grab a lock
           job = Delayed::Job.find_by_id(decoded_payload['delayed_job_id'], :lock => true)
 
+          if job.nil?
           # Has the job changed since the message was published?
-          if decoded_payload['delayed_job_digest'] && job.tomqueue_digest != decoded_payload['delayed_job_digest']
-            job = nil
+          elsif decoded_payload['delayed_job_digest'] && job.tomqueue_digest != decoded_payload['delayed_job_digest']
 
+            job = nil
           # is the job locked by someone else?
           elsif job.locked_by && job.locked_at && job.locked_at > (self.db_time_now - max_run_time)
             job = nil

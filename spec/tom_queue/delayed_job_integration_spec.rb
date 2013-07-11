@@ -420,6 +420,21 @@ describe TomQueue, "once hooked" do
         end
       end
 
+      describe "if the job doesn't exist" do
+        before do
+          job.destroy
+        end
+
+        it "should ack the message" do
+          work.should_receive(:ack!)
+          Delayed::Job.reserve(worker)
+        end
+
+        it "should return nil" do
+          Delayed::Job.reserve(worker).should be_nil
+        end
+      end
+
       # describe "if the job has a run_at in the future" do
       #   # Hmm, this is a tricky one. Again this message should have been delivered
       #   # on time and any updates to the job should have invalidated the updated_at
