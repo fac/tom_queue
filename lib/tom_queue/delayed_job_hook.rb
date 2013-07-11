@@ -58,6 +58,14 @@ module TomQueue
     #
     class Job < ::Delayed::Backend::ActiveRecord::Job
 
+      # Public: This provides a shared queue manager object, instantiated on the first 
+      # call
+      #
+      # Returns a TomQueue::QueueManager instance
+      def self.tomqueue_manager
+        @@tomqueue_manager ||= TomQueue::QueueManager.new
+      end
+
       # Public: This calls #tomqueue_publish on all jobs currently
       # in the delayed_job table. This will probably end up with 
       # duplicate messages, but the worker should do the right thing
@@ -71,13 +79,49 @@ module TomQueue
 
       end
 
+      # This triggers the publish whenever a record is saved (and committed to
+      # stable storage).
+      #
+      # It's also worth noting that after_commit masks exceptions, so a failed
+      # publish won't bring down the caller.
+      #
+      after_commit :tomqueue_publish, :if => :persisted?
+
       # Public: Send a notification to a worker to consider this job, 
       # via AMQP. This is called automatically when a job is created
       # or updated (so you shouldn't need to call it directly unless
       # you believe TomQueue is misbehaving)
       #
+      # deliver_at - when this message should be delivered.
+      #              (Optional, defaults to the job's run_at time)
+      #
       # Returns nil
-      def tomqueue_publish
+      def tomqueue_publish(run_at=nil)
+        raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if new_record?
+
+
+      rescue
+        # Notify honey badger!!
+        # Write to the log!!
+        #
+        raise
+      end
+
+
+      # Public: Called by Delayed::Worker to retrieve the next job to process
+      #
+      # This is the glue beween TomQueue and DelayedJob and implements most of
+      # the behaviour discussed above.
+      #
+      # This function will block until a job becomes available to process. It tweaks
+      # the `Delayed::Worker.raise_signal_exceptions` during the blocking stage so
+      # the process can be interrupted.
+      #
+      # Returns Delayed::Job instance for the next job to process.
+      def self.reserve(worker, max_run_time = Delayed::Worker.max_run_time)
+
+
+
 
       end
 
