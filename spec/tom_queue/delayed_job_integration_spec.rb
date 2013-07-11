@@ -215,5 +215,131 @@ describe TomQueue, "once hooked" do
     it "should return nil" do
       Delayed::Job.tomqueue_republish.should be_nil
     end
+
+    xit "should call #tomqueue_publish on all DB records" do
+
+    end
   end
+
+  describe "Delayed::Job#reserve - return the next job" do
+    let(:job)     { Delayed::Job.create! }
+    let(:worker)  { mock("Worker", :name => "Worker-Name-#{Time.now.to_f}") }
+    let(:payload) { job.tomqueue_payload }
+    let(:work)    { mock("Work", :payload => payload, :ack! => nil) }
+
+    before do
+      Delayed::Job.tomqueue_manager.stub!(:pop => work)
+    end
+
+    it "should call pop on the queue manager" do
+      Delayed::Job.tomqueue_manager.should_receive(:pop)
+      Delayed::Job.reserve(worker)
+    end
+
+    describe "signal handling" do
+      it "should allow signal handlers during the pop" do
+        Delayed::Worker.raise_signal_exceptions = false
+        Delayed::Job.tomqueue_manager.should_receive(:pop) do
+          Delayed::Worker.raise_signal_exceptions.should be_true
+          work
+        end
+        Delayed::Job.reserve(worker)
+      end
+
+      it "should reset the signal handler var after the pop" do
+        Delayed::Worker.raise_signal_exceptions = false
+        Delayed::Job.reserve(worker)
+        Delayed::Worker.raise_signal_exceptions.should == false
+        Delayed::Worker.raise_signal_exceptions = true
+        Delayed::Job.reserve(worker)
+        Delayed::Worker.raise_signal_exceptions.should == true
+      end
+    end
+
+    describe "when a TomQueue::Work object is returned" do
+      let(:the_time) { Time.now }
+      before { Delayed::Job.stub!(:db_time_now => the_time) }
+
+      describe "for a job that is ready to run and not locked" do
+        it "should return the job object" do
+          Delayed::Job.reserve(worker).should == job
+        end
+        it "should ack the work object" do
+          work.should_receive(:ack!)
+          Delayed::Job.reserve(worker)
+        end
+        it "should lock the job" do
+          Delayed::Job.reserve(worker)
+
+          job.reload
+          job.locked_at.to_i.should == the_time.to_i
+          job.locked_by.should == worker.name
+        end
+
+        it "should tomqueue_publish the job after the Delayed::Worker.max_run_time, by default" do
+          job
+          Delayed::Job.tomqueue_manager.should_receive(:publish).with(job.tomqueue_payload, hash_including(:run_at => (the_time + Delayed::Worker.max_run_time)))
+          Delayed::Job.reserve(worker)
+        end
+
+        it "should tomqueue_publish the job after the second arg if supplied" do
+          job
+          Delayed::Job.tomqueue_manager.should_receive(:publish).with(job.tomqueue_payload, hash_including(:run_at => (the_time + 99)))
+          Delayed::Job.reserve(worker, 99)
+        end
+
+        describe "if there is an error during reserve" do
+          before do
+            Delayed::Job.should_receive(:db_time_now).and_raise(RuntimeError, "YAK NOT FOUND")
+          end
+
+          it "should not ack the job" do
+            work.should_not_receive(:ack!)            
+            Delayed::Job.reserve(worker) rescue nil
+          end
+
+          it "should let the exception fall out to the caller" do
+            lambda {
+              Delayed::Job.reserve(worker)
+            }.should raise_exception(RuntimeError, "YAK NOT FOUND")
+          end
+        end
+
+      end
+
+      # describe "when a job is, somehow, locked by another worker" do
+
+      #   it "should ack the message" do
+      #     work.should_receive(:ack!)
+      #     Delayed::Job.reserve(worker)
+      #   end
+      #   it "should return nil" do
+      #     Delayed::Job.reserve(worker).should be_nil
+      #   end
+      # end
+
+      # describe "when a job has run_at in the future"
+      
+      # describe "when the job has a different updated_at value"
+
+      # # job has run_at in the past ?
+
+      # # job has been updated since the message ?
+
+      # # job save crashes ? - don't ack message, bail!
+
+      # it "should return the job object" do
+      #   Delayed::Job.reserve(worker).tap do |response|
+      #     response.should be_a(Delayed::Job)
+      #     response.id.should == job.id
+      #   end
+      # end
+
+      # it "should only be locked by one worker"
+
+      # it "should hold a pessemistic lock"
+    end
+
+  end
+
 end

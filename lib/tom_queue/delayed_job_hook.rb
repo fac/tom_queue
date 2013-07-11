@@ -80,7 +80,7 @@ module TomQueue
       #
       # Returns nil
       def self.tomqueue_republish
-
+        self.find_each { |instance| instance.tomqueue_publish }
       end
 
       # This triggers the publish whenever a record is saved (and committed to
@@ -103,10 +103,7 @@ module TomQueue
       def tomqueue_publish(custom_run_at=nil)
         raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if new_record?
 
-        self.class.tomqueue_manager.publish(JSON.dump({
-          "delayed_job_id" => self.id,
-          "updated_at"     => self.updated_at.iso8601(0)
-        }), {
+        self.class.tomqueue_manager.publish(tomqueue_payload, {
           :run_at   => custom_run_at || self.run_at,
           :priority => self.class.tomqueue_priority_map.fetch(self.priority, TomQueue::NORMAL_PRIORITY)
         })
@@ -119,6 +116,18 @@ module TomQueue
         raise
       end
 
+      # Private: Prepare an AMQP payload for this job
+      #
+      # This is used by both #tomqueue_publish as well as tests to avoid
+      # maintaining mock payloads all over the place.
+      #
+      # Returns a string
+      def tomqueue_payload
+        JSON.dump({
+          "delayed_job_id" => self.id,
+          "updated_at"     => self.updated_at.iso8601(0)
+        })
+      end
 
       # Public: Called by Delayed::Worker to retrieve the next job to process
       #
@@ -132,9 +141,37 @@ module TomQueue
       # Returns Delayed::Job instance for the next job to process.
       def self.reserve(worker, max_run_time = Delayed::Worker.max_run_time)
 
+        # Grab a job from the QueueManager - will block here, ensure we can be interrupted!
+        Delayed::Worker.raise_signal_exceptions, old_value = true, Delayed::Worker.raise_signal_exceptions
+        work = self.tomqueue_manager.pop
+        Delayed::Worker.raise_signal_exceptions = old_value
 
+        # We have to be careful here, we grab the DJ lock inside a transaction that holds
+        # a write lock on the record to avoid potential race conditions with other workers
+        # doing the same...
+        job = Delayed::Job.transaction do
 
+          job = Delayed::Job.find_by_id(JSON.load(work.payload)['delayed_job_id'], :lock => true)
 
+          if job.locked_by.nil? && job.locked_at.nil?
+            job.locked_by = worker.name
+            job.locked_at = self.db_time_now
+            job.save!
+          else
+            puts "WAH, someone else is holding this lock!"
+            job = nil
+          end
+
+          job
+        end
+
+        if job
+          # This is a cleanup job, just in case the worker crashes whilst running the job
+          job.tomqueue_publish(self.db_time_now + max_run_time)
+        end
+        
+        work.ack!
+        job
       end
 
     end
