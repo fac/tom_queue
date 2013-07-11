@@ -69,7 +69,66 @@ describe TomQueue, "once hooked" do
       }.should raise_exception(ArgumentError, /cannot publish an unsaved Delayed::Job/)
     end
 
-    it "should publish a message to the TomQueue queue manager" do
+    describe "when it is called on a saved job" do
+      before do
+        job # create the job first so we don't trigger the expectation twice
+        Delayed::Job.tomqueue_manager.should_receive(:publish) do |payload, opts|
+          @payload = payload
+          @opts = opts
+        end
+      end
+
+      it "should call publish on the queue manager" do
+        job.tomqueue_publish
+        @payload.should_not be_nil
+      end
+
+      describe "job priority" do
+        before do
+          TomQueue::DelayedJobHook::Job.tomqueue_priority_map[-10] = TomQueue::BULK_PRIORITY
+          TomQueue::DelayedJobHook::Job.tomqueue_priority_map[10] = TomQueue::HIGH_PRIORITY
+        end
+
+        it "should map the priority of the job to the TomQueue priority" do
+          new_job.priority = -10
+          new_job.save
+          @opts[:priority].should == TomQueue::BULK_PRIORITY
+        end
+
+        it "should default the priority to TomQueue::NORMAL_PRIORITY if the provided priority is unknown" do
+          new_job.priority = 99
+          new_job.save
+          @opts[:priority].should == TomQueue::NORMAL_PRIORITY
+        end
+        xit "should log a warning if an unknown priority is specified" do
+          pending("LOGGER STUFF")
+        end
+      end
+
+      describe "run_at value" do
+        it "should use the job's :run_at value by default" do
+          job.tomqueue_publish
+          @opts[:run_at].should == job.run_at
+        end
+        it "should use the run_at value provided if provided by the caller" do
+          the_time = Time.now + 10.seconds
+          job.tomqueue_publish(the_time)
+          @opts[:run_at].should == the_time
+        end
+      end
+
+      describe "the payload" do
+        let(:decoded_payload) { JSON.load(@payload) }
+        it "should contain the job id" do
+          job.tomqueue_publish
+          decoded_payload['delayed_job_id'].should == job.id
+        end
+        it "should contain the current updated_at timestamp (with second-level precision)" do
+          job.tomqueue_publish
+          job.reload
+          decoded_payload['updated_at'].should == job.updated_at.iso8601(0)
+        end
+      end
 
     end
 

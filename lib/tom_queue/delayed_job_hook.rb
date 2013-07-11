@@ -66,6 +66,10 @@ module TomQueue
         @@tomqueue_manager ||= TomQueue::QueueManager.new
       end
 
+      # Map External priority values to the TomQueue priority levels
+      cattr_reader :tomqueue_priority_map
+      @@tomqueue_priority_map = Hash.new(TomQueue::NORMAL_PRIORITY)
+
       # Public: This calls #tomqueue_publish on all jobs currently
       # in the delayed_job table. This will probably end up with 
       # duplicate messages, but the worker should do the right thing
@@ -96,10 +100,16 @@ module TomQueue
       #              (Optional, defaults to the job's run_at time)
       #
       # Returns nil
-      def tomqueue_publish(run_at=nil)
+      def tomqueue_publish(custom_run_at=nil)
         raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if new_record?
 
-
+        self.class.tomqueue_manager.publish(JSON.dump({
+          "delayed_job_id" => self.id,
+          "updated_at"     => self.updated_at.iso8601(0)
+        }), {
+          :run_at   => custom_run_at || self.run_at,
+          :priority => self.class.tomqueue_priority_map.fetch(self.priority, TomQueue::NORMAL_PRIORITY)
+        })
       rescue
         # Notify honey badger!!
         # Write to the log!!
@@ -154,9 +164,6 @@ end
 
 #       after_commit :tomqueue_publish, :on => :create
 
-#       # Map External priority values to the TomQueue priority levels
-#       cattr_reader :tomqueue_priority_map
-#       @@tomqueue_priority_map = Hash.new(TomQueue::NORMAL_PRIORITY)
 
 #       # Publish an AMQP message to trigger the job
 #       def tomqueue_publish
