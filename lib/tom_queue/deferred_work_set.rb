@@ -1,5 +1,49 @@
 module TomQueue
 
+  # Internal: This is a cache array that keeps the earliest X elements
+  # in a sorted list, so they can be quickly retrieved
+  class ElementCache
+
+    # Public: Create the cache
+    #
+    # cache_size - the number of elements this cache can store
+    #
+    def initialize(cache_size)
+      @cache_size = cache_size
+      @earliest = nil
+    end
+
+    # Public: Insert a given piece of work into the cache
+    # (if it makes sense to)
+    #
+    # run_at - ruby Time object
+    # work   - the payload to store
+    #
+    def insert(run_at, work)
+      @earliest = work if @earliest.nil? or run_at < @earliest.run_at
+    end
+
+    # Public: Notify the cache that a particular element has been
+    # removed from the set
+    #
+    def invalidate(element)
+      @earliest = nil
+    end
+
+    # Public: Is this cache valid, i.e.does it need rebuilding?
+    #
+    # Returns boolean
+    def valid?
+      !@earliest.nil?
+    end
+
+    # Public: Return the cache item with the earliest run_at value
+    def first
+      @earliest
+    end
+  end
+
+
   # Internal: This class wraps the pool of work items that are waiting for their run_at 
   # time to be reached.
   # 
@@ -34,7 +78,7 @@ module TomQueue
       @mutex = Mutex.new
       @condvar = ConditionVariable.new
       @work = Set.new
-      @earliest_element = nil
+      @cache = ElementCache.new(50)
     end
 
     # Public: Returns the integer number of elements in the set
@@ -75,7 +119,7 @@ module TomQueue
           element = earliest_element
           if element && element.run_at < Time.now
             @work.delete(element)
-            @earliest_element = nil
+            @cache.invalidate(element)
             returned_work = element.work
           end
 
@@ -112,7 +156,7 @@ module TomQueue
       @mutex.synchronize do
         new_element = Element.new(run_at, work)
         @work << new_element
-        @earliest_element = new_element if @earliest_element && new_element < @earliest_element
+        @cache.insert(new_element.run_at, new_element)
         @condvar.signal
       end
     end
@@ -126,15 +170,21 @@ module TomQueue
       earliest_element.try(:work)
     end
 
+    # Internal: Maintains an internal cache of the earliest few elements
+    # We do the single scan of the main list to build this hot cache less
+    # often than every time we remove a deferred job
+    #
+    # Returns nil
+    def rebuild_cache
+      @work.each do |v|
+        @cache.insert(v.run_at, v)
+      end
+    end
+
     # Internal: The earliest element (i.e. wrapper object)
     def earliest_element
-      @earliest_element ||= unless @work.empty?
-        min_value = nil
-        @work.each do |v|
-          min_value = v if min_value.nil? or v < min_value
-        end
-        min_value
-      end
+      rebuild_cache if !@cache.valid?
+      @cache.first
     end
   end
 
