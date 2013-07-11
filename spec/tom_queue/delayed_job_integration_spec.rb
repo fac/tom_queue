@@ -50,6 +50,33 @@ describe TomQueue, "once hooked" do
     end
   end
 
+  describe "Delayed::Job#tomqueue_digest" do
+    let(:job) { Delayed::Job.create! }
+
+    it "should return a different value when the object is saved" do
+      first_digest = job.tomqueue_digest
+      job.update_attributes(:run_at => Time.now + 10.seconds)
+      job.tomqueue_digest.should_not == first_digest
+    end
+
+    it "should return the same value, regardless of the time zone (regression)" do
+      ActiveRecord::Base.time_zone_aware_attributes = true
+      old_zone = Time.zone
+      
+      # Create a job in a funky arsed time zone
+      Time.zone = "Hawaii"
+
+      job = Delayed::Job.create!
+      first_digest = job.tomqueue_digest
+
+      Time.zone = "Auckland"
+
+      job = Delayed::Job.find(job.id)
+      job.tomqueue_digest.should == first_digest
+
+      Time.zone = old_zone
+    end
+  end
 
   describe "Delayed::Job#tomqueue_publish" do
     let(:job) { Delayed::Job.create! }

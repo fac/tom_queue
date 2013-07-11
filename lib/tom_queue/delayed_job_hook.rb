@@ -143,8 +143,10 @@ module TomQueue
       # AMQP payload and then re-calculated when the worker is about to run the job.
       #
       # Returns a string
+      BROKEN_DIGEST_CLASSES = [DateTime, Time, ActiveSupport::TimeWithZone]
       def tomqueue_digest
-        Digest::MD5.hexdigest(self.attributes.to_s)
+        digest_string = self.attributes.map { |k,v| BROKEN_DIGEST_CLASSES.include?(v.class) ? [k,v.to_i] : [k,v.to_s] }.to_s
+        Digest::MD5.hexdigest(digest_string)
       end
 
       # Public: Called by Delayed::Worker to retrieve the next job to process
