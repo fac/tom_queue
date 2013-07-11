@@ -64,6 +64,7 @@ describe TomQueue, "once hooked" do
     end
 
     it "should raise an exception if it is called on an unsaved job" do
+      TomQueue.exception_reporter = mock("SilentExceptionReporter", :notify => nil)
       lambda {
         Delayed::Job.new.tomqueue_publish
       }.should raise_exception(ArgumentError, /cannot publish an unsaved Delayed::Job/)
@@ -178,8 +179,29 @@ describe TomQueue, "once hooked" do
     end
 
     describe "if an exception is raised during the publish" do
-      it "should notify the exception handler"
-      it "should log an error message to the log"
+      let(:exception) { RuntimeError.new("Bugger. Dropped the ball, sorry.") }
+
+      before do
+        TomQueue.exception_reporter = mock("SilentExceptionReporter", :notify => nil)
+        Delayed::Job.tomqueue_manager.should_receive(:publish).and_raise(exception)
+      end
+
+      it "should not be raised out to the caller" do
+        lambda { new_job.save }.should_not raise_exception
+      end
+
+      it "should notify the exception reporter" do
+        TomQueue.exception_reporter.should_receive(:notify).with(exception)
+        new_job.save
+      end
+
+      it "should do nothing if the exception reporter is nil" do
+        TomQueue.exception_reporter = nil
+        lambda { new_job.save }.should_not raise_exception
+      end
+      xit "should log an error message to the log" do
+        pending("LOGGING")
+      end
     end
 
   end

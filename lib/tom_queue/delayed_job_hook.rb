@@ -110,10 +110,12 @@ module TomQueue
           :run_at   => custom_run_at || self.run_at,
           :priority => self.class.tomqueue_priority_map.fetch(self.priority, TomQueue::NORMAL_PRIORITY)
         })
-      rescue
-        # Notify honey badger!!
-        # Write to the log!!
-        #
+      rescue Exception => e
+        r = TomQueue.exception_reporter
+        r && r.notify(e)
+        
+        #TODO: Write error to the log!!
+        
         raise
       end
 
