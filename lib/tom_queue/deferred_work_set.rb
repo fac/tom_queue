@@ -11,11 +11,22 @@ module TomQueue
     # Internal: A wrapper object to store the run at and the opaque
     # work object inside the @work array.
     class Element < Struct.new(:run_at, :work)
+      include Comparable
+
+      attr_reader :run_at_float
+      def initialize(run_at, work)
+        super(run_at, work)
+        @run_at_float = (run_at.to_f * 1000).to_i
+      end
+
+      def < (other)
+        run_at_float < other.run_at_float
+      end
       def <=> (other)
-        run_at <=> other.run_at
+        run_at_float <=> other.run_at_float
       end
       def sleep_interval
-        run_at - Time.now
+        run_at - Time.now.to_f
       end
     end
 
@@ -23,6 +34,7 @@ module TomQueue
       @mutex = Mutex.new
       @condvar = ConditionVariable.new
       @work = Set.new
+      @earliest_element = nil
     end
 
     # Public: Returns the integer number of elements in the set
@@ -54,6 +66,7 @@ module TomQueue
 
         begin
           @blocked_thread = Thread.current
+
           begin
             end_time = [earliest_element.try(:run_at), timeout_end].compact.min
             @condvar.wait(@mutex, end_time - Time.now) if end_time > Time.now
@@ -62,6 +75,7 @@ module TomQueue
           element = earliest_element
           if element && element.run_at < Time.now
             @work.delete(element)
+            @earliest_element = nil
             returned_work = element.work
           end
 
@@ -96,7 +110,9 @@ module TomQueue
     #
     def schedule(run_at, work)
       @mutex.synchronize do
-        @work << Element.new(run_at, work)
+        new_element = Element.new(run_at, work)
+        @work << new_element
+        @earliest_element = new_element if @earliest_element && new_element < @earliest_element
         @condvar.signal
       end
     end
@@ -112,7 +128,13 @@ module TomQueue
 
     # Internal: The earliest element (i.e. wrapper object)
     def earliest_element
-      @work.sort.first
+      @earliest_element ||= unless @work.empty?
+        min_value = nil
+        @work.each do |v|
+          min_value = v if min_value.nil? or v < min_value
+        end
+        min_value
+      end
     end
   end
 
