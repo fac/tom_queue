@@ -51,10 +51,10 @@ module TomQueue
   # to AMQP. Generally, this should be called during a Rails initializer at some point.
   def self.hook_delayed_job!
     require 'tom_queue/delayed_job_hook'
-
-    Delayed::Worker.backend = TomQueue::DelayedJobHook::Job
-    Delayed::Worker.plugins << TomQueue::DelayedJobHook::AmqpConsumer
+    
     Delayed::Worker.sleep_delay = 0
+    Delayed::Worker.backend = TomQueue::DelayedJobHook::Job
+    #Delayed::Worker.plugins << TomQueue::DelayedJobHook::AmqpConsumer
   end
 
 end
