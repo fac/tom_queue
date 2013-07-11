@@ -8,9 +8,9 @@ module TomQueue
     #
     # cache_size - the number of elements this cache can store
     #
-    def initialize(cache_size)
-      @cache_size = cache_size
-      @earliest = nil
+    def initialize
+      @cache_size = 50
+      @earliest = []
     end
 
     # Public: Insert a given piece of work into the cache
@@ -20,26 +20,30 @@ module TomQueue
     # work   - the payload to store
     #
     def insert(run_at, work)
-      @earliest = work if @earliest.nil? or run_at < @earliest.run_at
+      if @earliest.size < @cache_size or run_at < @earliest.last.run_at
+        @earliest << work
+        @earliest.sort!
+        @earliest.pop until @earliest.size <= @cache_size
+      end
     end
 
     # Public: Notify the cache that a particular element has been
     # removed from the set
     #
     def invalidate(element)
-      @earliest = nil
+      @earliest.delete(element)
     end
 
     # Public: Is this cache valid, i.e.does it need rebuilding?
     #
     # Returns boolean
     def valid?
-      !@earliest.nil?
+      !@earliest.empty?
     end
 
     # Public: Return the cache item with the earliest run_at value
     def first
-      @earliest
+      @earliest.first
     end
   end
 
@@ -78,7 +82,7 @@ module TomQueue
       @mutex = Mutex.new
       @condvar = ConditionVariable.new
       @work = Set.new
-      @cache = ElementCache.new(50)
+      @cache = ElementCache.new
     end
 
     # Public: Returns the integer number of elements in the set
