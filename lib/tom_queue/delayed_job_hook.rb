@@ -107,7 +107,7 @@ module TomQueue
         raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if new_record?
 
         if locked_at && locked_by
-          custom_run_at = self.locked_at + Delayed::Worker.max_run_time
+          custom_run_at = self.locked_at + 60
         end
 
         self.class.tomqueue_manager.publish(tomqueue_payload, {
@@ -183,6 +183,7 @@ module TomQueue
             job = nil
           # is the job locked by someone else?
           elsif job.locked_by && job.locked_at && job.locked_at > (self.db_time_now - max_run_time)
+            job.tomqueue_publish
             job = nil
 
           end
@@ -195,7 +196,6 @@ module TomQueue
 
             # This is a cleanup job, just in case the worker crashes whilst running the job
             # or anything, in fact, whilst the DJ lock is held!
-            #job.tomqueue_publish(self.db_time_now + max_run_time)
           end
 
           job
