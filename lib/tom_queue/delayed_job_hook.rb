@@ -107,7 +107,7 @@ module TomQueue
         raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if new_record?
 
         if locked_at && locked_by
-          custom_run_at = self.locked_at + 60
+          custom_run_at = Time.now + 60
         end
 
         self.class.tomqueue_manager.publish(tomqueue_payload, {
