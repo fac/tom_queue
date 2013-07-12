@@ -193,9 +193,6 @@ module TomQueue
             job.locked_by = worker.name
             job.locked_at = self.db_time_now
             job.save!
-
-            # This is a cleanup job, just in case the worker crashes whilst running the job
-            # or anything, in fact, whilst the DJ lock is held!
           end
 
           job
