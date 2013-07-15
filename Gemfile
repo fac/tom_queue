@@ -1,7 +1,6 @@
 source 'https://rubygems.org'
 
 gem 'rake'
-gem 'bunny', '0.9.0.rc1'
 
 group :test do
   platforms :jruby do

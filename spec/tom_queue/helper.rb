@@ -1,6 +1,6 @@
 require 'helper'
 require 'bunny'
-
+require 'tom_queue'
 # Install a simple exception reporter that just makes noise!
 TomQueue.exception_reporter = Class.new do
   def notify(exception)
