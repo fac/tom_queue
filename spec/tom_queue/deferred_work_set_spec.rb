@@ -20,15 +20,15 @@ describe TomQueue::DeferredWorkSet do
     end
 
     it "should return the only item if there is one item in the set" do
-      work = mock("Work")
+      work = double("Work")
       set.schedule( Time.now + 0.3, work)
       set.earliest.should == work
     end
 
     it "should return the item in the set with the lowest run_at value" do
-      set.schedule( Time.now + 0.2, work1 = mock("Work") )
-      set.schedule( Time.now + 0.1, work2 = mock("Work") )
-      set.schedule( Time.now + 0.3, work3 = mock("Work") )
+      set.schedule( Time.now + 0.2, work1 = double("Work") )
+      set.schedule( Time.now + 0.1, work2 = double("Work") )
+      set.schedule( Time.now + 0.3, work3 = double("Work") )
       set.earliest.should == work2
     end
 

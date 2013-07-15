@@ -108,7 +108,7 @@ describe "DeferredWorkManager integration scenarios"  do
       end
 
       it "should notify something if the deferred thread crashes" do
-        TomQueue.exception_reporter = mock("ExceptionReporter", :notify => nil)
+        TomQueue.exception_reporter = double("ExceptionReporter", :notify => nil)
 
         TomQueue.exception_reporter.should_receive(:notify) do |exception|
           exception.should be_a(RuntimeError)
@@ -161,7 +161,7 @@ describe "DeferredWorkManager integration scenarios"  do
     end
 
     it "should notify the exception_reporter" do
-      TomQueue.exception_reporter = mock("Reporter")
+      TomQueue.exception_reporter = double("Reporter")
       TomQueue.exception_reporter.should_receive(:notify) do |exception|
         exception.should be_a(RuntimeError)
         exception.message.should == "ENOHAIR"
@@ -181,7 +181,7 @@ describe "DeferredWorkManager integration scenarios"  do
     end
 
     it "should re-queue the message once" do
-      TomQueue.exception_reporter = mock("Reporter")
+      TomQueue.exception_reporter = double("Reporter")
       TomQueue.exception_reporter.should_receive(:notify).twice
       crash!
       consumer.publish("bar", :run_at => Time.now + 0.1)

@@ -67,14 +67,8 @@ module TomQueue
         @run_at_float = (run_at.to_f * 1000).to_i
       end
 
-      def < (other)
-        run_at_float < other.run_at_float
-      end
       def <=> (other)
         run_at_float <=> other.run_at_float
-      end
-      def sleep_interval
-        run_at - Time.now.to_f
       end
     end
 

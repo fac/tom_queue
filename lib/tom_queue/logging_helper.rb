@@ -6,16 +6,14 @@ module TomQueue
     end
 
     [:debug, :info, :warn, :error].each do |level|
-      define_method(level) do |message|
-
-        if TomQueue.logger && TomQueue.logger.send(:"#{level}?")
-          message ||= yield if block_given?
-          TomQueue.logger.send(level, message) if message
+      eval <<-RUBY
+        def #{level}(message=nil, &block)
+          if TomQueue.logger && TomQueue.logger.#{level}?
+            message ||= yield if block_given?
+            TomQueue.logger.#{level}(message)
+          end
         end
-      end
+      RUBY
     end
-
-         
   end
-
 end

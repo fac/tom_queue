@@ -63,14 +63,6 @@ module TomQueue
     # Returns a hash of { "priority" => <Bunny::Exchange>, ... }
     attr_reader :exchanges
 
-    def puts(*args)
-      if @ident
-        super(args.map { |a| "[#{@ident}] #{a}" })
-      else
-        super
-      end
-    end
-
     class PersistentWorkPool < ::Bunny::ConsumerWorkPool
       def kill
       end

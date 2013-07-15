@@ -91,7 +91,7 @@ describe TomQueue, "once hooked" do
     end
 
     it "should raise an exception if it is called on an unsaved job" do
-      TomQueue.exception_reporter = mock("SilentExceptionReporter", :notify => nil)
+      TomQueue.exception_reporter = double("SilentExceptionReporter", :notify => nil)
       lambda {
         Delayed::Job.new.tomqueue_publish
       }.should raise_exception(ArgumentError, /cannot publish an unsaved Delayed::Job/)
@@ -100,7 +100,7 @@ describe TomQueue, "once hooked" do
     it "should not publish a message if the job has a non-nil failed_at" do
       # This is a ball-ache. after_commit swallows all exceptions, including the Mock::ExpectationFailed 
       # ones that would otherwise fail this spec if should_not_receive were used.
-      job.stub!(:tomqueue_publish) { @called = true }
+      job.stub(:tomqueue_publish) { @called = true }
       job.update_attributes(:failed_at => Time.now)
       @called.should be_nil
     end
@@ -180,37 +180,37 @@ describe TomQueue, "once hooked" do
       end
 
       it "should be called after commit, when a record is saved" do
-        new_job.stub!(:tomqueue_publish) { @called = true }
+        new_job.stub(:tomqueue_publish) { @called = true }
 
         Delayed::Job.transaction do
           new_job.save!
           @called.should be_nil
-          new_job.rspec_reset
+          new_job.unstub(:tomqueue_publish)
           new_job.should_receive(:tomqueue_publish).with(no_args)
         end
       end
 
       it "should be called after commit, when a record is updated" do
-        job.stub!(:tomqueue_publish) { @called = true }
+        job.stub(:tomqueue_publish) { @called = true }
 
         Delayed::Job.transaction do
           job.run_at = Time.now + 10.seconds
           job.save!
           @called.should be_nil
 
-          job.rspec_reset
+          job.unstub(:tomqueue_publish)
           job.should_receive(:tomqueue_publish).with(no_args)
         end
       end
 
       it "should not be called when a record is destroyed" do
-        job.stub!(:tomqueue_publish) { @called = true } # See first use of this for explaination
+        job.stub(:tomqueue_publish) { @called = true } # See first use of this for explaination
         job.destroy
         @called.should be_nil
       end
 
       it "should not be called by a destroy in a transaction" do
-        job.stub!(:tomqueue_publish) { @called = true } # See first use of this for explaination
+        job.stub(:tomqueue_publish) { @called = true } # See first use of this for explaination
         Delayed::Job.transaction { job.destroy }
         @called.should be_nil
       end
@@ -220,7 +220,7 @@ describe TomQueue, "once hooked" do
       let(:exception) { RuntimeError.new("Bugger. Dropped the ball, sorry.") }
 
       before do
-        TomQueue.exception_reporter = mock("SilentExceptionReporter", :notify => nil)
+        TomQueue.exception_reporter = double("SilentExceptionReporter", :notify => nil)
         Delayed::Job.tomqueue_manager.should_receive(:publish).and_raise(exception)
       end
 
@@ -261,12 +261,12 @@ describe TomQueue, "once hooked" do
 
   describe "Delayed::Job#reserve - return the next job" do
     let(:job)     { Delayed::Job.create! }
-    let(:worker)  { mock("Worker", :name => "Worker-Name-#{Time.now.to_f}") }
+    let(:worker)  { double("Worker", :name => "Worker-Name-#{Time.now.to_f}") }
     let(:payload) { job.tomqueue_payload }
-    let(:work)    { mock("Work", :payload => payload, :ack! => nil) }
+    let(:work)    { double("Work", :payload => payload, :ack! => nil) }
 
     before do
-      Delayed::Job.tomqueue_manager.stub!(:pop => work)
+      Delayed::Job.tomqueue_manager.stub(:pop => work)
     end
 
     it "should call pop on the queue manager" do
@@ -304,7 +304,7 @@ describe TomQueue, "once hooked" do
     end
 
     describe "Job#invoke_job" do
-      let(:payload) { mock("DelayedJobPayload", :perform => nil)}
+      let(:payload) { double("DelayedJobPayload", :perform => nil)}
       let(:job) { Delayed::Job.create!(:payload_object=>payload) }
 
       it "should perform the job" do
@@ -318,7 +318,7 @@ describe TomQueue, "once hooked" do
       end
 
       describe "if there is a tomqueue work object set on the object" do
-        let(:work_object) { mock("WorkObject", :ack! => nil)}
+        let(:work_object) { double("WorkObject", :ack! => nil)}
         before { job.tomqueue_work = work_object}
 
         it "should call ack! on the work object after the job has been invoked" do
@@ -338,7 +338,7 @@ describe TomQueue, "once hooked" do
     end
 
     describe "if a nil message is popped" do
-      before { Delayed::Job.tomqueue_manager.stub!(:pop=>nil) }
+      before { Delayed::Job.tomqueue_manager.stub(:pop=>nil) }
 
       it "should return nil" do
         Delayed::Job.reserve(worker).should be_nil
@@ -353,7 +353,7 @@ describe TomQueue, "once hooked" do
     describe "when a TomQueue::Work object is returned" do
 
       let(:the_time) { Time.now }
-      before { Delayed::Job.stub!(:db_time_now => the_time) }
+      before { Delayed::Job.stub(:db_time_now => the_time) }
 
       describe "for a job that is ready to run and not locked" do
         it "should return the job object" do
@@ -379,7 +379,7 @@ describe TomQueue, "once hooked" do
 
         it "should not trigger the tomqueue_publish callback when locking the job" do
           @publish_called = false
-          Delayed::Job.tomqueue_manager.stub!(:publish) { @publish_called = true }
+          Delayed::Job.tomqueue_manager.stub(:publish) { @publish_called = true }
           Delayed::Job.reserve(worker)
           @publish_called.should be_false
         end
@@ -388,7 +388,7 @@ describe TomQueue, "once hooked" do
           job = Delayed::Job.reserve(worker)
 
           @called = false
-          Delayed::Job.tomqueue_manager.stub!(:publish) { @called = true }
+          Delayed::Job.tomqueue_manager.stub(:publish) { @called = true }
           job.touch(:updated_at)
           job.save!
           @called.should be_true
@@ -444,10 +444,10 @@ describe TomQueue, "once hooked" do
           job.reload
 
           # Fake out the message an updated message
-          work.stub!(:payload => job.tomqueue_payload)
+          work.stub(:payload => job.tomqueue_payload)
 
           # Fake out "the future", but not as far as max_run_time...
-          Delayed::Job.stub!(:db_time_now => job.locked_at + 10)
+          Delayed::Job.stub(:db_time_now => job.locked_at + 10)
         end
 
         it "should return nil" do
@@ -477,10 +477,10 @@ describe TomQueue, "once hooked" do
           job.reload
 
           # Fake out the message an updated message
-          work.stub!(:payload => job.tomqueue_payload)
+          work.stub(:payload => job.tomqueue_payload)
 
           # Fake out "the future"...
-          Delayed::Job.stub!(:db_time_now => job.locked_at + Delayed::Worker.max_run_time)
+          Delayed::Job.stub(:db_time_now => job.locked_at + Delayed::Worker.max_run_time)
         end
 
         it "should return the job" do
@@ -488,7 +488,7 @@ describe TomQueue, "once hooked" do
         end
 
         it "should re-lock the job" do
-          worker.stub!(:name => "new_name_#{Time.now.to_f}")
+          worker.stub(:name => "new_name_#{Time.now.to_f}")
           Delayed::Job.reserve(worker)
           job.reload
           job.locked_at.should == Delayed::Job.db_time_now

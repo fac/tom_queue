@@ -59,43 +59,6 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     output.should == input
   end
 
-  xit "should deal with the connection going away" do
-    p consumer.queue.status
-    manager.publish("1")
-    manager.publish("2")
-    manager.publish("3")
-
-    consumer.pop.ack!.payload.should == "1"
-    work2 = consumer.pop
-    work2.payload.should == "2"
-
-    # NOW WE KILL ALL THE THINGS!
-    uri = URI("http://127.0.0.1:15672/api/connections")
-    req = Net::HTTP::Get.new(uri.path)
-    req.basic_auth('guest', 'guest')
-
-    res = Net::HTTP.start(uri.hostname, uri.port) do |http|
-      http.request(req)
-    end
-    JSON.load(res.body).each do |connection|
-      if connection['client_properties']["product"] == "Bunny"
-        puts "Bye bye #{connection['name']}"
-        req = Net::HTTP::Delete.new("/api/connections/#{CGI.escape(connection['name'])}")
-        req.basic_auth('guest', 'guest')
-
-        res = Net::HTTP.start(uri.hostname, uri.port) do |http|
-          http.request(req)
-        end
-        p res
-      end
-    end
-    
-    
-    # first, make sure that 2 got re-delivered!
-    w = consumer.pop
-    w.payload.should == "2"    
-  end
-
   it "should not drop messages when two different priorities arrive" do
     manager.publish("1", :priority => TomQueue::BULK_PRIORITY)
     manager.publish("2", :priority => TomQueue::NORMAL_PRIORITY)

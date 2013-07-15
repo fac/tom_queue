@@ -2,7 +2,7 @@ require 'tom_queue/helper'
 
 describe TomQueue::Work do
 
-  let(:manager) { mock("QueueManager") }
+  let(:manager) { double("QueueManager") }
   let(:work) { TomQueue::Work.new(manager, :response, {'headers' => true}, 'payload') }
 
   it "should expose the queue manager" do
@@ -20,7 +20,7 @@ describe TomQueue::Work do
 
   describe "ack! sugar function" do
     before do
-      manager.stub!(:ack => nil)
+      manager.stub(:ack => nil)
     end
 
     it "should call the queue_manager#ack(self)" do

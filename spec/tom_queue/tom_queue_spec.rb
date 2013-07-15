@@ -11,7 +11,7 @@ describe TomQueue, "module functions" do
   end
 
   it "should store and return a shared bunny instance" do
-    new_bunny = mock(Bunny)
+    new_bunny = double(Bunny)
     TomQueue.bunny = new_bunny
     TomQueue.bunny.should == new_bunny
   end
