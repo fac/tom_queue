@@ -183,68 +183,61 @@ module TomQueue
           nil
         else
 
-          # We have to be careful here, we grab the DJ lock inside a transaction that holds
-          # a write lock on the record to avoid potential race conditions with other workers
-          # doing the same...
-          job = Delayed::Job.transaction do
-            decoded_payload = JSON.load(work.payload)
+          decoded_payload = JSON.load(work.payload)
 
-            debug "[reserve] Popped notification for #{decoded_payload['delayed_job_id']}"
+          debug "[reserve] Popped notification for #{decoded_payload['delayed_job_id']}"
 
-            # Load the job, ensuring we have a write lock so other workers in the same position
-            # block whilst we grab a lock
-            job = Delayed::Job.find_by_id(decoded_payload['delayed_job_id'], :lock => true)
+          # Load the job, ensuring we have a write lock so other workers in the same position
+          # block whilst we grab a lock
+          job = Delayed::Job.find_by_id(decoded_payload['delayed_job_id'], :lock => true)
 
-            if job.nil?
-              debug "[reserve] Job not found, discarding message."
+          if job.nil?
+            debug "[reserve] Job not found, discarding message."
 
-            
-            elsif job.locked_by && job.locked_at
+          
+          elsif job.locked_by && job.locked_at
 
-              # is the job already locked? if so, we're probably getting a
-              # re-delivery of an un-acke'd message, so a crashed worker.
-              # So lets schedule a message to be sent after the max_run_time
-              # to pick up the job again
-              if job.locked_at > (self.db_time_now - max_run_time)
+            # is the job already locked? if so, we're probably getting a
+            # re-delivery of an un-acke'd message, so a crashed worker.
+            # So lets schedule a message to be sent after the max_run_time
+            # to pick up the job again
+            if job.locked_at > (self.db_time_now - max_run_time)
 
-                debug "[reserve] Notified about locked job #{job.id}, will schedule follow up in #{max_run_time} seconds"
+              debug "[reserve] Notified about locked job #{job.id}, will schedule follow up in #{max_run_time} seconds"
 
-                # We're probably getting this because a worker crashed.
-                # Schedule a notification after the job has reached its max-run-time
-                job.tomqueue_publish(job.locked_at + max_run_time)
-                job = nil
-
-              else
-                debug "[reserve] Notified about job #{job.id} with expired lock. Unlocking job."
-                job.unlock
-              end
-            
-            # Has the job changed since the message was published?
-            elsif decoded_payload['delayed_job_digest'] && job.tomqueue_digest != decoded_payload['delayed_job_digest']
-
-              debug "[reserve] Digest mismatch, discarding message."
-
+              # We're probably getting this because a worker crashed.
+              # Schedule a notification after the job has reached its max-run-time
+              job.tomqueue_publish(job.locked_at + max_run_time)
               job = nil
 
+            else
+              debug "[reserve] Notified about job #{job.id} with expired lock. Re-acquiring job."
+              #job.unlock
             end
+          
+          # Has the job changed since the message was published?
+          elsif decoded_payload['delayed_job_digest'] && job.tomqueue_digest != decoded_payload['delayed_job_digest']
 
-            if job
-              debug "[reserve] Locking job #{job.id}"
+            debug "[reserve] Digest mismatch, discarding message."
 
-              # Now lock it!
-              job.locked_by = worker.name
-              job.locked_at = self.db_time_now
-              job.skip_publish = true
-              job.save!
-            end
+            job = nil
 
-            job
+          end
+
+          if job
+            debug "[reserve] Locking job #{job.id}"
+
+            # Now try and optimistically lock it!
+            new_locked_at = self.db_time_now
+            Delayed::Job.where(:id => job.id, :locked_at => job.locked_at).update_all(:locked_at => new_locked_at, :locked_by => worker.name)
+
+            job = Delayed::Job.where(:id => job.id, :locked_at => new_locked_at, :locked_by => worker.name).first
+
+            warn "[reserve] Failed to acquire optimistic lock. Dropping job" if job.nil?
           end
 
           # OK! We made it here, how exciting. Ack the message so it doesn't get re-delivered
           if job
-            job.skip_publish = false
-
             debug "[reserve] Returning job #{job.id} to be processed."
             job.tomqueue_work = work 
           else
