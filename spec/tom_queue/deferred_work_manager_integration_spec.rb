@@ -126,6 +126,7 @@ describe "DeferredWorkManager integration scenarios"  do
     # Tweak the deferred set to asplode when payload == "explosive"
     before do
       TomQueue.exception_reporter = nil
+      require 'tom_queue/deferred_work_set'
 
       # Look away...
       class TomQueue::DeferredWorkSet
@@ -167,6 +168,7 @@ describe "DeferredWorkManager integration scenarios"  do
       end
 
       crash!
+      TomQueue::DeferredWorkManager.instance(consumer.prefix).ensure_stopped
     end
 
     it "should work around the broken messages" do
