@@ -8,7 +8,8 @@
 # You probably want to start with TomQueue::QueueManager
 #
 module TomQueue
-
+  require 'tom_queue/logging_helper'
+  
   require 'tom_queue/queue_manager'
   require 'tom_queue/work'
   
@@ -44,7 +45,11 @@ module TomQueue
   #
   class << self
     attr_accessor :exception_reporter
+    attr_accessor :logger
   end
+
+  
+
 
 
   # Public: This installs the dynamic patches into Delayed Job to move scheduling over

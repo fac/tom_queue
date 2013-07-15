@@ -12,12 +12,13 @@ module TomQueue
     # messages and work out if a job is ready to run in the reserve method.
     #
     # In order to prevent the worker considering stale job states, we attach
-    # two pieces of information, the job ID, so the job can be located and the 
-    # updated_at timestamp when the notification is published.
+    # two pieces of information, the job ID, so the job can be located and a 
+    # digest of the record attributes so stale notifications can be detected.
     #
-    # This means that the worker can simply load a job and, if a record is returned
-    # quickly drop the notification if the updated_at value has changed since the
-    # message was published. Another notification will likely be en-route.
+    # This means that the worker can simply load a job and, if a record is
+    # found, quickly drop the notification if any of the attributes have been
+    # changed since the message was published. Another notification will 
+    # likely be en-route.
     #
     # Cases to consider:
     #
@@ -32,34 +33,40 @@ module TomQueue
     #     tomorrow, so we publish a second message to arrive in an hour and 
     #     know the worker will disregard the message that arrives tomorrow.
     #
-    #   - rather than leaving the job un-acked for the duration of the process, we
-    #     load the job, lock it and then re-publish a message that will trigger
-    #     a worker after the maximum run duration. This will likely just be dropped
-    #     since the job will have run successfully and been deleted, but equally could
-    #     catch a job that has crashed the worker. This ties into the behaviour of DJ
-    #     more closely than leaving the job un-acked.
+    #   - rather than leaving the job un-acked for the duration of the process,
+    #     we load the job, lock it and then re-publish a message that will
+    #     trigger a worker after the maximum run duration. This will likely
+    #     just be dropped since the job will have run successfully and been
+    #     deleted, but equally could catch a job that has crashed the worker.
+    #     This ties into the behaviour of DJ more closely than leaving the job
+    #     un-acked.
     #
     # During the worker reserve method, we do a number of things:
     #
-    #  - look up the job by ID, using the ready_to_run scope. We do this 
-    #    with a pessimistic lock for update, so concurrent workers block.
+    #  - look up the job by ID. We do this with an explicit pessimistic write
+    #    lock for update, so concurrent workers block.
     #
     #  - if there is no record, we ack the AMQP message and do nothing.
     #
     #  - if there is a record, we lock the job with our worker and save it.
-    #    (releasing the lock) At this point, concurrent workers won't find the job
-    #    as it has been DJ locked by this worker (so won't appear in the ready_to_run
-    #    scope).
+    #    (releasing the lock) At this point, concurrent workers won't find 
+    #    the job as it has been DJ locked by this worker.
     #
-    #  - we re-publish the job to arrive after the maximum work duration.
+    #  - when the job completes, we ack the message from the broker, and we're
+    #    done.
     #
-    #  - then the message is acked on the RMQ server (if it fails from this point on, 
-    #    DJ will pick it up after the maximum work duration)
+    #  - in the event we get a message and the job is locked, the most likely 
+    #    reason is the other worker has crashed and the broker has re-delivered.
+    #    Since the job will have been updated (to lock it) the digest won't match
+    #    so we schedule a message to pick up the job when the max_run_time is 
+    #    reached.
     #
     class Job < ::Delayed::Backend::ActiveRecord::Job
 
-      # Public: This provides a shared queue manager object, instantiated on the first 
-      # call
+      include TomQueue::LoggingHelper
+
+      # Public: This provides a shared queue manager object, instantiated on
+      # the first call
       #
       # Returns a TomQueue::QueueManager instance
       def self.tomqueue_manager
@@ -104,11 +111,10 @@ module TomQueue
       #
       # Returns nil
       def tomqueue_publish(custom_run_at=nil)
+        return nil if self.skip_publish
         raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if new_record?
 
-        if locked_at && locked_by
-          custom_run_at = Time.now + 60
-        end
+        debug "[tomqueue_publish] Pushing notification for #{self.id} to run in #{((custom_run_at || self.run_at) - Time.now).round(2)}"
 
         self.class.tomqueue_manager.publish(tomqueue_payload, {
           :run_at   => custom_run_at || self.run_at,
@@ -117,8 +123,9 @@ module TomQueue
       rescue Exception => e
         r = TomQueue.exception_reporter
         r && r.notify(e)
-        
-        #TODO: Write error to the log!!
+
+        error "[tomqueue_publish] Exception during publish: #{e.inspect}"
+        e.backtrace.each { |l| error l }
         
         raise
       end
@@ -139,8 +146,9 @@ module TomQueue
 
       # Private: Calculate a hexdigest of the attributes
       #
-      # This is used to detect if the received message is stale, as it's sent as part of the
-      # AMQP payload and then re-calculated when the worker is about to run the job.
+      # This is used to detect if the received message is stale, as it's
+      # sent as part of the AMQP payload and then re-calculated when the
+      # worker is about to run the job.
       #
       # Returns a string
       BROKEN_DIGEST_CLASSES = [DateTime, Time, ActiveSupport::TimeWithZone]
@@ -160,48 +168,107 @@ module TomQueue
       #
       # Returns Delayed::Job instance for the next job to process.
       def self.reserve(worker, max_run_time = Delayed::Worker.max_run_time)
+        # Make debugging bearable...
+        # max_run_time = 30
 
         # Grab a job from the QueueManager - will block here, ensure we can be interrupted!
         Delayed::Worker.raise_signal_exceptions, old_value = true, Delayed::Worker.raise_signal_exceptions
         work = self.tomqueue_manager.pop
         Delayed::Worker.raise_signal_exceptions = old_value
 
-        # We have to be careful here, we grab the DJ lock inside a transaction that holds
-        # a write lock on the record to avoid potential race conditions with other workers
-        # doing the same...
-        job = Delayed::Job.transaction do
-          decoded_payload = JSON.load(work.payload)
+        if work.nil?
+          warn "[reserve] TomQueue#pop returned nil, stalling for a second."
+          sleep 1.0
 
-          # Load the job, ensuring we have a write lock so other workers in the same position
-          # block whilst we grab a lock
-          job = Delayed::Job.find_by_id(decoded_payload['delayed_job_id'], :lock => true)
+          nil
+        else
 
-          if job.nil?
-          # Has the job changed since the message was published?
-          elsif decoded_payload['delayed_job_digest'] && job.tomqueue_digest != decoded_payload['delayed_job_digest']
+          # We have to be careful here, we grab the DJ lock inside a transaction that holds
+          # a write lock on the record to avoid potential race conditions with other workers
+          # doing the same...
+          job = Delayed::Job.transaction do
+            decoded_payload = JSON.load(work.payload)
 
-            job = nil
-          # is the job locked by someone else?
-          elsif job.locked_by && job.locked_at && job.locked_at > (self.db_time_now - max_run_time)
-            job.tomqueue_publish
-            job = nil
+            debug "[reserve] Popped notification for #{decoded_payload['delayed_job_id']}"
 
+            # Load the job, ensuring we have a write lock so other workers in the same position
+            # block whilst we grab a lock
+            job = Delayed::Job.find_by_id(decoded_payload['delayed_job_id'], :lock => true)
+
+            if job.nil?
+              debug "[reserve] Job not found, discarding message."
+
+            
+            elsif job.locked_by && job.locked_at
+
+              # is the job already locked? if so, we're probably getting a
+              # re-delivery of an un-acke'd message, so a crashed worker.
+              # So lets schedule a message to be sent after the max_run_time
+              # to pick up the job again
+              if job.locked_at > (self.db_time_now - max_run_time)
+
+                debug "[reserve] Notified about locked job #{job.id}, will schedule follow up in #{max_run_time} seconds"
+
+                # We're probably getting this because a worker crashed.
+                # Schedule a notification after the job has reached its max-run-time
+                job.tomqueue_publish(job.locked_at + max_run_time)
+                job = nil
+
+              else
+                debug "[reserve] Notified about job #{job.id} with expired lock. Unlocking job."
+                job.unlock
+              end
+            
+            # Has the job changed since the message was published?
+            elsif decoded_payload['delayed_job_digest'] && job.tomqueue_digest != decoded_payload['delayed_job_digest']
+
+              debug "[reserve] Digest mismatch, discarding message."
+
+              job = nil
+
+            end
+
+            if job
+              debug "[reserve] Locking job #{job.id}"
+
+              # Now lock it!
+              job.locked_by = worker.name
+              job.locked_at = self.db_time_now
+              job.skip_publish = true
+              job.save!
+            end
+
+            job
           end
 
+          # OK! We made it here, how exciting. Ack the message so it doesn't get re-delivered
           if job
-            # Now lock it!
-            job.locked_by = worker.name
-            job.locked_at = self.db_time_now
-            job.save!
+            job.skip_publish = false
+
+            debug "[reserve] Returning job #{job.id} to be processed."
+            job.tomqueue_work = work 
+          else
+            work.ack!
           end
 
           job
         end
+      end
 
-        # OK! We made it here, how exciting. Ack the message so it doesn't get re-delivered
-        work.ack!
+      # Internal: This is the AMQP notification object that triggered this job run
+      # and is used to ack! the work once the job has been invoked
+      #
+      # Returns nil or TomQueue::Work object
+      attr_accessor :tomqueue_work
 
-        job
+      # Internal: This wraps the job invocation with an acknowledgement of the original
+      # TomQueue work object, if one is around.
+      #
+      def invoke_job
+        super
+      ensure
+        debug "[invoke job:#{self.id}] Invoke completed, acking message."
+        self.tomqueue_work && self.tomqueue_work.ack!
       end
 
     end

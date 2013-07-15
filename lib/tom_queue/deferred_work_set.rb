@@ -19,8 +19,8 @@ module TomQueue
     # run_at - ruby Time object
     # work   - the payload to store
     #
-    def insert(run_at, work)
-      if @earliest.size < @cache_size or run_at < @earliest.last.run_at
+    def insert(work)
+      if @earliest.size < @cache_size or work.run_at < @earliest.last.run_at
         @earliest << work
         @earliest.sort!
         @earliest.pop until @earliest.size <= @cache_size
@@ -160,7 +160,7 @@ module TomQueue
       @mutex.synchronize do
         new_element = Element.new(run_at, work)
         @work << new_element
-        @cache.insert(new_element.run_at, new_element)
+        @cache.insert(new_element)
         @condvar.signal
       end
     end
@@ -180,9 +180,7 @@ module TomQueue
     #
     # Returns nil
     def rebuild_cache
-      @work.each do |v|
-        @cache.insert(v.run_at, v)
-      end
+      @work.each { |v| @cache.insert(v) }
     end
 
     # Internal: The earliest element (i.e. wrapper object)
