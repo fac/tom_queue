@@ -185,90 +185,98 @@ describe TomQueue::QueueManager, "simple publish / pop" do
 
   describe "slow tests", :timeout => 100 do
 
+    class QueueConsumerThread
+
+      class WorkObject < Struct.new(:payload, :received_at, :run_at)
+        def <=>(other)
+          self.received_at.to_f <=> other.received_at.to_f
+        end
+      end
+
+      attr_reader :work, :thread
+
+      def initialize(manager, &work_proc)
+        @manager = manager
+        @work_proc = work_proc
+        @work = []
+      end
+
+      def thread_main
+        loop do
+          begin
+            work = @manager.pop
+            recv_time = Time.now
+
+            Thread.exit if work.payload == "done"
+            
+            work_obj = WorkObject.new(work.payload, recv_time, Time.parse(work.headers[:headers]['run_at']))
+            @work << work_obj 
+            @work_proc && @work_proc.call(work_obj)
+
+            work.ack!
+          rescue
+            p $!
+          end
+        end
+
+      end
+
+      def signal_shutdown(time=nil)
+        time ||= Time.now
+        @manager.publish("done", :run_at => time)
+      end
+      def start!
+        @thread ||= Thread.new(&method(:thread_main))
+        self
+      end
+    end
+
+
     it "should work with lots of messages, without dropping and deliver FIFO" do
-      @source_order = []
-      @sink_order = []
-      @mutex = Mutex.new
+      source_order = []
 
       # Run both consumers, in parallel threads, so in some cases, 
       # there should be a thread waiting for work
-      @threads = 8.times.collect do |i|
-        Thread.new do
-          loop do
-            thread_consumer = TomQueue::QueueManager.new(manager.prefix)
-
-            work = thread_consumer.pop
-
-            Thread.exit if work.payload == "the_end"
-
-            @mutex.synchronize do
-              @sink_order << work.payload
-            end
-
-            sleep 0.1  # simulate /actual work/ by sleeping.
-            work.ack!
-          end
-        end
-      end 
+      consumers = 16.times.collect do |i|
+        consumer = TomQueue::QueueManager.new(manager.prefix, "thread-#{i}")
+        QueueConsumerThread.new(consumer) { |work| sleep rand(0.5) }.start!
+      end
 
       # Now publish some work
       250.times do |i|
         work = "work #{i}"
-        @source_order << work
+        source_order << work
         manager.publish(work)
       end
         
       # Now publish a bunch of messages to cause the threads to exit the loop
-      @threads.size.times { manager.publish "the_end" }
+      consumers.each { |c| c.signal_shutdown }
+      consumers.each { |c| c.thread.join }
 
-      # Wait for the workers to finish
-      @threads.each {|t| t.join}
+      # Merge the list of received work together sorted by received time,
+      # and compare to the source list
+      sink_order = consumers.map { |c| c.work }.flatten.sort.map { |a| a.payload }
 
-      # Compare what the publisher did to what the workers did.
-      error_count = 0
-      @source_order.each_with_index do |value, index|
-        error_count += 1 if @sink_order[index] != value
-      end
-
-      # Due to the nature of the test, we may see one or two errors (flipped ordering) that
-      # can only be explained by the combination of threading, networking, etc. 
-      # This will make sure it's /mostly/ right :)
-      error_count.should < 6
+      source_order.should == sink_order
     end
 
     it "should be able to drain the queue, block and resume when new work arrives" do
-      @source_order = []
-      @sink_order = []
-      @mutex = Mutex.new
+      source_order = []
 
       # Run both consumers, in parallel threads, so in some cases, 
       # there should be a thread waiting for work
-      @threads = 10.times.collect do |i|
-        Thread.new do
-          loop do
-            thread_consumer = TomQueue::QueueManager.new(manager.prefix)
-
-            work = thread_consumer.pop
-
-            Thread.exit if work.payload == "the_end"            
-
-            @mutex.synchronize do
-              @sink_order << work.payload
-            end
-
-            sleep 0.5  # simulate /actual work/ by sleeping.
-            work.ack!
-          end
-        end
-      end 
+      consumers = 10.times.collect do |i|
+        consumer = TomQueue::QueueManager.new(manager.prefix, "thread-#{i}")
+        QueueConsumerThread.new(consumer) { |work| sleep rand(0.5) }.start!
+      end
 
       # This sleep gives the workers enough time to block on the first call to pop
-      sleep 0.1 until manager.queues[TomQueue::NORMAL_PRIORITY].status[:consumer_count] == @threads.size
+      sleep 0.1 until manager.queues[TomQueue::NORMAL_PRIORITY].status[:consumer_count] == consumers.size
 
       # Now publish some work
       50.times do |i|
         work = "work #{i}"
-        @source_order << work
+        source_order << work
         manager.publish(work)
       end
 
@@ -277,47 +285,28 @@ describe TomQueue::QueueManager, "simple publish / pop" do
 
       # Now publish some more work
       50.times do |i|
-        work = "work #{i}"
-        @source_order << work
+        work = "work 2-#{i}"
+        source_order << work
         manager.publish(work)
       end
 
       # Now publish a bunch of messages to cause the threads to exit the loop
-      @threads.size.times { manager.publish "the_end" }
+      consumers.each { |c| c.signal_shutdown }
+      consumers.each { |c| c.thread.join }
 
-      # Wait for the workers to finish
-      @threads.each {|t| t.join }
+      # Now merge all the consumers internal work arrays into one
+      # sorted by the received_at timestamps
+      sink_order = consumers.map { |c| c.work }.flatten.sort.map { |a| a.payload }
 
       # Compare what the publisher did to what the workers did.
-      @source_order.should == @sink_order
+      sink_order.should == source_order
     end
 
     it "should work with lots of deferred work on the queue, and still schedule all messages" do
-      sink = []
-      sink_mutex = Mutex.new
-
       # sit in a loop to pop it all off again
       consumers = 5.times.collect do |i|
-        Thread.new do 
-          consumer = TomQueue::QueueManager.new(manager.prefix, "thread-#{i}")
-          loop do
-            begin
-              work = consumer.pop
-              Thread.exit if work.payload == "done"
-
-              payload = JSON.load(work.payload)
-              
-              size = sink_mutex.synchronize do
-                sink << Time.now - Time.at(payload['run_at'])
-                sink.size
-              end
-
-              work.ack!
-            rescue
-              p $!
-            end
-          end
-        end
+        consumer = TomQueue::QueueManager.new(manager.prefix, "thread-#{i}")
+        QueueConsumerThread.new(consumer).start!
       end
 
       # Generate some work
@@ -325,23 +314,25 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       200.times do |i| 
         run_at = Time.now + (rand * 6.0)
         max_run_at = [max_run_at, run_at].max
-        manager.publish(JSON.dump({:id => i, :run_at => run_at.to_f}), :run_at => run_at)
+        manager.publish(JSON.dump(:id => i), :run_at => run_at)
       end
 
-      consumers.size.times do
-        manager.publish("done", :run_at => max_run_at + 1.0)
+      # Shutdown the consumers again
+      consumers.each do |c|
+        c.signal_shutdown(max_run_at + 1.0)
+      end
+      consumers.each { |c| c.thread.join }
+
+      # Now make sure none of the messages were delivered too late!
+      total_size = 0
+      consumers.each do |c|
+        total_size += c.work.size
+        c.work.each do |work|
+          work.received_at.should < (work.run_at + 1.0)
+        end
       end
 
-      consumers.each { |t| t.join }
-
-      # Sink contains the difference between the run-at time and the 
-      # actual time the job was run!
-      sink.each do |delta|
-        # if the delta is < 0, the job was TOO EARLY! This is bad
-        delta.should_not < 0
-        # make sure it wasn't more than a second late!
-        delta.should_not > 1
-      end
+      total_size.should == 200
     end
   end
 
