@@ -1,6 +1,7 @@
 require 'helper'
 require 'bunny'
 require 'tom_queue'
+
 # Install a simple exception reporter that just makes noise!
 TomQueue.exception_reporter = Class.new do
   def notify(exception)
@@ -8,6 +9,10 @@ TomQueue.exception_reporter = Class.new do
     puts exception.backtrace.join("\n")
   end
 end.new
+
+if ENV['DEBUG']
+  TomQueue.logger = Logger.new($stdout)
+end
 
 RSpec.configure do |r|
 
