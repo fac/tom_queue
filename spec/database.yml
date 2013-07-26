@@ -11,4 +11,4 @@ postgresql:
 
 sqlite3:
   adapter: sqlite3
-  database: ":memory:"
+  database: "/tmp/tomqueue.sqlite3"

@@ -2,7 +2,11 @@ require 'tom_queue/helper'
 
 describe TomQueue, "once hooked" do
 
+  let(:job) { Delayed::Job.create! }
+  let(:new_job) { Delayed::Job.new }
+
   before do
+    TomQueue.logger ||= Logger.new("/dev/null")
     TomQueue.default_prefix = "default-prefix"
     TomQueue.hook_delayed_job!
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
@@ -14,7 +18,6 @@ describe TomQueue, "once hooked" do
     # the job will start as soon as we receive a push from RMQ
     Delayed::Worker.sleep_delay.should == 0
   end
-
 
   describe "TomQueue::DelayedJobHook::Job" do
     it "should use the TomQueue job as the Delayed::Job" do
@@ -44,14 +47,13 @@ describe TomQueue, "once hooked" do
       Delayed::Job.tomqueue_manager.prefix.should == "foo"
     end
 
-    it "should be reset by rspec (1)" do
+    it "should be reset by rspec (2)" do
       TomQueue.default_prefix = "bar"
       Delayed::Job.tomqueue_manager.prefix.should == "bar"
     end
   end
 
   describe "Delayed::Job#tomqueue_digest" do
-    let(:job) { Delayed::Job.create! }
 
     it "should return a different value when the object is saved" do
       first_digest = job.tomqueue_digest
@@ -61,10 +63,7 @@ describe TomQueue, "once hooked" do
 
     it "should return the same value, regardless of the time zone (regression)" do
       ActiveRecord::Base.time_zone_aware_attributes = true
-      old_zone = Time.zone
-      
-      # Create a job in a funky arsed time zone
-      Time.zone = "Hawaii"
+      old_zone, Time.zone = Time.zone, "Hawaii"
 
       job = Delayed::Job.create!
       first_digest = job.tomqueue_digest
@@ -78,13 +77,28 @@ describe TomQueue, "once hooked" do
     end
   end
 
-  describe "Delayed::Job#tomqueue_publish" do
-    let(:job) { Delayed::Job.create! }
-    let(:new_job) { Delayed::Job.new }
-
-    it "should exist" do
-      job.respond_to?(:tomqueue_publish).should be_true
+  describe "Delayed::Job#tomqueue_payload" do
+ 
+    let(:payload) { JSON.load(job.tomqueue_payload)}
+ 
+    it "should return a hash" do
+      payload.should be_a(Hash)
     end
+
+    it "should contain the job id" do
+      payload['delayed_job_id'].should == job.id
+    end
+
+    it "should contain the current updated_at timestamp (with second-level precision)" do
+      payload['delayed_job_updated_at'].should == job.updated_at.iso8601(0)
+    end
+
+    it "should contain the digest after saving" do
+      payload['delayed_job_digest'].should == job.tomqueue_digest
+    end
+  end
+
+  describe "Delayed::Job#tomqueue_publish" do
 
     it "should return nil" do
       job.tomqueue_publish.should be_nil
@@ -97,18 +111,14 @@ describe TomQueue, "once hooked" do
       }.should raise_exception(ArgumentError, /cannot publish an unsaved Delayed::Job/)
     end
 
-    it "should not publish a message if the job has a non-nil failed_at" do
-      # This is a ball-ache. after_commit swallows all exceptions, including the Mock::ExpectationFailed 
-      # ones that would otherwise fail this spec if should_not_receive were used.
-      job.stub(:tomqueue_publish) { @called = true }
-      job.update_attributes(:failed_at => Time.now)
-      @called.should be_nil
-    end
+    describe "when it is called on a persisted job" do
 
-    describe "when it is called on a saved job" do
       before do
         job # create the job first so we don't trigger the expectation twice
+
+        @called = false
         Delayed::Job.tomqueue_manager.should_receive(:publish) do |payload, opts|
+          @called = true
           @payload = payload
           @opts = opts
         end
@@ -116,13 +126,13 @@ describe TomQueue, "once hooked" do
 
       it "should call publish on the queue manager" do
         job.tomqueue_publish
-        @payload.should_not be_nil
+        @called.should be_true
       end
 
       describe "job priority" do
         before do
           TomQueue::DelayedJobHook::Job.tomqueue_priority_map[-10] = TomQueue::BULK_PRIORITY
-          TomQueue::DelayedJobHook::Job.tomqueue_priority_map[10] = TomQueue::HIGH_PRIORITY
+          TomQueue::DelayedJobHook::Job.tomqueue_priority_map[10]  = TomQueue::HIGH_PRIORITY
         end
 
         it "should map the priority of the job to the TomQueue priority" do
@@ -131,88 +141,46 @@ describe TomQueue, "once hooked" do
           @opts[:priority].should == TomQueue::BULK_PRIORITY
         end
 
-        it "should default the priority to TomQueue::NORMAL_PRIORITY if the provided priority is unknown" do
-          new_job.priority = 99
-          new_job.save
-          @opts[:priority].should == TomQueue::NORMAL_PRIORITY
-        end
-        xit "should log a warning if an unknown priority is specified" do
-          pending("LOGGER STUFF")
+        describe "if an unknown priority value is used" do
+          before do
+            new_job.priority = 99
+          end
+
+          it "should default the priority to TomQueue::NORMAL_PRIORITY" do
+            new_job.save
+            @opts[:priority].should == TomQueue::NORMAL_PRIORITY
+          end
+
+          it "should log a warning" do
+            TomQueue.logger.should_receive(:warn)
+            new_job.save
+          end
         end
       end
 
       describe "run_at value" do
+
         it "should use the job's :run_at value by default" do
           job.tomqueue_publish
           @opts[:run_at].should == job.run_at
         end
+
         it "should use the run_at value provided if provided by the caller" do
           the_time = Time.now + 10.seconds
           job.tomqueue_publish(the_time)
           @opts[:run_at].should == the_time
         end
+
       end
 
       describe "the payload" do
-        let(:decoded_payload) { JSON.load(@payload) }
-        it "should contain the job id" do
+
+        before { job.stub(:tomqueue_payload => "PAYLOAD") }
+
+        it "should be the return value from #tomqueue_payload" do
           job.tomqueue_publish
-          decoded_payload['delayed_job_id'].should == job.id
+          @payload.should == "PAYLOAD"
         end
-        it "should contain the current updated_at timestamp (with second-level precision)" do
-          job.tomqueue_publish
-          job.reload
-          decoded_payload['delayed_job_updated_at'].should == job.updated_at.iso8601(0)
-        end
-      end
-    end
-
-    describe "callback triggering" do
-      xit "should be called after create when there is no explicit transaction" do
-        new_job.should_receive(:tomqueue_publish).with(no_args)
-        new_job.save!
-      end
-
-      xit "should be called after update when there is no explicit transaction" do
-        job.should_receive(:tomqueue_publish).with(no_args)
-        job.run_at = Time.now + 10.seconds
-        job.save!
-      end
-
-      xit "should be called after commit, when a record is saved" do
-        new_job.stub(:tomqueue_publish) { @called = true }
-
-        Delayed::Job.transaction do
-          new_job.save!
-          @called.should be_nil
-          new_job.unstub(:tomqueue_publish)
-          new_job.should_receive(:tomqueue_publish).with(no_args)
-        end
-      end
-
-      xit "should be called after commit, when a record is updated" do
-        job.stub(:tomqueue_publish) { @called = true }
-
-        Delayed::Job.transaction do
-          job.run_at = Time.now + 10.seconds
-          job.save!
-          @called.should be_nil
-
-          job.unstub(:tomqueue_publish)
-          job.should_receive(:tomqueue_publish).with(no_args)
-        end
-      end
-
-      it "should not be called when a record is destroyed" do
-        job.stub(:tomqueue_publish) { @called = true } # See first use of this for explaination
-        job.destroy
-        @called.should be_nil
-      end
-
-      it "should not be called by a destroy in a transaction" do
-        job.stub(:tomqueue_publish) { @called = true } # See first use of this for explaination
-        Delayed::Job.transaction { job.destroy }
-        @called.should be_nil
       end
     end
 
@@ -237,11 +205,98 @@ describe TomQueue, "once hooked" do
         TomQueue.exception_reporter = nil
         lambda { new_job.save }.should_not raise_exception
       end
-      xit "should log an error message to the log" do
-        pending("LOGGING")
+      
+      it "should log an error message to the log" do
+        TomQueue.logger.should_receive(:error)
+        new_job.save
+      end
+    end
+  end
+
+  describe "publish callbacks in Job lifecycle" do
+
+    xit "should allow Mock::ExpectationFailed exceptions to escape the callback" do
+      Delayed::Job.tomqueue_manager.should_receive(:publish).with("spurious arguments").once
+      lambda {
+        job.update_attributes(:run_at => Time.now + 5.seconds)
+      }.should raise_exception(RSpec::Mocks::MockExpectationError)
+    end    
+
+    it "should not publish a message if the job has a non-nil failed_at" do
+      # This is a ball-ache. after_commit swallows all exceptions, including the Mock::ExpectationFailed 
+      # ones that would otherwise fail this spec if should_not_receive were used.
+      job.stub(:tomqueue_publish) { @called = true }
+      job.update_attributes(:failed_at => Time.now)
+      @called.should be_nil
+    end
+
+    it "should be called after create when there is no explicit transaction" do
+      new_job.should_receive(:tomqueue_publish).with(no_args)
+      new_job.save!
+    end
+
+    it "should be called after update when there is no explicit transaction" do
+      job.should_receive(:tomqueue_publish).with(no_args)
+      job.run_at = Time.now + 10.seconds
+      job.save!
+    end
+
+    it "should be called after commit, when a record is saved" do
+      new_job.stub(:tomqueue_publish) { @called = true }
+
+      Delayed::Job.transaction do
+        new_job.save!
+        @called.should be_nil
+        new_job.unstub(:tomqueue_publish)
+        new_job.should_receive(:tomqueue_publish).with(no_args)
       end
     end
 
+    it "should be called after commit, when a record is updated" do
+      job.stub(:tomqueue_publish) { @called = true }
+
+      Delayed::Job.transaction do
+        job.run_at = Time.now + 10.seconds
+        job.save!
+        @called.should be_nil
+
+        job.unstub(:tomqueue_publish)
+        job.should_receive(:tomqueue_publish).with(no_args)
+      end
+    end
+
+    it "should not be called when a record is destroyed" do
+      job.stub(:tomqueue_publish) { @called = true } # See first use of this for explaination
+      job.destroy
+      @called.should be_nil
+    end
+
+    it "should not be called by a destroy in a transaction" do
+      job.stub(:tomqueue_publish) { @called = true } # See first use of this for explaination
+      Delayed::Job.transaction { job.destroy }
+      @called.should be_nil
+    end
+
+    it "should not be called if the update transaction is rolled back" do
+      job.stub(:tomqueue_publish) { @called = true }
+
+      Delayed::Job.transaction do
+        job.run_at = Time.now + 10.seconds
+        job.save!
+        raise ActiveRecord::Rollback
+      end
+      @called.should be_nil
+    end
+
+    it "should not be called if the create transaction is rolled back" do
+      new_job.stub(:tomqueue_publish) { @called = true }
+
+      Delayed::Job.transaction do
+        new_job.save!
+        raise ActiveRecord::Rollback
+      end
+      @called.should be_nil
+    end
   end
 
   describe "Delayed::Job.tomqueue_republish method" do
@@ -257,6 +312,240 @@ describe TomQueue, "once hooked" do
     xit "should call #tomqueue_publish on all DB records" do
 
     end
+  end
+
+  describe "Delayed::Job.acquire_locked_job" do
+    let(:time) { Time.now }
+    before { Delayed::Job.stub(:db_time_now => time) }
+    
+    let(:job) { Delayed::Job.create! }
+    let(:worker) { Delayed::Worker.new }
+
+    # make sure the job exists!
+    before { job }
+
+    subject { Delayed::Job.acquire_locked_job(job.id, worker, &@block) }
+
+    describe "when the job doesn't exist" do
+      before { job.destroy }
+
+      it "should return nil" do
+        subject.should be_nil
+      end
+
+      it "should not yield if a block is provided" do
+        @block = lambda { |value| @called = true}
+        subject
+        @called.should be_nil
+      end
+    end
+
+    describe "when the job exists" do
+
+      describe "when the job is not locked" do
+        
+        it "should acquire the lock fields on the job" do
+          subject
+          job.reload
+          job.locked_at.should == time
+          job.locked_by.should == worker.name
+        end
+
+        it "should return the job object" do
+          subject.should be_a(Delayed::Job)
+          subject.id.should == job.id
+        end
+
+        it "should yield the job to the block if present" do
+          @block = lambda { |value| @called = value}
+          subject
+          @called.should be_a(Delayed::Job)
+          @called.id.should == job.id
+        end
+
+        it "should not have locked the job when teh block is called" do
+          @block = lambda { |job| @called = [job.id, job.locked_at, job.locked_by]; true }
+          subject
+          @called.should == [job.id, nil, nil]
+        end
+
+        describe "if the supplied block returns true" do
+          before { @block = lambda { |_| true } }
+
+          it "should lock the job" do
+            subject
+            job.reload
+            job.locked_at.should == time
+            job.locked_by.should == worker.name
+          end
+
+          it "should return the job" do
+            subject.should be_a(Delayed::Job)
+            subject.id.should == job.id
+          end
+        end
+
+        describe "if the supplied block returns false" do
+          before { @block = lambda { |_| false } }
+
+          it "should not lock the job" do
+            subject
+            job.reload
+            job.locked_at.should be_nil
+            job.locked_by.should be_nil
+          end
+
+          it "should return nil" do
+            subject.should be_nil
+          end
+        end
+      end
+
+      describe "when the job is locked with a valid lock" do
+        before do
+          @old_locked_by = job.locked_by = "some worker"
+          @old_locked_at = job.locked_at = Time.now
+          job.save!
+        end
+
+        it "should not yield to a block if provided" do
+          @called = false
+          @block = lambda { |_| @called = true}
+          subject
+          @called.should be_false
+        end
+
+        it "should return false" do
+          subject.should be_false
+        end
+
+        it "should not change the lock" do
+          subject
+          job.reload
+          job.locked_by.should == @old_locked_by
+          job.locked_at.should == @old_locked_at
+        end
+
+      end
+
+      describe "when the job is locked with a stale lock" do
+        before do
+          @old_locked_by = job.locked_by = "some worker"
+          @old_locked_at = job.locked_at = (Time.now - Delayed::Worker.max_run_time - 1)
+          job.save!
+        end
+
+        it "should return the job" do
+          subject.should be_a(Delayed::Job)
+          subject.id.should == job.id
+        end
+
+        it "should update the lock" do
+          subject
+          job.reload
+          job.locked_at.should_not == @old_locked_at
+          job.locked_by.should_not == @old_locked_by
+        end
+
+        # This is tricky - if we have a stale lock, the job object
+        # will have been updated by the first worker, so the digest will
+        # now be invalid (since updated_at will have changed)
+        #
+        # So, we don't yield, we just presume we're carrying on from where
+        # a previous worker left off and don't try and validate the job any
+        # further.
+        it "should not yield the block if supplied" do
+          @called = false
+          @block = lambda { |_| @called = true}
+          subject
+          @called.should be_false
+        end
+      end
+
+    end
+
+    # describe "if the job is not locked" do
+
+
+
+    #   it "should not re-publish the job" do
+    #     @called = false
+    #     Delayed::Job.tomqueue_manager.stub(:publish) do |message|
+    #       @called = true
+    #     end
+    #     Delayed::Job.acquire_locked_job(job.id, worker)
+    #     @called.should be_false
+    #   end
+
+    #   it "should un-set skip_publish for the returned job" do
+    #     Delayed::Job.acquire_locked_job(job.id, worker).skip_publish.should be_nil
+    #   end
+
+
+    #   describe "there is no block provided" do
+    #     it_should_behave_like "acquire_locked_job successfully obtains lock"
+    #   end
+
+    #   describe "if the block is present and returns true" do
+    #     it_should_behave_like "acquire_locked_job successfully obtains lock"
+    #   end
+
+    #   describe "if the block is present and returns false" do
+    #     it_should_behave_like "acquire_locked_job when the job wasn't found"        
+    #   end
+
+    # end
+
+
+    # describe "if the job is locked" do
+    #   let(:worker2) { double("Worker", :name => "worker2") }
+    #   before { Delayed::Job.acquire_locked_job(job.id, worker2) }
+
+    #   it "should not yield anything" do
+    #     @job = :not_called
+    #     Delayed::Job.acquire_locked_job(job.id, worker) { |job| @job = job }
+    #     @job.should == :not_called
+    #   end
+
+    #   it "should not replace the lock on the job" do
+    #     Delayed::Job.acquire_locked_job(job.id, worker)
+    #     job.reload
+    #     job.locked_by.should == "worker2"
+    #   end
+
+    #   it "should return false" do
+    #     Delayed::Job.acquire_locked_job(job.id, worker).should == false
+    #   end
+    # end
+
+    # describe "if the job is locked but is now stale" do
+    #   let(:worker2) { double("Worker", :name => "worker2") }
+    #   before do
+    #     Delayed::Job.stub(:db_time_now => (time - Delayed::Worker.max_run_time - 1) )
+    #     Delayed::Job.acquire_locked_job(job.id, worker2)
+    #     Delayed::Job.stub(:db_time_now => time )
+    #   end
+
+    #   it "should yield the job object with a cleared lock" do
+    #     @job = :not_called
+    #     Delayed::Job.acquire_locked_job(job.id, worker) { |job| @job = [job.id, job.locked_at, job.locked_by] }
+    #     @job.should == [job.id, nil, nil]
+    #   end
+
+    #   it "should return the job object" do
+    #     job_out = Delayed::Job.acquire_locked_job(job.id, worker)
+    #     job_out.should be_a(Delayed::Job)
+    #     job_out.id.should == job.id
+    #     job_out.should be_locked
+    #   end
+
+    #   it "should lock the job" do
+    #     Delayed::Job.acquire_locked_job(job.id, worker)
+    #     job.reload
+    #     job.should be_locked
+    #   end
+
+    # end
   end
 
   describe "Delayed::Job#reserve - return the next job" do
@@ -561,5 +850,6 @@ describe TomQueue, "once hooked" do
     end
 
   end
+
 
 end

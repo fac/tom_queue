@@ -99,7 +99,25 @@ module TomQueue
       # It's also worth noting that after_commit masks exceptions, so a failed
       # publish won't bring down the caller.
       #
-      after_commit :tomqueue_publish, :if => lambda { persisted? && !!run_at && !failed_at }
+      after_save   :tomqueue_trigger,          :if => lambda { persisted? && !!run_at && !failed_at && !skip_publish}
+      
+      after_commit :tomqueue_publish_triggers, :unless => lambda { self.class.tomqueue_triggers.empty? }
+      after_rollback :tomqueue_clear_triggers, :unless => lambda { self.class.tomqueue_triggers.empty? }
+
+      @@tomqueue_triggers = []
+      cattr_reader :tomqueue_triggers
+
+      def tomqueue_publish_triggers
+        while job = self.class.tomqueue_triggers.pop
+          job.tomqueue_publish
+        end
+      end
+      def tomqueue_clear_triggers
+        self.class.tomqueue_triggers.clear
+      end
+      def tomqueue_trigger
+        self.class.tomqueue_triggers << self
+      end
 
       # Public: Send a notification to a worker to consider this job, 
       # via AMQP. This is called automatically when a job is created
@@ -115,17 +133,24 @@ module TomQueue
         raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if new_record?
 
         debug "[tomqueue_publish] Pushing notification for #{self.id} to run in #{((custom_run_at || self.run_at) - Time.now).round(2)}"
+        
+        tq_priority = self.class.tomqueue_priority_map.fetch(self.priority, nil)
+        if tq_priority.nil?
+          tq_priority = TomQueue::NORMAL_PRIORITY
+          warn "[tomqueue_publish] Unknown priority level #{self.priority} specified, mapping to NORMAL priority"
+        end
 
         self.class.tomqueue_manager.publish(tomqueue_payload, {
           :run_at   => custom_run_at || self.run_at,
-          :priority => self.class.tomqueue_priority_map.fetch(self.priority, TomQueue::NORMAL_PRIORITY)
+          :priority => tq_priority
         })
+
       rescue Exception => e
         r = TomQueue.exception_reporter
         r && r.notify(e)
 
         error "[tomqueue_publish] Exception during publish: #{e.inspect}"
-        e.backtrace.each { |l| error l }
+        e.backtrace.each { |l| info l }
         
         raise
       end
@@ -158,81 +183,67 @@ module TomQueue
       end
 
 
+      # Public: is this job locked
+      #
+      # Returns boolean true if the job has been locked by a worker
+      def locked?
+        !!locked_by && !!locked_at && (locked_at + Delayed::Worker.max_run_time) >= Delayed::Job.db_time_now
+      end
+
       # Public: Retrieves a job with a specific ID, acquiring a lock
       # preventing other concurrent workers from doing the same.
       # 
       # job_id - the ID of the job to acquire
       # worker - the Delayed::Worker attempting to acquire the lock
-      # digest - the message digest value
+      # block -> yielded with the job during the locking transaction
+      #          if false is returned, the job is assumed to be invalid
       #
       # Returns * a Delayed::Job instance if the job was found and lock acquired
       #         * nil if the job wasn't found
       #         * false if the job was found, but the lock wasn't acquired.
-      def self.acquire_locked_job(job_id, worker, digest)
+      def self.acquire_locked_job(job_id, worker)
 
         # We have to be careful here, we grab the DJ lock inside a transaction that holds
         # a write lock on the record to avoid potential race conditions with other workers
         # doing the same...
-        job = Delayed::Job.transaction do
+        Delayed::Job.transaction do
 
           # Load the job, ensuring we have a write lock so other workers in the same position
           # block, avoiding race conditions
           job = Delayed::Job.find_by_id(job_id, :lock => true)
 
-          # Now we test the state of the job
-          job = if job.nil?
-            debug "[acquire_locked_job] Job not found, discarding message."
+          if job.nil?
+            job = nil
+          
+          elsif job.locked?
+            job = false
+          
+          elsif job.locked_at || job.locked_by || (!block_given? || yield(job) == true)
+              job.skip_publish = true
+              
+              job.locked_by = worker.name
+              job.locked_at = self.db_time_now
+              job.save!
 
-            nil
-          elsif job.locked_by && job.locked_at
-
-            # is the job already locked? if so, we're probably getting a
-            # re-delivery of an un-acke'd message, so a crashed worker.
-            # So lets schedule a message to be sent after the max_run_time
-            # to pick up the job again
-            if job.locked_at > (self.db_time_now - Delayed::Worker.max_run_time)
-
-              debug "[acquire_locked_job] Notified about locked job #{job.id}, will schedule follow up in #{Delayed::Worker.max_run_time} seconds"
-
-              # We're probably getting this because a worker crashed.
-              # Schedule a notification after the job has reached its max-run-time
-
-              false
-            else
-              debug "[acquire_locked_job] Notified about job #{job.id} with expired lock. Unlocking job."
-              job.unlock
-              job
-            end
-
-          # Has the job changed since the message was published?
-          elsif digest && job.tomqueue_digest != digest
-
-            debug "[acquire_locked_job] Digest mismatch, discarding message."
-
-            nil
+              job.skip_publish = nil
           else
-            job
-          end
-
-          if job
-            debug "[reserve] Locking job #{job.id}"
-
-            # Now lock it!
-            job.locked_by = worker.name
-            job.locked_at = self.db_time_now
-            job.skip_publish = true
-            job.save!
+            job = nil
           end
 
           job
-        end
 
-        job && job.skip_publish = false
-        job
+        end
       end
 
 
 
+
+
+#           # Has the job changed since the message was published?
+#          elsif digest && job.tomqueue_digest != digest
+# # #            debug "[acquire_locked_job] Digest mismatch, discarding message."
+# #
+# #            nil
 
       # Public: Called by Delayed::Worker to retrieve the next job to process
       #
@@ -264,25 +275,32 @@ module TomQueue
 
           debug "[reserve] Popped notification for #{job_id}"
             
-          locked_job = self.acquire_locked_job(job_id, worker, digest)
+          locked_job = self.acquire_locked_job(job_id, worker) do |job|
+            digest == job.tomqueue_digest
+          end
 
           if locked_job == false
             
+
             # In this situation, we re-publish a message to run in max_run_time
             # since the likely scenario is a woker has crashed and the original message
             # was re-delivered.
             #
             # We schedule another AMQP message to arrive when the job's lock will have expired.
             Delayed::Job.find_by_id(job_id).tap do |job|
-              warn "[reserve] Failed to acquire lock on job #{job_id}, re-triggering notification at #{job.locked_at + max_run_time}"
-              job && job.tomqueue_publish(job.locked_at + max_run_time)
+              debug "[reserve] Notified about locked job #{job.id}, will schedule follow up at #{job.locked_at + max_run_time + 1}"
+
+              job && job.tomqueue_publish(job.locked_at + max_run_time + 1)
             end
 
             locked_job = nil
+
           elsif locked_job.nil?
             info "[reserve] Job #{job_id} not found"
+
           else
             info "[reserve] Acquired DB lock for job #{job_id}"
+
           end
 
           # OK! We made it here, how exciting. Ack the message so it doesn't get re-delivered
