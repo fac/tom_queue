@@ -41,6 +41,8 @@ module TomQueue
   #
   class QueueManager
 
+    include LoggingHelper
+
     # Public: Return the string used as a prefix for all queues and exchanges
     attr_reader :prefix
 
@@ -87,6 +89,27 @@ module TomQueue
       # the channels, so stays running, and is shared by all channels.
       @work_pool = PersistentWorkPool.new(4)
 
+      # These are used when we block waiting for new messages, we declare here
+      # so we're not constantly blowing them away and re-creating.
+      @mutex = Mutex.new
+      @condvar = ConditionVariable.new
+
+      # Call the initial setup_amqp! to create the channels, exchanges and queues
+      setup_amqp!
+    end
+
+    # Internal: Opens channels and declares the necessary queues, exchanges and bindings
+    #
+    # As a convenience to tests, this will tear-down any existing connections, so it is 
+    # possible to simulate a failed connection by calling this a second time.
+    #
+    # Retunrs nil
+    def setup_amqp!
+      debug "[setup_amqp!] (re) openining channels"
+      # Test convenience
+      @publisher_channel && @publisher_channel.close
+      @channel && @channel.close
+
       # Publishing is going to come in from the host app, as well as 
       # the Deferred thread, so create a dedicated channel and mutex
       @publisher_channel = Bunny::Channel.new(@bunny, nil, @work_pool)
@@ -100,16 +123,13 @@ module TomQueue
       @exchanges = {}
       @queues = {}
 
-      # These are used when we block waiting for new messages, we declare here
-      # so we're not constantly blowing them away and re-creating.
-      @mutex = Mutex.new
-      @condvar = ConditionVariable.new
-
       PRIORITIES.each do |priority|
         @exchanges[priority] = @channel.fanout("#{@prefix}.work.#{priority}", :durable => true, :auto_delete => false)
         @queues[priority] = @channel.queue("#{@prefix}.balance.#{priority}", :durable => true)
         @queues[priority].bind(@exchanges[priority])
       end
+
+      nil
     end
 
     # Public: Purges all messages from queues. Dangerous!
@@ -139,12 +159,17 @@ module TomQueue
       raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.nil? or run_at.is_a?(Time)
 
       if run_at > Time.now
+
+        debug "[publish] Handing work to deferred work manager to be run in #{run_at - Time.now}"
+
         #  Make sure we explicitly pass all options in, even if they're the defaulted values
         DeferredWorkManager.instance(self.prefix).handle_deferred(work, {
           :priority => priority,
           :run_at   => run_at
         })
       else
+        
+        debug "[publish] Pushing work onto exchange '#{@exchanges[priority].name}'"
         @publisher_mutex.synchronize do
           @publisher_channel.fanout(@exchanges[priority].name, :passive=>true).publish(work, {
             :headers => {
@@ -185,10 +210,13 @@ module TomQueue
     # Returns: highest priority TomQueue::Work instance; or
     #          nil if no work is queued.
     def sync_poll_queues
+      debug "[pop] Synchronously popping message"
+
       response, headers, payload = nil
 
       # Synchronously poll the head of all the queues in priority order
       PRIORITIES.find do |priority|
+        debug "[pop] Popping '#{@queues[priority].name}'..."
         # Perform a basic get. Calling Queue#get gets into a mess wrt the subscribe
         # below. Don't do it.
         response, headers, payload = @channel.basic_get(@queues[priority].name, :ack => true)
@@ -196,6 +224,7 @@ module TomQueue
         # Array#find will break out of the loop if we return a non-nil value.
         payload
       end
+
       payload && Work.new(self, response, headers, payload)
     end
 
@@ -204,6 +233,9 @@ module TomQueue
     #
     # Returns: TomQueue::Work instance
     def wait_for_message
+
+      debug "[wait_for_message] setting up consumer, waiting for next message"
+
       consumer_thread_value = nil
 
       # Setup a subscription to all the queues. The channel pre-fetch
@@ -223,6 +255,8 @@ module TomQueue
         @condvar.wait(@mutex, 10.0) until consumer_thread_value
         consumer_thread_value
       end
+
+      debug "[wait_for_message] Shutting down consumers"
 
       # Now, cancel the consumers - the prefetch level on the channel will
       # ensure we only got the message we're about to return.

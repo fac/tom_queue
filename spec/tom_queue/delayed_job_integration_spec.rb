@@ -1,6 +1,6 @@
 require 'tom_queue/helper'
 
-describe Delayed::Job, "integration spec" do
+describe Delayed::Job, "integration spec", :timeout => 10 do
     
   class TestJobClass
     cattr_accessor :perform_hook
@@ -8,12 +8,20 @@ describe Delayed::Job, "integration spec" do
     @@flunk_count = 0
     cattr_accessor :flunk_count 
     
+    @@asplode_count = 0
+    cattr_accessor :asplode_count
+
     def initialize(name)
       @name = name
     end
 
     def perform
       @@perform_hook && @@perform_hook.call(@name)
+
+      if @@asplode_count > 0
+        @@asplode_count -= 1
+        Thread.exit
+      end
 
       if @@flunk_count > 0
         @@flunk_count -= 1
@@ -88,5 +96,33 @@ describe Delayed::Job, "integration spec" do
     Delayed::Worker.new.work_off(5)
     @called.should == ["high", "low1", "low2", "low3", "low4"]
   end
+
+  # it "should re-run the job once max_run_time is reached if, say, a worker crashes" do
+  #   Delayed::Worker.max_run_time = 2
+
+  #   job = Delayed::Job.enqueue(TestJobClass.new("work"))
+
+  #   # This thread will be abruptly terminated mid-job
+  #   TestJobClass.asplode_count = 1
+  #   lock_stale_time = Time.now.to_f + Delayed::Worker.max_run_time
+  #   Thread.new { Delayed::Worker.new.work_off(1) }.join
+
+  #   # This will shutdown the various channels, which should result in the message being
+  #   # returned to the broker.
+  #   Delayed::Job.tomqueue_manager.setup_amqp!
+
+  #   # Make sure the job is still locked
+  #   job.reload
+  #   job.locked_at.should_not be_nil
+  #   job.locked_by.should_not be_nil
+    
+  #   # Now wait for the max_run_time, which is artificially low
+  #   while Delayed::Job.find_by_id(job.id)
+  #     Delayed::Worker.new.work_off(1)
+  #   end
+
+  #   # Ensure the worker blocked until the job's original lock was actually stale.
+  #   Time.now.to_f.should > lock_stale_time.to_f
+  # end
 
 end

@@ -1,6 +1,5 @@
 require 'active_support/concern'
 
-
 module TomQueue
   module DelayedJobHook
 
@@ -195,8 +194,14 @@ module TomQueue
       # 
       # job_id - the ID of the job to acquire
       # worker - the Delayed::Worker attempting to acquire the lock
-      # block -> yielded with the job during the locking transaction
-      #          if false is returned, the job is assumed to be invalid
+      # block  - if provided, it is yeilded with the job object as the only argument
+      #          whilst the job record is locked.
+      #          If the block returns true, the lock is acquired.
+      #          If the block returns false, the call will return nil
+      #
+      # NOTE: when a job has a stale lock, the block isn't yielded, as it is presumed
+      #       the job has stared somewhere and crashed out - so we just return immediately
+      #       as it will have previously passed the validity check (and may have changed since).
       #
       # Returns * a Delayed::Job instance if the job was found and lock acquired
       #         * nil if the job wasn't found
@@ -274,45 +279,40 @@ module TomQueue
           digest = decoded_payload['delayed_job_digest']
 
           debug "[reserve] Popped notification for #{job_id}"
-            
-          locked_job = self.acquire_locked_job(job_id, worker) do |job|
-            digest == job.tomqueue_digest
-          end
+          locked_job = self.acquire_locked_job(job_id, worker)
 
-          if locked_job == false
-            
-
-            # In this situation, we re-publish a message to run in max_run_time
-            # since the likely scenario is a woker has crashed and the original message
-            # was re-delivered.
-            #
-            # We schedule another AMQP message to arrive when the job's lock will have expired.
-            Delayed::Job.find_by_id(job_id).tap do |job|
-              debug "[reserve] Notified about locked job #{job.id}, will schedule follow up at #{job.locked_at + max_run_time + 1}"
-
-              job && job.tomqueue_publish(job.locked_at + max_run_time + 1)
-            end
-
-            locked_job = nil
-
-          elsif locked_job.nil?
-            info "[reserve] Job #{job_id} not found"
-
-          else
+          if locked_job
             info "[reserve] Acquired DB lock for job #{job_id}"
 
-          end
-
-          # OK! We made it here, how exciting. Ack the message so it doesn't get re-delivered
-          if locked_job
-            debug "[reserve] Returning job #{locked_job.id} to be processed."
-            locked_job.tomqueue_work = work 
+            locked_job.tomqueue_work = work
           else
             work.ack!
+
+            if locked_job == false
+              # In this situation, we re-publish a message to run in max_run_time
+              # since the likely scenario is a woker has crashed and the original message
+              # was re-delivered.
+              #
+              # We schedule another AMQP message to arrive when the job's lock will have expired.
+              Delayed::Job.find_by_id(job_id).tap do |job|
+                debug "[reserve] Notified about locked job #{job.id}, will schedule follow up at #{job.locked_at + max_run_time + 1}"
+                job && job.tomqueue_publish(job.locked_at + max_run_time + 1)
+              end
+
+              locked_job = nil
+            end
           end
 
           locked_job
         end
+
+      rescue JSON::ParserError => e
+        work.ack!
+
+        TomQueue.exception_reporter && TomQueue.exception_reporter.report(e)
+        error "[reserve] Failed to parse JSON payload: #{e.message}. Dropping AMQP message."
+
+        nil
       end
 
       # Internal: This is the AMQP notification object that triggered this job run
