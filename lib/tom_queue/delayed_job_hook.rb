@@ -240,16 +240,6 @@ module TomQueue
         end
       end
 
-
-
-
-
-#           # Has the job changed since the message was published?
-#          elsif digest && job.tomqueue_digest != digest
-# # #            debug "[acquire_locked_job] Digest mismatch, discarding message."
-# #
-# #            nil
-
       # Public: Called by Delayed::Worker to retrieve the next job to process
       #
       # This is the glue beween TomQueue and DelayedJob and implements most of
@@ -279,7 +269,9 @@ module TomQueue
           digest = decoded_payload['delayed_job_digest']
 
           debug "[reserve] Popped notification for #{job_id}"
-          locked_job = self.acquire_locked_job(job_id, worker)
+          locked_job = self.acquire_locked_job(job_id, worker) do |job|
+            digest.nil? || job.tomqueue_digest == digest
+          end
 
           if locked_job
             info "[reserve] Acquired DB lock for job #{job_id}"

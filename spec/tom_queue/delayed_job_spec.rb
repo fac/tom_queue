@@ -607,7 +607,40 @@ describe TomQueue, "once hooked" do
       subject      
     end
 
-    it "should attach a block to the call to acquire_locked_job"
+    it "should attach a block to the call to acquire_locked_job" do
+      def stub_implementation(job_id, worker, &block)
+        block.should_not be_nil
+      end
+      Delayed::Job.should_receive(:acquire_locked_job, &method(:stub_implementation)).and_return(job)
+      subject
+    end
+
+    describe "the block provided to acquire_locked_job" do
+      before do |test|
+        def stub_implementation(job_id, worker, &block)
+          @block = block
+        end
+        Delayed::Job.should_receive(:acquire_locked_job, &method(:stub_implementation)).and_return(job)
+      end
+
+      it "should return true if the digest in the message payload matches the job" do
+        subject
+        @block.call(job).should be_true
+      end
+
+      it "should return false if the digest in the message payload doesn't match the job" do
+        subject
+        job.touch(:updated_at)
+        @block.call(job).should be_true
+      end
+
+      it "should return true if there is no digest in the payload object" do
+        work.stub(:payload => JSON.dump(JSON.load(payload).merge("delayed_job_digest" => nil)))
+        subject
+        @block.call(job).should be_true
+      end
+
+    end
 
     describe "when acquire_locked_job returns the job object" do
       # A.K.A We have a locked job!
