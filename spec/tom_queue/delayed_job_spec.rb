@@ -342,6 +342,51 @@ describe TomQueue, "once hooked" do
 
     describe "when the job exists" do
 
+      it "should hold an explicit DB lock whilst performing the lock" do
+        pending("Only possible when using mysql2 adapter (ADAPTER=mysql environment)") unless ActiveRecord::Base.connection.class == ActiveRecord::ConnectionAdapters::Mysql2Adapter
+
+        # Ok, fudge a second parallel connection to MySQL
+        second_connection = ActiveRecord::Base.connection.dup
+        second_connection.reconnect!
+        ActiveRecord::Base.connection.reset!
+
+        # Assert we have separate connections
+        second_connection.select("SELECT connection_id() as id;").first["id"].should_not ==
+          ActiveRecord::Base.connection.select("SELECT connection_id() as id;").first["id"]
+
+        # This is called in a thread when the transaction is open to query the job, store the response
+        # and the time when the response comes back
+        parallel_query = lambda do |job_id|
+          begin
+            # Simulate another worker performing a SELECT ... FOR UPDATE request
+            @query_result = second_connection.select("SELECT * FROM delayed_jobs WHERE id=#{job_id} LIMIT 1 FOR UPDATE").first
+            @query_returned_at = Time.now.to_f
+          rescue
+            puts "Failed #{$!.inspect}"
+          end
+        end
+
+        # When we have the transaction open, we emit a query on a parallel thread and check the timing
+        @block = lambda do |job|
+          @thread = Thread.new(job.id, &parallel_query)
+          sleep 0.25
+          @leaving_transaction_at = Time.now.to_f
+          true
+        end
+        
+        # Kick it all off !
+        subject
+          
+        @thread.join
+
+        # now make sure the parallel thread blocked until the transaction returned
+        @query_returned_at.should > @leaving_transaction_at
+
+        # make sure the returned record showed the lock
+        @query_result["locked_at"].should_not be_nil
+        @query_result["locked_by"].should_not be_nil
+      end
+
       describe "when the job is not locked" do
         
         it "should acquire the lock fields on the job" do
@@ -363,7 +408,7 @@ describe TomQueue, "once hooked" do
           @called.id.should == job.id
         end
 
-        it "should not have locked the job when teh block is called" do
+        it "should not have locked the job when the block is called" do
           @block = lambda { |job| @called = [job.id, job.locked_at, job.locked_by]; true }
           subject
           @called.should == [job.id, nil, nil]
@@ -464,88 +509,6 @@ describe TomQueue, "once hooked" do
 
     end
 
-    # describe "if the job is not locked" do
-
-
-
-    #   it "should not re-publish the job" do
-    #     @called = false
-    #     Delayed::Job.tomqueue_manager.stub(:publish) do |message|
-    #       @called = true
-    #     end
-    #     Delayed::Job.acquire_locked_job(job.id, worker)
-    #     @called.should be_false
-    #   end
-
-    #   it "should un-set skip_publish for the returned job" do
-    #     Delayed::Job.acquire_locked_job(job.id, worker).skip_publish.should be_nil
-    #   end
-
-
-    #   describe "there is no block provided" do
-    #     it_should_behave_like "acquire_locked_job successfully obtains lock"
-    #   end
-
-    #   describe "if the block is present and returns true" do
-    #     it_should_behave_like "acquire_locked_job successfully obtains lock"
-    #   end
-
-    #   describe "if the block is present and returns false" do
-    #     it_should_behave_like "acquire_locked_job when the job wasn't found"        
-    #   end
-
-    # end
-
-
-    # describe "if the job is locked" do
-    #   let(:worker2) { double("Worker", :name => "worker2") }
-    #   before { Delayed::Job.acquire_locked_job(job.id, worker2) }
-
-    #   it "should not yield anything" do
-    #     @job = :not_called
-    #     Delayed::Job.acquire_locked_job(job.id, worker) { |job| @job = job }
-    #     @job.should == :not_called
-    #   end
-
-    #   it "should not replace the lock on the job" do
-    #     Delayed::Job.acquire_locked_job(job.id, worker)
-    #     job.reload
-    #     job.locked_by.should == "worker2"
-    #   end
-
-    #   it "should return false" do
-    #     Delayed::Job.acquire_locked_job(job.id, worker).should == false
-    #   end
-    # end
-
-    # describe "if the job is locked but is now stale" do
-    #   let(:worker2) { double("Worker", :name => "worker2") }
-    #   before do
-    #     Delayed::Job.stub(:db_time_now => (time - Delayed::Worker.max_run_time - 1) )
-    #     Delayed::Job.acquire_locked_job(job.id, worker2)
-    #     Delayed::Job.stub(:db_time_now => time )
-    #   end
-
-    #   it "should yield the job object with a cleared lock" do
-    #     @job = :not_called
-    #     Delayed::Job.acquire_locked_job(job.id, worker) { |job| @job = [job.id, job.locked_at, job.locked_by] }
-    #     @job.should == [job.id, nil, nil]
-    #   end
-
-    #   it "should return the job object" do
-    #     job_out = Delayed::Job.acquire_locked_job(job.id, worker)
-    #     job_out.should be_a(Delayed::Job)
-    #     job_out.id.should == job.id
-    #     job_out.should be_locked
-    #   end
-
-    #   it "should lock the job" do
-    #     Delayed::Job.acquire_locked_job(job.id, worker)
-    #     job.reload
-    #     job.should be_locked
-    #   end
-
-    # end
   end
 
   describe "Delayed::Job#reserve - return the next job" do
