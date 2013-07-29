@@ -1,4 +1,5 @@
 require 'tom_queue/helper'
+require 'tom_queue/delayed_job'
 
 describe TomQueue, "once hooked" do
 
@@ -8,7 +9,7 @@ describe TomQueue, "once hooked" do
   before do
     TomQueue.logger ||= Logger.new("/dev/null")
     TomQueue.default_prefix = "default-prefix"
-    TomQueue.hook_delayed_job!
+    TomQueue::DelayedJob.apply_hook!
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
   end
 
@@ -19,13 +20,13 @@ describe TomQueue, "once hooked" do
     Delayed::Worker.sleep_delay.should == 0
   end
 
-  describe "TomQueue::DelayedJobHook::Job" do
+  describe "TomQueue::DelayedJob::Job" do
     it "should use the TomQueue job as the Delayed::Job" do
-      Delayed::Job.should == TomQueue::DelayedJobHook::Job
+      Delayed::Job.should == TomQueue::DelayedJob::Job
     end
 
     it "should be a subclass of ::Delayed::Backend::ActiveRecord::Job" do
-      TomQueue::DelayedJobHook::Job.superclass.should == ::Delayed::Backend::ActiveRecord::Job
+      TomQueue::DelayedJob::Job.superclass.should == ::Delayed::Backend::ActiveRecord::Job
     end
   end
 
@@ -131,8 +132,8 @@ describe TomQueue, "once hooked" do
 
       describe "job priority" do
         before do
-          TomQueue::DelayedJobHook::Job.tomqueue_priority_map[-10] = TomQueue::BULK_PRIORITY
-          TomQueue::DelayedJobHook::Job.tomqueue_priority_map[10]  = TomQueue::HIGH_PRIORITY
+          TomQueue::DelayedJob.priority_map[-10] = TomQueue::BULK_PRIORITY
+          TomQueue::DelayedJob.priority_map[10]  = TomQueue::HIGH_PRIORITY
         end
 
         it "should map the priority of the job to the TomQueue priority" do

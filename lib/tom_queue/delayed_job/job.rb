@@ -1,7 +1,7 @@
 require 'active_support/concern'
 
 module TomQueue
-  module DelayedJobHook
+  module DelayedJob
 
     # This is our wrapper for Delayed::Job (ActiveRecord) which augments the 
     # save operations with AMQP notifications and replaces the reserve method
@@ -72,10 +72,6 @@ module TomQueue
         @@tomqueue_manager ||= TomQueue::QueueManager.new
       end
 
-      # Map External priority values to the TomQueue priority levels
-      cattr_reader :tomqueue_priority_map
-      @@tomqueue_priority_map = Hash.new(TomQueue::NORMAL_PRIORITY)
-
       # Public: This calls #tomqueue_publish on all jobs currently
       # in the delayed_job table. This will probably end up with 
       # duplicate messages, but the worker should do the right thing
@@ -133,7 +129,7 @@ module TomQueue
 
         debug "[tomqueue_publish] Pushing notification for #{self.id} to run in #{((custom_run_at || self.run_at) - Time.now).round(2)}"
         
-        tq_priority = self.class.tomqueue_priority_map.fetch(self.priority, nil)
+        tq_priority = TomQueue::DelayedJob.priority_map.fetch(self.priority, nil)
         if tq_priority.nil?
           tq_priority = TomQueue::NORMAL_PRIORITY
           warn "[tomqueue_publish] Unknown priority level #{self.priority} specified, mapping to NORMAL priority"

@@ -48,18 +48,4 @@ module TomQueue
     attr_accessor :logger
   end
 
-  
-
-
-
-  # Public: This installs the dynamic patches into Delayed Job to move scheduling over
-  # to AMQP. Generally, this should be called during a Rails initializer at some point.
-  def self.hook_delayed_job!
-    require 'tom_queue/delayed_job_hook'
-    
-    Delayed::Worker.sleep_delay = 0
-    Delayed::Worker.backend = TomQueue::DelayedJobHook::Job
-    #Delayed::Worker.plugins << TomQueue::DelayedJobHook::AmqpConsumer
-  end
-
 end

@@ -1,4 +1,5 @@
 require 'tom_queue/helper'
+require 'tom_queue/delayed_job'
 
 describe Delayed::Job, "integration spec", :timeout => 10 do
     
@@ -40,7 +41,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
   before do
     # Clean-slate ...
     TomQueue.default_prefix = "tomqueue.test"
-    TomQueue.hook_delayed_job!
+    TomQueue::DelayedJob.apply_hook!
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
     Delayed::Job.tomqueue_manager.purge!
     Delayed::Job.delete_all
@@ -86,8 +87,8 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
   end
 
   it "should support job priorities" do
-    TomQueue::DelayedJobHook::Job.tomqueue_priority_map[0] = TomQueue::NORMAL_PRIORITY
-    TomQueue::DelayedJobHook::Job.tomqueue_priority_map[1] = TomQueue::HIGH_PRIORITY
+    TomQueue::DelayedJob.priority_map[0] = TomQueue::NORMAL_PRIORITY
+    TomQueue::DelayedJob.priority_map[1] = TomQueue::HIGH_PRIORITY
     Delayed::Job.enqueue(TestJobClass.new("low1"), :priority => 0)
     Delayed::Job.enqueue(TestJobClass.new("low2"), :priority => 0)
     Delayed::Job.enqueue(TestJobClass.new("high"), :priority => 1)
