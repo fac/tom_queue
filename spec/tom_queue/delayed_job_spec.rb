@@ -215,19 +215,18 @@ describe TomQueue, "once hooked" do
 
   describe "publish callbacks in Job lifecycle" do
 
-    xit "should allow Mock::ExpectationFailed exceptions to escape the callback" do
+    it "should allow Mock::ExpectationFailed exceptions to escape the callback" do
       Delayed::Job.tomqueue_manager.should_receive(:publish).with("spurious arguments").once
       lambda {
         job.update_attributes(:run_at => Time.now + 5.seconds)
       }.should raise_exception(RSpec::Mocks::MockExpectationError)
+
+      Delayed::Job.tomqueue_manager.publish("spurious arguments") # do this, otherwise it will fail
     end    
 
     it "should not publish a message if the job has a non-nil failed_at" do
-      # This is a ball-ache. after_commit swallows all exceptions, including the Mock::ExpectationFailed 
-      # ones that would otherwise fail this spec if should_not_receive were used.
-      job.stub(:tomqueue_publish) { @called = true }
+      job.should_not_receive(:tomqueue_publish)
       job.update_attributes(:failed_at => Time.now)
-      @called.should be_nil
     end
 
     it "should be called after create when there is no explicit transaction" do
@@ -243,38 +242,33 @@ describe TomQueue, "once hooked" do
 
     it "should be called after commit, when a record is saved" do
       new_job.stub(:tomqueue_publish) { @called = true }
-
       Delayed::Job.transaction do
         new_job.save!
+
         @called.should be_nil
-        new_job.unstub(:tomqueue_publish)
-        new_job.should_receive(:tomqueue_publish).with(no_args)
       end
+      @called.should be_true
     end
 
     it "should be called after commit, when a record is updated" do
       job.stub(:tomqueue_publish) { @called = true }
-
       Delayed::Job.transaction do
         job.run_at = Time.now + 10.seconds
         job.save!
         @called.should be_nil
-
-        job.unstub(:tomqueue_publish)
-        job.should_receive(:tomqueue_publish).with(no_args)
       end
+
+      @called.should be_true
     end
 
     it "should not be called when a record is destroyed" do
-      job.stub(:tomqueue_publish) { @called = true } # See first use of this for explaination
+      job.should_not_receive(:tomqueue_publish)
       job.destroy
-      @called.should be_nil
     end
 
     it "should not be called by a destroy in a transaction" do
-      job.stub(:tomqueue_publish) { @called = true } # See first use of this for explaination
+      job.should_not_receive(:tomqueue_publish)
       Delayed::Job.transaction { job.destroy }
-      @called.should be_nil
     end
 
     it "should not be called if the update transaction is rolled back" do
@@ -289,7 +283,7 @@ describe TomQueue, "once hooked" do
     end
 
     it "should not be called if the create transaction is rolled back" do
-      new_job.stub(:tomqueue_publish) { @called = true }
+      job.should_not_receive(:tomqueue_publish)
 
       Delayed::Job.transaction do
         new_job.save!
@@ -300,6 +294,7 @@ describe TomQueue, "once hooked" do
   end
 
   describe "Delayed::Job.tomqueue_republish method" do
+    before { Delayed::Job.delete_all }
 
     it "should exist" do
       Delayed::Job.respond_to?(:tomqueue_republish).should be_true
@@ -309,9 +304,29 @@ describe TomQueue, "once hooked" do
       Delayed::Job.tomqueue_republish.should be_nil
     end
 
-    xit "should call #tomqueue_publish on all DB records" do
+    it "should call #tomqueue_publish on all DB records" do
+      10.times { Delayed::Job.create! }
 
+      Delayed::Job.tomqueue_manager.purge!
+      queue = Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY]
+      queue.message_count.should == 0
+
+      Delayed::Job.tomqueue_republish
+      queue.message_count.should == 10
     end
+
+    it "should work with ActiveRecord scopes" do
+      first_ids = 10.times.collect { Delayed::Job.create!.id }
+      second_ids = 7.times.collect { Delayed::Job.create!.id }
+
+      Delayed::Job.tomqueue_manager.purge!
+      queue = Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY]
+      queue.message_count.should == 0
+
+      Delayed::Job.where('id IN (?)', second_ids).tomqueue_republish
+      queue.message_count.should == 7
+    end
+
   end
 
   describe "Delayed::Job.acquire_locked_job" do
@@ -343,7 +358,7 @@ describe TomQueue, "once hooked" do
     describe "when the job exists" do
 
       it "should hold an explicit DB lock whilst performing the lock" do
-        pending("Only possible when using mysql2 adapter (ADAPTER=mysql environment)") unless ActiveRecord::Base.connection.class == ActiveRecord::ConnectionAdapters::Mysql2Adapter
+        pending("Only possible when using mysql2 adapter (ADAPTER=mysql environment)") unless ActiveRecord::Base.connection.class.to_s == "ActiveRecord::ConnectionAdapters::Mysql2Adapter"
 
         # Ok, fudge a second parallel connection to MySQL
         second_connection = ActiveRecord::Base.connection.dup
