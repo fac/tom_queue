@@ -300,10 +300,10 @@ module TomQueue
 
       rescue JSON::ParserError => e
         work.ack!
-
-        TomQueue.exception_reporter && TomQueue.exception_reporter.report(e)
         error "[reserve] Failed to parse JSON payload: #{e.message}. Dropping AMQP message."
 
+        TomQueue.exception_reporter && TomQueue.exception_reporter.notify(e)
+        
         nil
       end
 

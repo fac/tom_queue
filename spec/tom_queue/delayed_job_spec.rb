@@ -593,7 +593,8 @@ describe TomQueue, "once hooked" do
       let(:payload) { "NOT JSON!!1" }
       
       it "should report an exception" do
-        TomQueue.exception_reporter.should_receive(:report).with(instance_of(JSON::ParserError))
+        TomQueue.exception_reporter = mock("Reporter", :notify => nil)
+        TomQueue.exception_reporter.should_receive(:notify).with(instance_of(JSON::ParserError))
         subject
       end
 

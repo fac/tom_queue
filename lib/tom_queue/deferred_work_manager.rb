@@ -118,10 +118,14 @@ module TomQueue
     end
 
     def purge!
+      was_running = !!self.thread
+      ensure_stopped if was_running
       channel = TomQueue.bunny.create_channel
       channel.queue("#{prefix}.work.deferred", :passive => true).purge()
       channel.close
     rescue Bunny::NotFound
+    ensure
+      ensure_running if was_running
     end
 
 
@@ -195,7 +199,7 @@ module TomQueue
         # This will block until work is ready to be returned, interrupt
         # or the 10-second timeout value.
         response, headers, payload = @deferred_set.pop(2)
-        puts "Got a response. #{response}"
+
         if response
           headers[:headers].delete('run_at')
           @out_manager.publish(payload, headers[:headers])

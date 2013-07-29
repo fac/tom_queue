@@ -130,10 +130,5 @@ describe TomQueue::DeferredWorkManager do
     end
   end
 
-  describe "for testing - DeferredWorkManager#purge!" do
-    it "should delete the queue and contents"
-    it "should delete the exchange"
-    it "should not fail if the queue hasn't been created"
-  end
 
 end
