@@ -111,7 +111,8 @@ module TomQueue
 
           begin
             end_time = [earliest_element.try(:run_at), timeout_end].compact.min
-            @condvar.wait(@mutex, end_time - Time.now) if end_time > Time.now
+            delay = end_time - Time.now
+            @condvar.wait(@mutex, delay) if delay > 0
           end while Time.now < end_time and @interrupt == false
 
           element = earliest_element

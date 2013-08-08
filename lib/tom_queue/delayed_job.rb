@@ -1,6 +1,9 @@
 module TomQueue
   module DelayedJob
 
+    require 'tom_queue/delayed_job/external_messages'
+    require 'tom_queue/delayed_job/job'
+
     # Map External priority values to the TomQueue priority levels
     def priority_map
       @@priority_map ||= Hash.new(TomQueue::NORMAL_PRIORITY)
@@ -15,8 +18,13 @@ module TomQueue
     end
     module_function :apply_hook!
 
+    # Public: External Message handlers
+    #
+    def handlers
+      @@handlers ||= []
+    end
+    module_function :handlers
+
   end
-
-  require 'tom_queue/delayed_job/job'
-
 end
+
