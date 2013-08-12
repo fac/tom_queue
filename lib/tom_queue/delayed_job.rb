@@ -20,10 +20,13 @@ module TomQueue
 
     # Public: External Message handlers
     #
+    def handlers=(new_handlers)
+      @@handlers = new_handlers
+    end
     def handlers
       @@handlers ||= []
     end
-    module_function :handlers
+    module_function :handlers, :handlers=
 
   end
 end

@@ -19,10 +19,11 @@ module TomQueue
         def resolve_external_handler(work)
 
           # Look for a matching source exchange!
-          handler = TomQueue::DelayedJob.handlers.find { |klass| klass.amqp_binding[:exchange] == work.response.exchange } 
-
+          handler = TomQueue::DelayedJob.handlers.find { |klass| klass.claim_work?(work) } 
+          puts "Got handler: #{handler}"
           if handler
             handler.on_message(work.payload)
+            true
           else
             false
           end
@@ -36,14 +37,7 @@ module TomQueue
 
 
           TomQueue::DelayedJob.handlers.each do |klass|
-            binding_data = klass.amqp_binding
-            priority = binding_data.fetch(:priority, TomQueue::NORMAL_PRIORITY)
-            exchange = binding_data.fetch(:exchange)
-            routing_key = binding_data.fetch(:routing_key, '#')
-
-            puts "Woo, setup binding from #{exchange} (#{routing_key}) to queue for priority #{priority}."
-
-            queue_manager.queues[priority].bind(exchange, :routing_key => routing_key)
+            klass.setup_binding(queue_manager)
           end
 
         end
