@@ -42,9 +42,8 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     # Clean-slate ...
     TomQueue.default_prefix = "test-#{Time.now.to_f}"
     TomQueue::DelayedJob.apply_hook!
-    Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
-    Delayed::Job.tomqueue_manager.purge!
     Delayed::Job.delete_all
+    Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
     
     # Keep track of how many times the job is run
     @called = []
@@ -79,8 +78,8 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
 
   it "should support run_at" do
     Benchmark.realtime {
-      Delayed::Job.enqueue(TestJobClass.new("job1"), :run_at => Time.now + 0.1)
-      Delayed::Job.enqueue(TestJobClass.new("job2"), :run_at => Time.now + 0.05)
+      Delayed::Job.enqueue(TestJobClass.new("job1"), :run_at => Time.now + 0.5)
+      Delayed::Job.enqueue(TestJobClass.new("job2"), :run_at => Time.now + 0.1)
       Delayed::Worker.new.work_off(2).should == [2, 0]
     }.should > 0.1
     @called.should == ["job2", "job1"]

@@ -146,18 +146,6 @@ module TomQueue
       [exchange, queue]
     end
 
-    def purge!
-      was_running = !!self.thread
-      ensure_stopped if was_running
-      channel = TomQueue.bunny.create_channel
-      channel.queue("#{prefix}.work.deferred", :passive => true).purge()
-      channel.close
-    rescue Bunny::NotFound
-    ensure
-      ensure_running if was_running
-    end
-
-
     ##### Thread Internals #####
     #
     # Cross this barrier with care :)

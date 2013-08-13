@@ -134,15 +134,6 @@ module TomQueue
       nil
     end
 
-    # Public: Purges all messages from queues. Dangerous!
-    #
-    # Please don't routinely use this, it's more a convenience 
-    # function for tests to provide a blank slate
-    #
-    def purge!
-      @queues.values.each { |q| q.purge }
-    end
-
     # Public: Publish some work to the queue
     #
     # work    - a serialized string representing the work

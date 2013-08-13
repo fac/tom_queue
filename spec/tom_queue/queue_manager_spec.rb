@@ -56,21 +56,6 @@ describe TomQueue::QueueManager do
     end
   end
 
-  describe "message purging #purge!" do
-    before do
-      TomQueue::PRIORITIES.each do |priority|
-        manager.publish("some work", :priority => priority)
-      end
-      manager.purge!
-    end
-
-    TomQueue::PRIORITIES.each do |priority|
-      it "should empty the '#{priority}' priority queue" do
-        manager.queues[priority].status[:message_count].should == 0
-      end
-    end
-  end
-
   describe "QueueManager message publishing" do
 
     it "should forward the payload directly" do

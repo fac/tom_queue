@@ -71,11 +71,6 @@ RSpec.configure do |r|
       test.call
 
     ensure
-      # Tidy up any deferred work managers!
-      TomQueue::DeferredWorkManager.instances.each_pair do |prefix, i|
-        i.ensure_stopped
-        i.purge!
-      end
       TomQueue::DeferredWorkManager.reset!
     end
   end
