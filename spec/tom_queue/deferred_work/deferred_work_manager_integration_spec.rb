@@ -5,14 +5,8 @@ require 'tom_queue/helper'
 #
 
 describe "DeferredWorkManager integration scenarios"  do
-  let(:manager) { TomQueue::DeferredWorkManager.instance('test') }
+  let(:manager) { TomQueue::DeferredWorkManager.instance("test-#{Time.now.to_f}") }
   let(:consumer) { TomQueue::QueueManager.new(manager.prefix) }
-
-  # A clean slate, please...
-  before do
-    manager.purge!
-    consumer.purge!
-  end
 
   # Allow us to manipulate the deferred set object to induce a crash
   before do  

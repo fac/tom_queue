@@ -1,5 +1,6 @@
 require 'helper'
 require 'bunny'
+require 'rest_client'
 require 'tom_queue'
 
 # Patch AR to allow Mock errors to escape after_commit callbacks
@@ -26,6 +27,14 @@ module ActiveRecord::ConnectionAdapters::DatabaseStatements
   end
 end
 
+begin
+  RestClient.delete("http://guest:guest@localhost:15672/api/vhosts/test")
+rescue RestClient::ResourceNotFound
+end
+RestClient.put("http://guest:guest@localhost:15672/api/vhosts/test", "{}", :content_type => :json, :accept => :json)
+RestClient.put("http://guest:guest@localhost:15672/api/permissions/test/guest", '{"configure":".*","write":".*","read":".*"}', :content_type => :json, :accept => :json)
+TheBunny = Bunny.new(:host => 'localhost', :vhost => 'test', :user => 'guest', :password => 'guest')
+TheBunny.start
 
 RSpec.configure do |r|
 
@@ -41,20 +50,8 @@ RSpec.configure do |r|
   end
 
   # Make sure all tests see the same Bunny instance
-  r.around do |test|
-    bunny = Bunny.new(:host => "localhost")
-    bunny.start
-      
-    TomQueue.bunny = bunny
-    test.call
-
-    begin
-      bunny.close      
-    rescue
-      puts "Failed to close bunny: #{$!.inspect}"
-    ensure
-      TomQueue.bunny = nil
-    end
+  r.before do |test|
+    TomQueue.bunny = TheBunny
   end
 
   # All tests should take < 2 seconds !!

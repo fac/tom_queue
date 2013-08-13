@@ -4,17 +4,9 @@ require 'tom_queue/helper'
 
 describe TomQueue::QueueManager, "simple publish / pop" do
 
-  let(:manager) { TomQueue::QueueManager.new('fa.test', 'manager') }
+  let(:manager) { TomQueue::QueueManager.new("test-#{Time.now.to_f}", 'manager') }
   let(:consumer) { TomQueue::QueueManager.new(manager.prefix, 'consumer1') }
   let(:consumer2) { TomQueue::QueueManager.new(manager.prefix, 'consumer2') }
-
-  before do
-    TomQueue::DeferredWorkManager.instance('fa.test').purge!
-
-    manager.purge!
-    consumer.purge!
-    consumer2.purge!
-  end
 
   it "should pop a previously published message" do
     manager.publish('some work')
@@ -22,6 +14,8 @@ describe TomQueue::QueueManager, "simple publish / pop" do
   end
 
   it "should block on #pop until work is published" do
+    manager
+
     Thread.new do
       sleep 0.1
       manager.publish('some work')

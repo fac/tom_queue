@@ -4,7 +4,7 @@ describe TomQueue::DeferredWorkManager do
 
 
   describe "thread control" do
-    let(:manager) { TomQueue::DeferredWorkManager.instance('test') }
+    let(:manager) { TomQueue::DeferredWorkManager.instance("test-#{Time.now.to_f}") }
 
     it "should expose the thread via a #thread accessor" do
       manager.thread.should be_nil

@@ -18,6 +18,8 @@ module TomQueue
   #
   class DeferredWorkManager
 
+    include LoggingHelper
+
     # Public: Scoped singleton accessor
     #
     # This returns the shared work manager instance, creating it if necessary.
@@ -85,10 +87,15 @@ module TomQueue
       raise ArgumentError, ':run_at must be specified' if run_at.nil?
       raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.is_a?(Time)
 
+      debug "[handle_deferred] Pushing work onto deferred exchange: '#{@prefix}.work.deferred'"
       # Push this work on to the deferred exchange
       channel = TomQueue.bunny.create_channel
-      channel.fanout("#{@prefix}.work.deferred", :durable => true, :auto_delete => false).publish(work, {
+      exchange, _ = setup_amqp(channel)
+
+      exchange.publish(work, {
+          :mandatory => true,
           :headers => opts.merge(:run_at => run_at.to_f)
+
         })
       channel.close
     end
@@ -103,7 +110,10 @@ module TomQueue
     def ensure_running
       @thread_shutdown = false
       @thread = nil unless @thread && @thread.alive?
-      @thread ||= Thread.new(&method(:thread_main))
+      @thread ||= begin
+        debug "[ensure_running] Starting thread"
+        Thread.new(&method(:thread_main))
+      end
     end
 
     # Public: Ensure the thread shuts-down and stops. Blocks until
@@ -115,6 +125,25 @@ module TomQueue
         @deferred_set && @deferred_set.interrupt
         @thread.join
       end
+    end
+
+    # Internal: Creates the bound exchange and queue for deferred work on the provided channel
+    #
+    # channel - a Bunny channel to use to create the queue / exchange binding. If you intend
+    #           to use the returned channel / exchange objects, they will be accessed via
+    #           this channel.
+    #
+    # Returns [ <exchange object>, <queue object> ]
+    def setup_amqp(channel)
+      exchange = channel.fanout("#{prefix}.work.deferred", 
+          :durable     => true,
+          :auto_delete => false)
+
+      queue = channel.queue("#{prefix}.work.deferred",
+          :durable     => true,
+          :auto_delete => false).bind(exchange.name)
+
+      [exchange, queue]
     end
 
     def purge!
@@ -147,7 +176,6 @@ module TomQueue
     #
     #
     def thread_consumer_callback(response, headers, payload)
-      # Extract when we want to run this
       run_at = Time.at(headers[:headers]['run_at'])
 
       # schedule it in the work set
@@ -160,10 +188,10 @@ module TomQueue
       response.channel.reject(response.delivery_tag, !response.redelivered?)
     end
 
-
     # Internal: The main loop of the thread
     #
     def thread_main
+      debug "[thread_main] Deferred thread starting up"
 
       # Make sure we're low priority!
       Thread.current.priority = -10
@@ -174,15 +202,8 @@ module TomQueue
       @channel.prefetch(0)
 
       # Create an exchange and queue
-      exchange = @channel.fanout("#{prefix}.work.deferred", 
-          :durable     => true,
-          :auto_delete => false)
+      _, queue = setup_amqp(@channel)
 
-      queue = @channel.queue("#{prefix}.work.deferred",
-          :durable     => true,
-          :auto_delete => false).bind(exchange.name)
-
-      
       @deferred_set = DeferredWorkSet.new
       
       @out_manager = QueueManager.new(prefix)

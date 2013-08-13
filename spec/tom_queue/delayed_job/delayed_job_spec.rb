@@ -8,7 +8,7 @@ describe TomQueue, "once hooked" do
 
   before do
     TomQueue.logger ||= Logger.new("/dev/null")
-    TomQueue.default_prefix = "default-prefix"
+    TomQueue.default_prefix = "test-#{Time.now.to_f}"
     TomQueue::DelayedJob.apply_hook!
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
   end
@@ -36,7 +36,7 @@ describe TomQueue, "once hooked" do
     end
 
     it "should have used the default prefix configured" do
-      Delayed::Job.tomqueue_manager.prefix.should == "default-prefix"
+      Delayed::Job.tomqueue_manager.prefix.should == TomQueue.default_prefix
     end
 
     it "should return the same object on subsequent calls" do
@@ -217,6 +217,8 @@ describe TomQueue, "once hooked" do
   describe "publish callbacks in Job lifecycle" do
 
     it "should allow Mock::ExpectationFailed exceptions to escape the callback" do
+      TomQueue.logger = Logger.new("/dev/null")
+      TomQueue.exception_reporter = nil
       Delayed::Job.tomqueue_manager.should_receive(:publish).with("spurious arguments").once
       lambda {
         job.update_attributes(:run_at => Time.now + 5.seconds)
@@ -590,6 +592,7 @@ describe TomQueue, "once hooked" do
     end
 
     describe "if the work payload doesn't cleanly JSON decode" do
+      before { TomQueue.logger = Logger.new("/dev/null") }
 
       let(:payload) { "NOT JSON!!1" }
       

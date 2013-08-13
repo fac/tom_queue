@@ -21,7 +21,7 @@ ENV['RAILS_ENV'] = 'test'
 
 db_adapter, gemfile = ENV["ADAPTER"], ENV["BUNDLE_GEMFILE"]
 db_adapter ||= gemfile && gemfile[%r(gemfiles/(.*?)/)] && $1
-db_adapter ||= 'sqlite3'
+db_adapter ||= 'mysql'
 
 config = YAML.load(File.read('spec/database.yml'))
 ActiveRecord::Base.establish_connection config[db_adapter]

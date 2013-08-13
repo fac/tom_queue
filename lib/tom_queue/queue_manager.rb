@@ -130,7 +130,7 @@ module TomQueue
         @queues[priority] = @channel.queue("#{@prefix}.balance.#{priority}", :durable => true)
         @queues[priority].bind(@exchanges[priority])
       end
-      puts "Setup AMQP!"
+
       nil
     end
 

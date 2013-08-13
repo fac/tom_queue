@@ -36,11 +36,11 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
 
   end
 
-  let(:job_name) { "Job-#{Time.now.to_f}"}
+  let(:job_name) { "Job-#{Time.now.to_f}" }
 
   before do
     # Clean-slate ...
-    TomQueue.default_prefix = "tomqueue.test"
+    TomQueue.default_prefix = "test-#{Time.now.to_f}"
     TomQueue::DelayedJob.apply_hook!
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
     Delayed::Job.tomqueue_manager.purge!

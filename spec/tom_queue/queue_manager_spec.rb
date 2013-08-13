@@ -2,13 +2,8 @@ require 'tom_queue/helper'
 
 describe TomQueue::QueueManager do
 
-  let(:manager) { TomQueue::QueueManager.new('fa.test').tap { |m| m.purge! } }
+  let(:manager) { TomQueue::QueueManager.new("test-#{Time.now.to_f}") }
   let(:channel) { TomQueue.bunny.create_channel }
-
-  before do
-    TomQueue.bunny.create_channel.queue('fa.test-balance', :passive => true).delete() rescue nil
-    TomQueue.bunny.create_channel.exchange('fa.test-work', :passive => true).delete() rescue nil
-  end
 
   describe "basic creation" do
   
@@ -17,12 +12,12 @@ describe TomQueue::QueueManager do
     end  
 
     it "should be created with a name-prefix" do
-      manager.prefix.should == 'fa.test'
+      manager.prefix.should =~ /^test-[\d.]+$/
     end
 
     it "should default the prefix to TomQueue.default_prefix if available" do
-      TomQueue.default_prefix = "foobarbaz"
-      TomQueue::QueueManager.new.prefix.should == "foobarbaz"
+      TomQueue.default_prefix = "test-#{Time.now.to_f}"
+      TomQueue::QueueManager.new.prefix.should == TomQueue.default_prefix
     end
 
     it "should raise an ArgumentError if no prefix is specified and no default is available" do
@@ -47,16 +42,16 @@ describe TomQueue::QueueManager do
 
     TomQueue::PRIORITIES.each do |priority|
       it "should create a queue for '#{priority}' priority" do
-        manager.queues[priority].name.should == "fa.test.balance.#{priority}"
+        manager.queues[priority].name.should == "#{manager.prefix}.balance.#{priority}"
         # Declare the queue, if the parameters don't match the brokers existing channel, then bunny will throw an
         # exception.
-        channel.queue("fa.test.balance.#{priority}", :durable => true, :auto_delete => false, :exclusive => false)
+        channel.queue("#{manager.prefix}.balance.#{priority}", :durable => true, :auto_delete => false, :exclusive => false)
       end
 
       it "should create a durable fanout exchange for '#{priority}' priority" do
-        manager.exchanges[priority].name.should == "fa.test.work.#{priority}"
+        manager.exchanges[priority].name.should == "#{manager.prefix}.work.#{priority}"
         # Now we declare it again on the broker, which will raise an exception if the parameters don't match
-        channel.fanout("fa.test.work.#{priority}", :durable => true, :auto_delete => false)
+        channel.fanout("#{manager.prefix}.work.#{priority}", :durable => true, :auto_delete => false)
       end
     end
   end
@@ -153,7 +148,7 @@ describe TomQueue::QueueManager do
     TomQueue::PRIORITIES.each do |priority|
       it "should publish #{priority} priority messages to the #{priority} queue" do
         manager.publish("foo", :priority => priority)
-        manager.pop.ack!.response.exchange.should == "fa.test.work.#{priority}"
+        manager.pop.ack!.response.exchange.should == "#{manager.prefix}.work.#{priority}"
       end
     end
 
@@ -184,7 +179,7 @@ describe TomQueue::QueueManager do
         manager.publish("work", :run_at => Time.now + 0.1)
       end
       it "should pass the original options" do
-        run_time = Time.now + 0.1
+        run_time = Time.now + 0.5
         TomQueue::DeferredWorkManager.instance(manager.prefix).should_receive(:handle_deferred).with(anything, hash_including(:priority => TomQueue::NORMAL_PRIORITY, :run_at => run_time))
         manager.publish("work", :run_at => run_time)
       end

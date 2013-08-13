@@ -16,4 +16,6 @@ Gem::Specification.new do |spec|
   spec.summary        = 'AMQP hook for ActiveRecord backend for DelayedJob'
   spec.test_files     = Dir.glob("spec/**/*")
   spec.version        = '0.0.1.dev'
+
+  spec.add_development_dependency('rest-client')
 end
