@@ -19,12 +19,23 @@ module TomQueue
         def resolve_external_handler(work)
 
           # Look for a matching source exchange!
-          handler = TomQueue::DelayedJob.handlers.find { |klass| klass.claim_work?(work) } 
-          puts "Got handler: #{handler}"
-          if handler
-            handler.on_message(work.payload)
-            true
+          klass = TomQueue::DelayedJob.handlers.find { |klass| klass.claim_work?(work) }
+          
+          if klass
+            debug { "Resolved external handler #{klass} for message. Calling the init block." }
+
+            block = klass.claim_work?(work)
+
+            job = block.call(work)
+            if job.is_a?(Delayed::Job)
+              debug { "Got a job #{job.id}"}
+              job
+            else
+              debug { "Handler returned non-job, I presume that is it."}
+              true
+            end
           else
+            debug { "No external handler wants message, returning false" }
             false
           end
         end
@@ -34,12 +45,9 @@ module TomQueue
         # queue_manager - TomQueue::QueueManager to configure against
         #
         def setup_external_handler(queue_manager)
-
-
           TomQueue::DelayedJob.handlers.each do |klass|
             klass.setup_binding(queue_manager)
           end
-
         end
 
       end

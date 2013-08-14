@@ -6,12 +6,6 @@ describe TomQueue, "once hooked" do
   let(:job) { Delayed::Job.create! }
   let(:new_job) { Delayed::Job.new }
 
-  before do
-    TomQueue.logger ||= Logger.new("/dev/null")
-    TomQueue.default_prefix = "test-#{Time.now.to_f}"
-    TomQueue::DelayedJob.apply_hook!
-    Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
-  end
 
   it "should set the Delayed::Worker sleep delay to 0" do
     # This makes sure the Delayed::Worker loop spins around on

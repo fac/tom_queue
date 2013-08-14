@@ -269,7 +269,11 @@ module TomQueue
         else
 
           passthrough = resolve_external_handler(work)
-          if passthrough == false
+          if passthrough == true
+            work.ack!
+
+            nil
+          elsif passthrough == false
 
             decoded_payload = JSON.load(work.payload)
             job_id = decoded_payload['delayed_job_id']
@@ -294,7 +298,7 @@ module TomQueue
                 #
                 # We schedule another AMQP message to arrive when the job's lock will have expired.
                 Delayed::Job.find_by_id(job_id).tap do |job|
-                  debug "[reserve] Notified about locked job #{job.id}, will schedule follow up at #{job.locked_at + max_run_time + 1}"
+                  debug { "[reserve] Notified about locked job #{job.id}, will schedule follow up at #{job.locked_at + max_run_time + 1}" }
                   job && job.tomqueue_publish(job.locked_at + max_run_time + 1)
                 end
 
@@ -305,7 +309,7 @@ module TomQueue
             locked_job
 
           else
-            work.ack! if passthrough.nil?
+            work.ack!
 
             passthrough
           end
@@ -318,6 +322,13 @@ module TomQueue
         TomQueue.exception_reporter && TomQueue.exception_reporter.notify(e)
         
         nil
+
+      rescue
+
+        error "[reserve] Exception in reserve method: #{e.message}."
+        TomQueue.exception_reporter && TomQueue.exception_reporter.notify(e)
+
+        raise
       end
 
       # Internal: This is the AMQP notification object that triggered this job run

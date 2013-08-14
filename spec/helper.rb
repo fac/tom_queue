@@ -23,31 +23,38 @@ db_adapter, gemfile = ENV["ADAPTER"], ENV["BUNDLE_GEMFILE"]
 db_adapter ||= gemfile && gemfile[%r(gemfiles/(.*?)/)] && $1
 db_adapter ||= 'mysql'
 
-config = YAML.load(File.read('spec/database.yml'))
-ActiveRecord::Base.establish_connection config[db_adapter]
-ActiveRecord::Base.logger = Delayed::Worker.logger
-ActiveRecord::Migration.verbose = false
+begin
+  config = YAML.load(File.read('spec/database.yml'))
+  ActiveRecord::Base.establish_connection config[db_adapter]
+  ActiveRecord::Base.logger = Delayed::Worker.logger
+  ActiveRecord::Migration.verbose = false
 
-ActiveRecord::Schema.define do
-  create_table :delayed_jobs, :force => true do |table|
-    table.integer  :priority, :default => 0
-    table.integer  :attempts, :default => 0
-    table.text     :handler
-    table.text     :last_error
-    table.datetime :run_at
-    table.datetime :locked_at
-    table.datetime :failed_at
-    table.string   :locked_by
-    table.string   :queue
-    table.timestamps
+  ActiveRecord::Schema.define do
+    create_table :delayed_jobs, :force => true do |table|
+      table.integer  :priority, :default => 0
+      table.integer  :attempts, :default => 0
+      table.text     :handler
+      table.text     :last_error
+      table.datetime :run_at
+      table.datetime :locked_at
+      table.datetime :failed_at
+      table.string   :locked_by
+      table.string   :queue
+      table.timestamps
+    end
+
+    add_index :delayed_jobs, [:priority, :run_at], :name => 'delayed_jobs_priority'
+
+    create_table :stories, :primary_key => :story_id, :force => true do |table|
+      table.string :text
+      table.boolean :scoped, :default => true
+    end
   end
-
-  add_index :delayed_jobs, [:priority, :run_at], :name => 'delayed_jobs_priority'
-
-  create_table :stories, :primary_key => :story_id, :force => true do |table|
-    table.string :text
-    table.boolean :scoped, :default => true
+rescue Mysql2::Error
+  if db_adapter == 'mysql'
+    $stderr.puts "\033[1;31mException when connecting to MySQL, is it running?\033[0m\n\n"
   end
+  raise
 end
 
 # Purely useful for test cases...

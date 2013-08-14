@@ -12,8 +12,8 @@ module TomQueue
   #   class MyAwesomeConsumer
   #
   #     include TomQueue::ExternalConsumer
-  #     bind_exchange(:fanout, 'exchange_name') do |message|
-  #       .. do something with a message ..
+  #     bind_exchange(:fanout, 'exchange_name') do |work|
+  #       .. do something with a work (a TomQueue::Work object) ..
   #     end
   #
   #   end
@@ -31,17 +31,47 @@ module TomQueue
   #
   # which will pass the message to the consumer block
   #
+  # Block behaviour
+  # ---------------
+  #
+  # You should do the minimum work necessary in the bind_exchange block ideally just
+  # creating a delayed job object to do the actual work of reacting to the message.
+  #
+  # If you return a Delayed::Job record to the block caller, then the worker will immediately
+  # perform that job. Also, if you omit the block entirely, there is a default block provided 
+  # that carries out the following:
+  #
+  #   class MyAwesomeConsumer
+  #     bind_exchange(...) do |work|
+  #       new(work.payload, work.headers).delay.perform
+  #     end
+  #
+  #     def initialize(payload, headers)
+  #       ...
+  #     end
+  #
+  #     def perform
+  #       ... do something! ...
+  #     end
+  #   end
+  #
+  # This returns a Delayed::Job instance (as per the behaviour of the .delay method) which is then
+  # immediately called. If your block looks like the above, then you can omit it entirely!
+  #
   module ExternalConsumer
 
     # This class is the producer that is 
     class Producer
       def initialize(type, name, opts={}, *args)
         @type, @name, @opts = type, name, opts
+        @encoder = opts.fetch(:encoder, nil)
       end
 
       # Public: Push a message to the AMQP exchange associated with this consumer
       def publish(message)
-        Delayed::Job.tomqueue_manager.channel.exchange(@name, :type => @type).publish(message)
+        message = @encoder.encode(message) if @encoder
+        routing_key = @opts.fetch(:routing_key, nil)
+        Delayed::Job.tomqueue_manager.channel.exchange(@name, :type => @type).publish(message, :routing_key => routing_key)
       end
     end
 
@@ -58,6 +88,15 @@ module TomQueue
       # &block - called when a message is received
       #
       def bind_exchange(type, name, opts={}, &block)
+        encoder = opts.fetch(:encoder, nil)
+        block ||= lambda do |work|
+          payload = if encoder
+            encoder.decode(work.payload)
+          else
+            work.payload
+          end
+          new(payload, work.headers).delay.perform
+        end
         @bind_exchange = [type, name, opts, block]
       end
 
@@ -69,23 +108,20 @@ module TomQueue
       end
 
       def claim_work?(work)
-        p work.response.exchange
-        p @bind_exchange[1]
-        work.response.exchange == @bind_exchange[1]
+        type, name, opts, block = @bind_exchange
+        
+        (work.response.exchange == @bind_exchange[1]) ? @bind_exchange.last : false
       end
 
       def setup_binding(manager)
         type, name, opts, block = @bind_exchange
-
-#        priority = binding_data.fetch(:priority, TomQueue::NORMAL_PRIORITY)
-#        exchange = binding_data.fetch(:exchange)
-#        routing_key = binding_data.fetch(:routing_key, '#')
-        priority = TomQueue::NORMAL_PRIORITY
+        encoder = opts.fetch(:encoder, nil)
+        priority = opts.fetch(:priority, TomQueue::NORMAL_PRIORITY)
+        routing_key = opts.fetch(:routing_key, nil)
 
         # make sure the exchange is declared
         manager.channel.exchange(name, :type => type)
-        manager.queues[priority].bind(name)
-
+        manager.queues[priority].bind(name, :routing_key => routing_key)
       end
     end
 

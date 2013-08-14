@@ -28,13 +28,18 @@ module ActiveRecord::ConnectionAdapters::DatabaseStatements
 end
 
 begin
-  RestClient.delete("http://guest:guest@localhost:15672/api/vhosts/test")
-rescue RestClient::ResourceNotFound
+  begin
+    RestClient.delete("http://guest:guest@localhost:15672/api/vhosts/test")
+  rescue RestClient::ResourceNotFound
+  end
+  RestClient.put("http://guest:guest@localhost:15672/api/vhosts/test", "{}", :content_type => :json, :accept => :json)
+  RestClient.put("http://guest:guest@localhost:15672/api/permissions/test/guest", '{"configure":".*","write":".*","read":".*"}', :content_type => :json, :accept => :json)
+  TheBunny = Bunny.new(:host => 'localhost', :vhost => 'test', :user => 'guest', :password => 'guest')
+  TheBunny.start
+rescue Errno::ECONNREFUSED
+  $stderr.puts "\033[1;31mFailed to connect to RabbitMQ, is it running?\033[0m\n\n"
+  raise
 end
-RestClient.put("http://guest:guest@localhost:15672/api/vhosts/test", "{}", :content_type => :json, :accept => :json)
-RestClient.put("http://guest:guest@localhost:15672/api/permissions/test/guest", '{"configure":".*","write":".*","read":".*"}', :content_type => :json, :accept => :json)
-TheBunny = Bunny.new(:host => 'localhost', :vhost => 'test', :user => 'guest', :password => 'guest')
-TheBunny.start
 
 RSpec.configure do |r|
 
@@ -52,6 +57,13 @@ RSpec.configure do |r|
   # Make sure all tests see the same Bunny instance
   r.before do |test|
     TomQueue.bunny = TheBunny
+  end
+
+  r.before do
+    TomQueue.logger ||= Logger.new("/dev/null")
+    TomQueue.default_prefix = "test-#{Time.now.to_f}"
+    TomQueue::DelayedJob.apply_hook!
+    Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
   end
 
   # All tests should take < 2 seconds !!
