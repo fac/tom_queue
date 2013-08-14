@@ -33,6 +33,7 @@ module TomQueue
   # This array is where the priority ordering comes from, so get the
   # order right!
   PRIORITIES = [HIGH_PRIORITY, NORMAL_PRIORITY, LOW_PRIORITY, BULK_PRIORITY].freeze
+  DEFAULT_PRIORITY = LOW_PRIORITY
 
   # Public: This is your interface to pushing work onto and
   #   pulling work off the work queue. Instantiate one of these
@@ -124,7 +125,7 @@ module TomQueue
 
       @queues = {}
 
-      @exchange = @channel.direct("#{@prefix}.work", :durable => true, :auto_delete => false)
+      @exchange = @channel.topic("#{@prefix}.work", :durable => true, :auto_delete => false)
 
       PRIORITIES.each do |priority|
         @queues[priority] = @channel.queue("#{@prefix}.balance.#{priority}", :durable => true)

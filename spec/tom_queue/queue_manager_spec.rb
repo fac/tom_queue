@@ -49,10 +49,10 @@ describe TomQueue::QueueManager do
       end
     end
 
-    it "should create a single durable direct exchange" do
+    it "should create a single durable topic exchange" do
       manager.exchange.name.should == "#{manager.prefix}.work"
       # Now we declare it again on the broker, which will raise an exception if the parameters don't match
-      channel.direct("#{manager.prefix}.work", :durable => true, :auto_delete => false)
+      channel.topic("#{manager.prefix}.work", :durable => true, :auto_delete => false)
     end
 
   end
