@@ -57,13 +57,13 @@ module TomQueue
     # Returns a hash of { "priority" => <Bunny::Queue>, ... }
     attr_reader :queues
 
-    # Internal: The exchanges to which work is published, keyed by the priority
+    # Internal: The exchange to which work is published
     #
     # Internal, this is an implementation detail. Accessor is mainly for 
     # convenient testing
     #
-    # Returns a hash of { "priority" => <Bunny::Exchange>, ... }
-    attr_reader :exchanges
+    # Returns Bunny::Exchange instance. 
+    attr_reader :exchange
 
     class PersistentWorkPool < ::Bunny::ConsumerWorkPool
       def kill
@@ -122,13 +122,13 @@ module TomQueue
       @channel.open
       @channel.prefetch(1)
 
-      @exchanges = {}
       @queues = {}
 
+      @exchange = @channel.direct("#{@prefix}.work", :durable => true, :auto_delete => false)
+
       PRIORITIES.each do |priority|
-        @exchanges[priority] = @channel.fanout("#{@prefix}.work.#{priority}", :durable => true, :auto_delete => false)
         @queues[priority] = @channel.queue("#{@prefix}.balance.#{priority}", :durable => true)
-        @queues[priority].bind(@exchanges[priority])
+        @queues[priority].bind(@exchange, :routing_key => priority)
       end
 
       nil
@@ -162,9 +162,10 @@ module TomQueue
         })
       else
         
-        debug "[publish] Pushing work onto exchange '#{@exchanges[priority].name}'"
+        debug "[publish] Pushing work onto exchange '#{@exchange.name}' with routing key '#{priority}'"
         @publisher_mutex.synchronize do
-          @publisher_channel.fanout(@exchanges[priority].name, :passive=>true).publish(work, {
+          @publisher_channel.direct(@exchange.name, :passive=>true).publish(work, {
+            :routing_key => priority,
             :headers => {
               :job_priority => priority,
               :run_at       => run_at.iso8601(4)

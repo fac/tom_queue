@@ -2,6 +2,7 @@ require 'helper'
 require 'bunny'
 require 'rest_client'
 require 'tom_queue'
+require 'tom_queue/delayed_job'
 
 # Patch AR to allow Mock errors to escape after_commit callbacks
 # There is a test to check this hook works in delayed_job_spec.rb

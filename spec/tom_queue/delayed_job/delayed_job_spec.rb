@@ -1,5 +1,4 @@
 require 'tom_queue/helper'
-require 'tom_queue/delayed_job'
 
 describe TomQueue, "once hooked" do
 

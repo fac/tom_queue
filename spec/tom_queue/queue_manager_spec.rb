@@ -47,13 +47,14 @@ describe TomQueue::QueueManager do
         # exception.
         channel.queue("#{manager.prefix}.balance.#{priority}", :durable => true, :auto_delete => false, :exclusive => false)
       end
-
-      it "should create a durable fanout exchange for '#{priority}' priority" do
-        manager.exchanges[priority].name.should == "#{manager.prefix}.work.#{priority}"
-        # Now we declare it again on the broker, which will raise an exception if the parameters don't match
-        channel.fanout("#{manager.prefix}.work.#{priority}", :durable => true, :auto_delete => false)
-      end
     end
+
+    it "should create a single durable direct exchange" do
+      manager.exchange.name.should == "#{manager.prefix}.work"
+      # Now we declare it again on the broker, which will raise an exception if the parameters don't match
+      channel.direct("#{manager.prefix}.work", :durable => true, :auto_delete => false)
+    end
+
   end
 
   describe "QueueManager message publishing" do
@@ -131,9 +132,12 @@ describe TomQueue::QueueManager do
     end
 
     TomQueue::PRIORITIES.each do |priority|
-      it "should publish #{priority} priority messages to the #{priority} queue" do
+      it "should publish #{priority} priority messages to the single exchange, with routing key set to '#{priority}'" do
         manager.publish("foo", :priority => priority)
-        manager.pop.ack!.response.exchange.should == "#{manager.prefix}.work.#{priority}"
+        manager.pop.ack!.response.tap do |resp|
+          resp.exchange.should == "#{manager.prefix}.work"
+          resp.routing_key.should == priority
+        end
       end
     end
 
