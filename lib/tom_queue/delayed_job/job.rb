@@ -323,7 +323,7 @@ module TomQueue
         
         nil
 
-      rescue
+      rescue Exception => e
 
         error "[reserve] Exception in reserve method: #{e.message}."
         TomQueue.exception_reporter && TomQueue.exception_reporter.notify(e)

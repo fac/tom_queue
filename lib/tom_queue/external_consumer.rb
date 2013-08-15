@@ -71,7 +71,10 @@ module TomQueue
       def publish(message)
         message = @encoder.encode(message) if @encoder
         routing_key = @opts.fetch(:routing_key, nil)
-        Delayed::Job.tomqueue_manager.channel.exchange(@name, :type => @type).publish(message, :routing_key => routing_key)
+        auto_delete = @opts.fetch(:auto_delete, false)
+        durable = @opts.fetch(:durable, true)
+
+        Delayed::Job.tomqueue_manager.channel.exchange(@name, :type => @type, :auto_delete => auto_delete, :durable => durable).publish(message, :routing_key => routing_key)
       end
     end
 
@@ -118,9 +121,11 @@ module TomQueue
         encoder = opts.fetch(:encoder, nil)
         priority = opts.fetch(:priority, TomQueue::NORMAL_PRIORITY)
         routing_key = opts.fetch(:routing_key, nil)
+        auto_delete = opts.fetch(:auto_delete, false)
+        durable = opts.fetch(:durable, true)
 
         # make sure the exchange is declared
-        manager.channel.exchange(name, :type => type)
+        manager.channel.exchange(name, :type => type, :auto_delete => auto_delete, :durable => durable)
         manager.queues[priority].bind(name, :routing_key => routing_key)
       end
     end
