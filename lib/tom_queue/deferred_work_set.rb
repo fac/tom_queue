@@ -1,53 +1,5 @@
 module TomQueue
 
-  # Internal: This is a cache array that keeps the earliest X elements
-  # in a sorted list, so they can be quickly retrieved
-  class ElementCache
-
-    # Public: Create the cache
-    #
-    # cache_size - the number of elements this cache can store
-    #
-    def initialize
-      @cache_size = 50
-      @earliest = []
-    end
-
-    # Public: Insert a given piece of work into the cache
-    # (if it makes sense to)
-    #
-    # run_at - ruby Time object
-    # work   - the payload to store
-    #
-    def insert(work)
-      if @earliest.size < @cache_size or work.run_at < @earliest.last.run_at
-        @earliest << work
-        @earliest.sort!
-        @earliest.pop until @earliest.size <= @cache_size
-      end
-    end
-
-    # Public: Notify the cache that a particular element has been
-    # removed from the set
-    #
-    def invalidate(element)
-      @earliest.delete(element)
-    end
-
-    # Public: Is this cache valid, i.e.does it need rebuilding?
-    #
-    # Returns boolean
-    def valid?
-      !@earliest.empty?
-    end
-
-    # Public: Return the cache item with the earliest run_at value
-    def first
-      @earliest.first
-    end
-  end
-
-
   # Internal: This class wraps the pool of work items that are waiting for their run_at 
   # time to be reached.
   # 
@@ -56,17 +8,31 @@ module TomQueue
   #
   class DeferredWorkSet
 
-    # Internal: A wrapper object to store the run at and the opaque
-    # work object inside the @work array.
+    # Internal: A wrapper object to store the run at and the opaque work object inside the @work array.
     class Element < Struct.new(:run_at, :work)
       include Comparable
 
-      attr_reader :run_at_float
+      # Internal: Accessor to use in the comparison function
+      attr_reader :run_at_compare
+
+      # Internal: Creates an element. This is called by DeferredWorkSet as work is scheduled so
+      # shouldn't be done directly.
+      #
+      # run_at - (Time) the time when this job should be run
+      # work   - (Object) a payload associated with this work. Just a plain ruby
+      #          object that it is up to the caller to interpret
+      #
       def initialize(run_at, work)
         super(run_at, work)
         @run_at_float = (run_at.to_f * 1000).to_i
       end
 
+      # Internal: Comparison function, referencing the scheduled run-time of the element
+      #
+      # NOTE: We don't compare the Time objects directly as this is /dog/ slow, as is comparing
+      # float objects, and this function will be called a /lot/ - so we compare reasonably 
+      # accurate integer values created in the initializer.
+      #
       def <=> (other)
         run_at_float <=> other.run_at_float
       end
@@ -76,7 +42,6 @@ module TomQueue
       @mutex = Mutex.new
       @condvar = ConditionVariable.new
       @work = Set.new
-      @cache = ElementCache.new
     end
 
     # Public: Returns the integer number of elements in the set
@@ -104,20 +69,20 @@ module TomQueue
       @interrupt = false
 
       @mutex.synchronize do
-        raise RuntimeError, 'DeferredWorkSet: another thread is already blocked on a pop' unless @blocked_thread.nil? 
+        raise RuntimeError, 'DeferredWorkSet: another thread is already blocked on a pop' unless @blocked_thread.nil?
 
         begin
           @blocked_thread = Thread.current
 
           begin
-            end_time = [earliest_element.try(:run_at), timeout_end].compact.min
-            @condvar.wait(@mutex, end_time - Time.now) if end_time > Time.now
+            end_time = [next_run_at, timeout_end].compact.min
+            delay = end_time - Time.now
+            @condvar.wait(@mutex, delay) if delay > 0
           end while Time.now < end_time and @interrupt == false
 
           element = earliest_element
           if element && element.run_at < Time.now
             @work.delete(element)
-            @cache.invalidate(element)
             returned_work = element.work
           end
 
@@ -154,7 +119,6 @@ module TomQueue
       @mutex.synchronize do
         new_element = Element.new(run_at, work)
         @work << new_element
-        @cache.insert(new_element)
         @condvar.signal
       end
     end
@@ -162,25 +126,28 @@ module TomQueue
     # Public: Returns the temporally "soonest" element in the set
     # i.e. the work that is next to be run
     #
-    # Returns a DeferredWork instance or
+    # Returns the work Object passed to schedule instance or
     #         nil if there is no work in the set
     def earliest
-      earliest_element.try(:work)
+      e = earliest_element
+      e && e.work
     end
 
-    # Internal: Maintains an internal cache of the earliest few elements
-    # We do the single scan of the main list to build this hot cache less
-    # often than every time we remove a deferred job
+    # Internal: The next time this thread should next wake up for an element
     #
-    # Returns nil
-    def rebuild_cache
-      @work.each { |v| @cache.insert(v) }
+    # If there are elements in the work set, this will correspond to time of the soonest.
+    #
+    # Returns a Time object, or nil if there are no elements stored.
+    def next_run_at
+      e = earliest_element
+      e && e.run_at
     end
 
-    # Internal: The earliest element (i.e. wrapper object)
+    # Internal: The Element object wrapping the work with the soonest run_at value
+    #
+    # Returns Element object, or nil if the work set is empty
     def earliest_element
-      rebuild_cache if !@cache.valid?
-      @cache.first
+      @work.first
     end
   end
 
