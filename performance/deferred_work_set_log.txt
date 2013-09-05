@@ -1,0 +1,60 @@
+With simple insert, and sort on pop:
+
+  Job Scheduling:
+   with    50000 queue: Average: 0.0128ms      (max=0.0230ms min=0.0100ms)
+   with   100000 queue: Average: 0.0129ms      (max=0.0190ms min=0.0110ms)
+   with   500000 queue: Average: 0.0138ms      (max=0.0200ms min=0.0120ms)
+
+  Pop earliest:
+   with    50000 queue: Average: 238.6328ms      (max=278.8970ms min=227.7020ms)
+   with   100000 queue: Average: 539.5702ms      (max=606.2880ms min=510.6800ms)
+   with   500000 queue: Average: 4550.3970ms      (max=4791.9280ms min=4424.4070ms)
+
+With insert in order and pop first:
+
+  Job Scheduling:
+   with    50000 queue: Average: 0.0694ms      (max=0.3660ms min=0.0460ms)
+   with   100000 queue: Average: 0.0822ms      (max=0.1100ms min=0.0570ms)
+   with   500000 queue: Average: 0.0452ms      (max=0.0520ms min=0.0400ms)
+
+  Pop earliest:
+   with    50000 queue: Average: 0.0006ms      (max=0.0050ms min=0.0000ms)
+   with   100000 queue: Average: 0.0006ms      (max=0.0030ms min=0.0000ms)
+   with   500000 queue: Average: 0.0008ms      (max=0.0040ms min=0.0000ms)
+
+With non-recursive binary search:
+
+  Job Scheduling:
+   with    50000 queue: Average: 0.0470ms      (max=0.0550ms min=0.0340ms)
+   with   100000 queue: Average: 0.0704ms      (max=0.0940ms min=0.0430ms)
+   with   500000 queue: Average: 0.0313ms      (max=0.0560ms min=0.0230ms)
+
+  Pop earliest:
+   with    50000 queue: Average: 0.0006ms      (max=0.0050ms min=0.0000ms)
+   with   100000 queue: Average: 0.0008ms      (max=0.0140ms min=0.0000ms)
+   with   500000 queue: Average: 0.0008ms      (max=0.0040ms min=0.0000ms)
+
+With an optimised midpoint calculator...
+
+  Job Scheduling:
+   with    50000 queue: Average: 0.0480ms      (max=0.0590ms min=0.0340ms)
+   with   100000 queue: Average: 0.0739ms      (max=0.1230ms min=0.0420ms)
+   with   500000 queue: Average: 0.0280ms      (max=0.0360ms min=0.0230ms)
+
+  Pop earliest:
+   with    50000 queue: Average: 0.0007ms      (max=0.0050ms min=0.0000ms)
+   with   100000 queue: Average: 0.0010ms      (max=0.0050ms min=0.0000ms)
+   with   500000 queue: Average: 0.0007ms      (max=0.0050ms min=0.0000ms)
+
+
+With time-period rounding to 100ms
+
+  Job Scheduling:
+   with    50000 queue: Average: 0.0450ms      (max=0.0620ms min=0.0300ms)
+   with   100000 queue: Average: 0.0680ms      (max=0.1080ms min=0.0420ms)
+   with   500000 queue: Average: 0.0273ms      (max=0.0430ms min=0.0230ms)
+
+  Pop earliest:
+   with    50000 queue: Average: 0.0007ms      (max=0.0040ms min=0.0000ms)
+   with   100000 queue: Average: 0.0006ms      (max=0.0020ms min=0.0000ms)
+   with   500000 queue: Average: 0.0006ms      (max=0.0020ms min=0.0000ms)
