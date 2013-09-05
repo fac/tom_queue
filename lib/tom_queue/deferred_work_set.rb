@@ -12,8 +12,8 @@ module TomQueue
     class Element < Struct.new(:run_at, :work)
       include Comparable
 
-      # Internal: Accessor to use in the comparison function
-      attr_reader :run_at_compare
+      # Internal: An integer version of run_at, less precise, but faster to compare.
+      attr_reader :fast_run_at
 
       # Internal: Creates an element. This is called by DeferredWorkSet as work is scheduled so
       # shouldn't be done directly.
@@ -24,7 +24,7 @@ module TomQueue
       #
       def initialize(run_at, work)
         super(run_at, work)
-        @run_at_float = (run_at.to_f * 1000).to_i
+        @fast_run_at = (run_at.to_f * 1000).to_i
       end
 
       # Internal: Comparison function, referencing the scheduled run-time of the element
@@ -34,14 +34,25 @@ module TomQueue
       # accurate integer values created in the initializer.
       #
       def <=> (other)
-        run_at_float <=> other.run_at_float
+        fast_run_at <=> other.fast_run_at
+      end
+
+      # Internal: We need to override this in order for elements with the same run_at not to be deleted
+      # too soon.
+      #
+      # When #<=> is used with `Comparable`, we get #== for free, but when it operates using run_at, it has
+      # the undesirable side-effect that when Array#delete is called with an element, all other elements with 
+      # the same run_at are deleted, too (since #== is used by Array#delete).
+      #
+      def == (other)
+        false
       end
     end
 
     def initialize
       @mutex = Mutex.new
       @condvar = ConditionVariable.new
-      @work = Set.new
+      @work = TomQueue::SortedArray.new
     end
 
     # Public: Returns the integer number of elements in the set

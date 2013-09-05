@@ -122,6 +122,13 @@ describe TomQueue::DeferredWorkSet do
       set.pop(1).should == "missing"
       set.pop(1).should == "final"
     end
+
+    it "should not delete all elements with the same run_at" do
+      the_time = Time.now + 0.1
+      set.schedule(the_time, "work-1")
+      set.schedule(the_time, "work-2")
+      2.times.collect { set.pop(1) }.sort.should == ["work-1", "work-2"]
+    end
   end
 
 end
