@@ -18,6 +18,8 @@ module TomQueue
 
   require 'tom_queue/external_consumer'
 
+  require 'tom_queue/sorted_array'
+
   # Public: Sets the bunny instance to use for new QueueManager objects
   def bunny=(new_bunny)
     @@bunny = new_bunny
