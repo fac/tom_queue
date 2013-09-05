@@ -311,18 +311,6 @@ module TomQueue
           else
             work.ack!
 
-            # Make sure, if a Delayed::Job is passed through, we lock it first!
-            if passthrough.is_a?(Delayed::Job)
-              the_id = passthrough.id
-              passthrough = self.acquire_locked_job(passthrough.id, worker)
-              if passthrough.nil?
-                puts "Failed to acquire job #{the_id}" 
-              else
-                puts "Acquired job #{the_id}"
-              end
-
-            end
-
             passthrough
           end
         end
