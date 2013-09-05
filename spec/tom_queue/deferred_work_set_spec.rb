@@ -111,6 +111,17 @@ describe TomQueue::DeferredWorkSet do
       }.should raise_exception(/another thread is already blocked/)
     end
 
+    it "should not get deferred items caught outside the cache" do
+      start_time = Time.now
+      50.times { |i| set.schedule(start_time+0.1+i*0.001, "bulk") }
+      set.schedule(start_time+0.2, "missing")
+
+      50.times { set.pop(1).should == "bulk" }
+
+      set.schedule(start_time+0.3, "final")
+      set.pop(1).should == "missing"
+      set.pop(1).should == "final"
+    end
   end
 
 end
