@@ -224,17 +224,30 @@ module TomQueue
           if job.nil?
             job = nil
           
+          elsif job.failed?
+            warn "[tomqueue] Received notification for failed job #{job.id}"
+            job = nil
+
           elsif job.locked?
             job = false
           
           elsif job.locked_at || job.locked_by || (!block_given? || yield(job) == true)
-              job.skip_publish = true
-              
-              job.locked_by = worker.name
-              job.locked_at = self.db_time_now
-              job.save!
 
-              job.skip_publish = nil
+              if job.run_at > self.db_time_now + 5
+                warn "[tomqueue] Received early notification for job #{job.id} - expected at #{job.run_at}"
+
+                job.tomqueue_publish(job.run_at)
+
+                job = nil
+              else
+                job.skip_publish = true
+                
+                job.locked_by = worker.name
+                job.locked_at = self.db_time_now
+                job.save!
+
+                job.skip_publish = nil
+              end
           else
             job = nil
           end

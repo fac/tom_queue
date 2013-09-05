@@ -97,6 +97,26 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     @called.should == ["high", "low1", "low2", "low3", "low4"]
   end
 
+  it "should not run a failed job" do
+    class ExplosiveJob
+      def perform
+        raise "Failure"
+      end
+    end
+    # this will send the notification
+    job = Delayed::Job.enqueue(ExplosiveJob.new)
+
+    # now make the job look like it has failed
+    job.skip_publish = true
+    job.attempts = 0
+    job.failed_at = Time.now
+    job.last_error = "Some error"
+    job.save
+
+    # This shouldn't trigger the failure!
+    Delayed::Worker.new.work_off(1)
+  end
+
   # it "should re-run the job once max_run_time is reached if, say, a worker crashes" do
   #   Delayed::Worker.max_run_time = 2
 

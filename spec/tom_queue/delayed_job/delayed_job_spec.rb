@@ -398,6 +398,58 @@ describe TomQueue, "once hooked" do
         @query_result["locked_by"].should_not be_nil
       end
 
+      describe "when the job is marked as failed" do
+        let(:failed_time) { Time.now - 10 }
+
+        before do
+          job.update_attribute(:failed_at, failed_time)
+        end
+
+        it "should return nil" do
+          subject.should be_nil
+        end
+
+        it "should not modify the failed_at value" do
+          subject
+          job.reload
+          job.failed_at.to_i.should == failed_time.to_i
+        end
+
+        it "should not lock the job" do
+          subject
+          job.reload
+          job.locked_by.should be_nil
+          job.locked_at.should be_nil
+        end
+      end
+
+      describe "when the notification is delivered too soon" do
+        
+        before do
+          actual_time = Delayed::Job.db_time_now
+          Delayed::Job.stub(:db_time_now => actual_time - 10)
+        end
+
+        it "should return nil" do
+          subject.should be_nil
+        end
+
+        it "should re-post a notification" do
+          Delayed::Job.tomqueue_manager.should_receive(:publish) do |payload, args|
+            args[:run_at].to_i.should == job.run_at.to_i
+          end
+          subject
+        end
+
+        it "should not lock the job" do
+          subject
+          job.reload
+          job.locked_by.should be_nil
+          job.locked_at.should be_nil
+        end
+
+      end
+
       describe "when the job is not locked" do
         
         it "should acquire the lock fields on the job" do
