@@ -98,23 +98,30 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
   end
 
   it "should not run a failed job" do
-    class ExplosiveJob
-      def perform
-        raise "Failure"
-      end
-    end
+    logfile = Tempfile.new('logfile')
+    TomQueue.logger = Logger.new(logfile.path)
+    Delayed::Job.delete_all
     # this will send the notification
-    job = Delayed::Job.enqueue(ExplosiveJob.new)
+    job = "Hello".delay.to_s
 
     # now make the job look like it has failed
-    job.skip_publish = true
     job.attempts = 0
     job.failed_at = Time.now
     job.last_error = "Some error"
     job.save
 
-    # This shouldn't trigger the failure!
+    job.should be_failed
+
+    Delayed::Job.tomqueue_republish
+
+    # The job should get ignored for both runs
     Delayed::Worker.new.work_off(1)
+    Delayed::Worker.new.work_off(1)
+    
+    # And, since it never got run, it should still exist!
+    Delayed::Job.find_by_id(job.id).should_not be_nil
+    # And it should have been noisy, too.
+    File.read(logfile.path).should =~ /Received notification for failed job #{job.id}/
   end
 
   # it "should re-run the job once max_run_time is reached if, say, a worker crashes" do
