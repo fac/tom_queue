@@ -1,16 +1,16 @@
-tom_queue
+TomQueue
 =========
 
-TomQueue hooks onto delayed_job_active_record[https://github.com/collectiveidea/delayed_job_active_record] to move the work-load queue out of the database onto a more suitable queueing server (RabbitMQ).
+TomQueue hooks onto [delayed_job_active_record](https://github.com/collectiveidea/delayed_job_active_record) to move the work-load queue out of the database onto a more suitable queueing server, in our case [RabbitMQ](http://rabbitmq.com).
 
 Why?
 ----
 
-At FreeAgent, we have always used Delayed Job to manage asynchronous work and find it still fits our needs well, not only in getting code running in production but also in its handling of failed jobs as well as having our entire engineering team understand how it works. It's a core part of our workflow and infrastructure and we're happy with it.
+At FreeAgent, we have always used Delayed Job to manage asynchronous work and find it still fits our needs well, not only in getting code running in production but also in its handling of failed jobs as well as ensuring our entire engineering team understand how it behaves. It's a core part of our workflow and infrastructure and we're happy with it.
 
-That said, when it is backed by MySQL, as we have it, we've found that it performs particularly poorly with larger queue sizes. In fact, the larger the queue of work gets, the *slower* it gets! To cut a long story short, databases make really poor queues.
+That said, when it is backed by MySQL, we've found that it performs particularly poorly when the work queued gets large (i.e. 10k+). In fact, the larger the queue of work gets, the *slower* the query to pull the next job! To cut a long story short, databases make really poor work queues.
 
-Rather than move our "Source of Truth" for jobs and their state out of the database (and re-wire our jobs to use something like Resque, etc.) I've opted to fix the problem by replacing the queue of work to do with a more suitable server, namely AMQP / RabbitMQ. This is where this library comes in.
+Rather than move our "Source of Truth" for jobs and their state out of the database as well as re-wire our job code to use some alternative (such as [Resque](http://resquework.org), etc.) I've opted to fix the problem by replacing the work-queue to a more suitable server, namely AMQP / RabbitMQ, whilst maintaining the definitive job-list in the database. This is where TomQueue comes in.
 
 Great, how do I use it?
 -----------------------
@@ -19,7 +19,7 @@ Ok, first you need an AMQP broker, we recommend and use RabbitMQ. Once you have 
 
     gem 'tom_queue'
 
-Then, the next step is to configure where your AMQP broker is and install the hook. Create a rails initializer with some configuration:
+Then, the next step is to add the generic TomQueue configuration - we stuff this into a Rails initializer:
 
     require 'tom_queue/delayed_job'
     TomQueue::DelayedJob.priority_map[1] = TomQueue::BULK_PRIORITY
@@ -31,11 +31,11 @@ Then, the next step is to configure where your AMQP broker is and install the ho
     TomQueue.exception_reporter = ErrorService
     TomQueue.logger = Rails.logger
 
-The priority map relates Delayed Job's numerical priority values to discrete priority levels, of BULK, LOW, NORMAL and HIGH. Any un-mapped priorities are presumed to be NORMAL. See below for further discussion on how job-priority works.
+The priority map maps Delayed Job's numerical priority values to discrete priority levels, of BULK, LOW, NORMAL and HIGH, since we can't support arbitrary priorities. Any un-mapped values are presumed to be NORMAL. See below for further discussion on how job-priority works.
 
-The `logger` is a bog-standard `Logger` object that emits warnings and errors from the TomQueue internals, useful for figuring out what is going on. The `exception_reporter`, if set, should respond to `notify(exception)` and any caught exceptions will be forwarded to this object. If this isn't set, exceptions will just be logged.
+The `logger` is a bog-standard `Logger` object that, when set, receives warnings and errors from the TomQueue internals, useful for figuring out what is going on and when things go wrong. The `exception_reporter`, if set, should respond to `notify(exception)` and will receive any exceptions caught during the job lifecycle. If this isn't set, exceptions will just be logged.
 
-Now you need to pick which environments should use TomQueue, and wire in the AMQP broker configuration for them. In, for example, `config/environments/production.rb` add the lines:
+Now you need to configure TomQueue in your rails environments and wire in the AMQP broker configuration for them. In, for example, `config/environments/production.rb` add the lines:
 
     TomQueue.bunny = Bunny.new( ... )
     TomQueue.bunny.start
@@ -48,7 +48,7 @@ Replacing the `...` with the necessary Bunny configuration for your environment.
 Ok, so what happens now?
 ------------------------
 
-Hopefully, DelayedJob should work as-is, but notifications for job events should be pushed via the AMQP broker, relieving the database server of the queue responsibility. It's worth pointing out that the "true" job state still resides in the DB, messages via the broker purely instruct the worker to run particular jobs.
+Hopefully, DelayedJob should work as-is, but notifications for job events should be pushed via the AMQP broker, relieving the database server of the queue responsibility. It's worth pointing out that the "true" job state still resides in the DB, messages via the broker purely instruct the worker to consider a particular job.
 
 It does add a couple of methods to the `DelayedJob` class and instances, which allow you to re-populate the AMQP broker with any jobs that reside in the DB. This is good if your broker drops offline for some reason, and misses some notifications.
 
