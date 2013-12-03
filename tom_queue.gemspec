@@ -1,6 +1,7 @@
 # coding: utf-8
 
 Gem::Specification.new do |spec|
+  spec.add_dependency   'activerecord', '~> 3.2.15'
   spec.add_dependency   'delayed_job_active_record'
   spec.add_dependency   'bunny', '~> 0.9.0'
   spec.authors        = ["Thomas Haggett"]
