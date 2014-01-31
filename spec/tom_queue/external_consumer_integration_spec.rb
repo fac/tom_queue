@@ -1,5 +1,4 @@
-require 'tom_queue/helper'
-require 'tom_queue/delayed_job'
+require 'spec_helper'
 
 describe "External consumers" do
 

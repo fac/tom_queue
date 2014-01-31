@@ -1,6 +1,5 @@
-
 require 'net/http'
-require 'tom_queue/helper'
+require 'spec_helper'
 
 describe TomQueue::QueueManager, "simple publish / pop" do
 

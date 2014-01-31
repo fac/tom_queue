@@ -1,4 +1,4 @@
-require 'tom_queue/helper'
+require 'spec_helper'
 
 describe Range, 'tomqueue_binary_search' do
 
