@@ -122,24 +122,21 @@ RSpec.configure do |rspec|
   rspec.order = "random"
 
   rspec.before do
-    TomQueue.exception_reporter = Class.new do
-      def notify(exception)
-        puts "Exception reported: #{exception.inspect}"
-        puts exception.backtrace.join("\n")
+    TomQueue.exception_reporter = Class.new {
+      def method_missing(*args)
       end
-    end.new
+    }.new
 
-    TomQueue.logger = Logger.new($stdout) if ENV['DEBUG']
-  end
-
-  # Make sure all tests see the same Bunny instance
-  rspec.before do |test|
+    # Make sure all tests see the same Bunny instance
     TomQueue.bunny = TheBunny
-  end
 
-  rspec.before do
-    TomQueue.logger ||= Logger.new("/dev/null")
-    TomQueue.default_prefix = "test-#{Time.now.to_f}"
+    if ENV['DEBUG']
+      TomQueue.logger = Logger.new($stdout)
+    else
+      TomQueue.logger ||= Logger.new("/dev/null")
+      TomQueue.default_prefix = "test-#{Time.now.to_f}"
+    end
+
     TomQueue::DelayedJob.apply_hook!
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
   end
