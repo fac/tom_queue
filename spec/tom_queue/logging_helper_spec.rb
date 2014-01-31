@@ -146,7 +146,7 @@ describe TomQueue::LoggingHelper do
     end
   end
 
-  
+
 
 end
 
