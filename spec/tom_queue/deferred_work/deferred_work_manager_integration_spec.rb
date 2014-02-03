@@ -116,10 +116,8 @@ describe "DeferredWorkManager integration scenarios"  do
   end
 
   describe "if the AMQP consumer thread crashes" do
-
     # Tweak the deferred set to asplode when payload == "explosive"
     before do
-      TomQueue.exception_reporter = nil
       require 'tom_queue/deferred_work_set'
 
       # Look away...
@@ -127,8 +125,9 @@ describe "DeferredWorkManager integration scenarios"  do
 
         unless method_defined?(:orig_schedule)
           def new_schedule(run_at, message)
-            raise RuntimeError, "ENOHAIR" if message.last == "explosive"
-            orig_schedule(run_at, message)
+            orig_schedule(run_at, message) do
+              raise RuntimeError, "ENOHAIR" if message.last == "explosive"
+            end
           end
         end
         alias_method :orig_schedule, :schedule
@@ -150,24 +149,41 @@ describe "DeferredWorkManager integration scenarios"  do
       manager.ensure_running
     end
 
-    let(:crash!) do
-      consumer.publish("explosive", :run_at => Time.now + 0.2)
+    let(:crash_deferred_work_manager) do
+      lambda { consumer.publish("explosive", :run_at => Time.now + 200) }
     end
 
-    it "should notify the exception_reporter" do
-      TomQueue.exception_reporter = double("Reporter")
-      TomQueue.exception_reporter.should_receive(:notify) do |exception|
+    it "should notify the exception_reporter" do#, focus: true do
+      exception_reporter = double(:exception_reporter)
+      TomQueue.exception_reporter = exception_reporter
+
+      # Notify gets called twice, **some of the times**. I have looked long and
+      # hard at this, and the logical conclusion that I came up with is that
+      # mutexes are not properly synchronizing this operation. I have passed
+      # the raise as a block into the schedule mutex and it still fails! I have
+      # no explanation for this behaviour, but with all the global scope going
+      # on, modifying method definitions when testing, layers and layers of
+      # before callbacks, working with this is nothing short of a nightmare. I
+      # have been trying to wrap my head around QueueManager,
+      # DeferredWorkManager, DeferredWorkSet and to be honest, 2 1/2 days
+      # later, I'm still confused. If it was my call, I would rely on Celluloid
+      # to get the concurrency primitives right and then just add the the
+      # required functionality on top of those building blocks. I could
+      # continue trying to figure out where the problem is, but I have a strong
+      # feeling that we're re-inventing the wheel here with sub-standard
+      # results.
+      expect(exception_reporter).to receive(:notify) do |exception|
         exception.should be_a(RuntimeError)
         exception.message.should == "ENOHAIR"
       end
 
-      crash!
+      crash_deferred_work_manager.call()
       TomQueue::DeferredWorkManager.instance(consumer.prefix).ensure_stopped
     end
 
     it "should work around the broken messages" do
       consumer.publish("foo", :run_at => Time.now + 0.1)
-      crash!
+      crash_deferred_work_manager.call()
       consumer.publish("bar", :run_at => Time.now + 0.1)
 
       consumer.pop.ack!.payload.should == "foo"
@@ -175,9 +191,10 @@ describe "DeferredWorkManager integration scenarios"  do
     end
 
     it "should re-queue the message once" do
-      TomQueue.exception_reporter = double("Reporter")
-      TomQueue.exception_reporter.should_receive(:notify).twice
-      crash!
+      exception_reporter = double(:exception_reporter)
+      TomQueue.exception_reporter = exception_reporter
+      expect(exception_reporter).to receive(:notify).twice
+      crash_deferred_work_manager.call()
       consumer.publish("bar", :run_at => Time.now + 0.1)
       consumer.pop.ack!
     end

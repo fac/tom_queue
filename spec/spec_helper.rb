@@ -1,3 +1,4 @@
+require 'pry'
 require 'bunny'
 require 'rest_client'
 require 'simplecov'
@@ -124,6 +125,7 @@ RSpec.configure do |rspec|
   rspec.before do
     TomQueue.exception_reporter = Class.new {
       def method_missing(*args)
+        puts "~~~ EXCEPTION_REPORTER #{args}", caller
       end
     }.new
 
@@ -131,6 +133,7 @@ RSpec.configure do |rspec|
     TomQueue.bunny = TheBunny
 
     if ENV['DEBUG']
+      $DEBUG = true
       TomQueue.logger = Logger.new($stdout)
     else
       TomQueue.logger ||= Logger.new("/dev/null")

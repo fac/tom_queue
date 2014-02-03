@@ -128,6 +128,7 @@ module TomQueue
     #
     def schedule(run_at, work)
       @mutex.synchronize do
+        yield if block_given?
         new_element = Element.new(run_at, work)
         @work << new_element
         @condvar.signal
