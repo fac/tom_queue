@@ -5,6 +5,10 @@ describe TomQueue, "once hooked" do
   let(:job) { Delayed::Job.create! }
   let(:new_job) { Delayed::Job.new }
 
+  before do
+    TomQueue.exception_reporter = nil
+  end
+
   it "should set the Delayed::Worker sleep delay to 0" do
     # This makes sure the Delayed::Worker loop spins around on
     # an empty queue to block on TomQueue::QueueManager#pop, so
