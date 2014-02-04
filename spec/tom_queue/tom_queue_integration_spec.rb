@@ -181,9 +181,13 @@ describe TomQueue::QueueManager, "simple publish / pop" do
         time ||= Time.now
         @manager.publish("done", :run_at => time)
       end
+
       def start!
         @thread ||= Thread.new(&method(:thread_main))
         self
+      end
+      def join
+        @thread.join
       end
     end
 
@@ -216,46 +220,55 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       source_order.should == sink_order
     end
 
-    it "should be able to drain the queue, block and resume when new work arrives" do
-      source_order = []
+    it "should be able to drain the queue, block and resume when new jobs arrive" do
+      published_jobs_payloads = []
+      number_of_jobs_to_publish = 5
+      number_of_consumers = 10
+
+      publish_job = lambda { |args|
+        job_series = args.fetch(:series)
+        job_number = args.fetch(:number)
+
+        job_payload = "job #{job_series}:#{job_number}"
+        published_jobs_payloads << job_payload
+        manager.publish(job_payload)
+      }
 
       # Run both consumers, in parallel threads, so in some cases,
       # there should be a thread waiting for work
-      consumers = 10.times.collect do |i|
+      consumers = number_of_consumers.times.map do |i|
         consumer = TomQueue::QueueManager.new(manager.prefix, "thread-#{i}")
         QueueConsumerThread.new(consumer) { |work| sleep rand(0.5) }.start!
       end
 
-      # This sleep gives the workers enough time to block on the first call to pop
+      # This sleep gives the consumers enough time to block on the first call to pop
       sleep 0.1 until manager.queues[TomQueue::NORMAL_PRIORITY].status[:consumer_count] == consumers.size
 
-      # Now publish some work
-      50.times do |i|
-        work = "work #{i}"
-        source_order << work
-        manager.publish(work)
+      # Now publish some jobs
+      number_of_jobs_to_publish.times do |i|
+        publish_job.call(:series => 1, :number => i)
       end
 
       # Rough and ready - wait for the queue to empty
       sleep 0.1 until manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count] == 0
 
-      # Now publish some more work
-      50.times do |i|
-        work = "work 2-#{i}"
-        source_order << work
-        manager.publish(work)
+      # Now publish more jobs
+      number_of_jobs_to_publish.times do |i|
+        publish_job.call(:series => 2, :number => i)
       end
 
       # Now publish a bunch of messages to cause the threads to exit the loop
-      consumers.each { |c| c.signal_shutdown }
-      consumers.each { |c| c.thread.join }
+      consumers.each(&:signal_shutdown)
+      consumers.each(&:join)
 
-      # Now merge all the consumers internal work arrays into one
-      # sorted by the received_at timestamps
-      sink_order = consumers.map { |c| c.work }.flatten.sort.map { |a| a.payload }
+      processed_jobs = consumers.map(&:work)
+      processed_jobs_sorted_by_received_at = processed_jobs.flatten.sort
 
-      # Compare what the publisher did to what the workers did.
-      sink_order.should == source_order
+      expect(
+        processed_jobs_sorted_by_received_at.map(&:payload)
+      ).to eql(
+        published_jobs_payloads
+      )
     end
 
     it "should work with lots of deferred work on the queue, and still schedule all messages" do

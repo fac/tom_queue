@@ -5,6 +5,9 @@ describe TomQueue, "once hooked" do
   let(:job) { Delayed::Job.create! }
   let(:new_job) { Delayed::Job.new }
 
+  before do
+    TomQueue.exception_reporter = nil
+  end
 
   it "should set the Delayed::Worker sleep delay to 0" do
     # This makes sure the Delayed::Worker loop spins around on
@@ -615,10 +618,8 @@ describe TomQueue, "once hooked" do
       end
 
       it "should allow exceptions to escape the function" do
-        Delayed::Job.tomqueue_manager.should_receive(:pop) do
-          raise SignalException, "INT"
-        end
-        lambda { subject }.should raise_exception(SignalException)
+        expect(Delayed::Job.tomqueue_manager).to receive(:pop).and_raise(SignalException.new("INT"))
+        expect { Delayed::Job.reserve(worker) }.to raise_error(SignalException)
       end
     end
 
@@ -642,9 +643,10 @@ describe TomQueue, "once hooked" do
       let(:payload) { "NOT JSON!!1" }
 
       it "should report an exception" do
-        TomQueue.exception_reporter = mock("Reporter", :notify => nil)
-        TomQueue.exception_reporter.should_receive(:notify).with(instance_of(JSON::ParserError))
+        reporter = double(:reporter, :notify => nil)
+        TomQueue.stub(:exception_reporter) { reporter }
         subject
+        expect(reporter).to have_received(:notify).with(instance_of(JSON::ParserError))
       end
 
       it "should be happy if no exception reporter is set" do

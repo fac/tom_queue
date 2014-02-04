@@ -168,9 +168,8 @@ module TomQueue
 
       # schedule it in the work set
       @deferred_set.schedule(run_at, [response, headers, payload])
-    rescue Exception => e
-      r = TomQueue.exception_reporter
-      r && r.notify(e)
+    rescue => e
+      notify_exception(e)
 
       ### Avoid tight spinning workers by not re-queueing redlivered messages more than once!
       response.channel.reject(response.delivery_tag, !response.redelivered?)
@@ -218,16 +217,18 @@ module TomQueue
 
       consumer.cancel
 
-    rescue
-      reporter = TomQueue.exception_reporter
-      reporter && reporter.notify($!)
-
+    rescue => e
+      notify_exception(e)
     ensure
       @channel && @channel.close
       @deferred_set = nil
       @thread = nil
     end
 
-  end
+    private
 
+    def notify_exception(exception)
+      TomQueue.exception_reporter.notify(exception) if TomQueue.exception_reporter
+    end
+  end
 end
