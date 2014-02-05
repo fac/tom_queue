@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+require 'tom_queue/cli'
+
+TomQueue::CLI.start(ARGV)
