@@ -15,5 +15,19 @@ module TomQueue
         TomQueue::CLI.new.work(:runner => runner)
       end
     end
+
+    describe "end-to-end" do
+      it "runs consumer inside runner" do
+        begin
+          work = IO.popen("bundle exec bin/tom_queue work", :err => [:child, :out])
+          work.each do |io|
+            expect(io).to include("I'm consuming")
+            break
+          end
+        ensure
+          Process.kill("TERM", work.pid)
+        end
+      end
+    end
   end
 end
