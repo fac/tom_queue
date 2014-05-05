@@ -614,11 +614,19 @@ describe TomQueue, "once hooked" do
         Delayed::Worker.raise_signal_exceptions.should == true
       end
 
-      it "should allow exceptions to escape the function" do
+      it "should not allow signal exceptions to escape the function" do
         Delayed::Job.tomqueue_manager.should_receive(:pop) do
           raise SignalException, "INT"
         end
-        lambda { subject }.should raise_exception(SignalException)
+
+        lambda { subject }.should_not raise_exception(SignalException)
+      end
+
+      it "should allow exceptions to escape the function" do
+        Delayed::Job.tomqueue_manager.should_receive(:pop) do
+          raise Exception, "Something went wrong"
+        end
+        lambda { subject }.should raise_exception(Exception)
       end
     end
 

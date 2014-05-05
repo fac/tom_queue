@@ -336,6 +336,12 @@ module TomQueue
         
         nil
 
+      rescue SignalException => e
+
+        error "[reserve] SignalException in reserve method: #{e.message}."
+
+        nil
+
       rescue Exception => e
 
         error "[reserve] Exception in reserve method: #{e.message}."
