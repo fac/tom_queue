@@ -40,7 +40,6 @@ module TomQueue
   end
   module_function :default_prefix=, :default_prefix
 
-
   # Public: Set an object to receive notifications if an internal exception
   # is caught and handled.
   #

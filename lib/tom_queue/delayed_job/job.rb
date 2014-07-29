@@ -75,6 +75,16 @@ module TomQueue
         end
       end
 
+      # By default we publish via the manager, but it can be overridden by something that responds
+      # to #publish instead.
+      def self.tomqueue_publisher
+        @@tomqueue_publisher || tomqueue_manager
+      end
+
+      def self.tomqueue_publisher=(instance)
+        @@tomqueue_publisher = instance
+      end
+
       # Public: This calls #tomqueue_publish on all jobs currently
       # in the delayed_job table. This will probably end up with 
       # duplicate messages, but the worker should do the right thing
@@ -117,7 +127,7 @@ module TomQueue
         self.class.tomqueue_triggers << self
       end
 
-      # Public: Send a notification to a worker to consider this job, 
+      # Public: Send a notification to a worker to consider this job,
       # via AMQP. This is called automatically when a job is created
       # or updated (so you shouldn't need to call it directly unless
       # you believe TomQueue is misbehaving)
@@ -131,9 +141,8 @@ module TomQueue
         raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if new_record?
 
         debug "[tomqueue_publish] Pushing notification for #{self.id} to run in #{((custom_run_at || self.run_at) - Time.now).round(2)}"
-        
 
-        self.class.tomqueue_manager.publish(tomqueue_payload, {
+        self.class.tomqueue_publisher.publish(tomqueue_payload, {
           :run_at   => custom_run_at || self.run_at,
           :priority => tomqueue_priority
         })
@@ -144,14 +153,14 @@ module TomQueue
 
         error "[tomqueue_publish] Exception during publish: #{e.inspect}"
         e.backtrace.each { |l| info l }
-        
+
         raise
       end
 
       # Private: Returns the mapped tom-queue priority for this job's priority vlaue
       def tomqueue_priority
         TomQueue::DelayedJob.priority_map.fetch(self.priority, nil).tap do |ret|
-          if ret.nil?            
+          if ret.nil?
             warn "[tomqueue_priority] Unknown priority level #{self.priority} specified, mapping to NORMAL priority"
             return TomQueue::NORMAL_PRIORITY
           end
@@ -195,7 +204,7 @@ module TomQueue
 
       # Public: Retrieves a job with a specific ID, acquiring a lock
       # preventing other concurrent workers from doing the same.
-      # 
+      #
       # job_id - the ID of the job to acquire
       # worker - the Delayed::Worker attempting to acquire the lock
       # block  - if provided, it is yeilded with the job object as the only argument
