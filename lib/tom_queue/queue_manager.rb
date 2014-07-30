@@ -1,7 +1,6 @@
 require 'bunny'
+
 module TomQueue
-
-
   # Public: Priority values for QueueManager#publish
   #
   # Rather than an arbitrary numeric scale, we use distinct
@@ -144,7 +143,6 @@ module TomQueue
     #
     # Raises an ArgumentError unless the work is a string
     # Returns nil
-=begin
     def publish(work, opts={})
       priority = opts.fetch('priority', opts.fetch(:priority, NORMAL_PRIORITY))
       run_at = opts.fetch('run_at', opts.fetch(:run_at, Time.now))
@@ -177,7 +175,6 @@ module TomQueue
       end
       nil
     end
-=end
 
     # Public: Acknowledge some work
     #
