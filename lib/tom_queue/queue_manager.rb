@@ -165,7 +165,7 @@ module TomQueue
         
         debug "[publish] Pushing work onto exchange '#{@exchange.name}' with routing key '#{priority}'"
         @publisher_mutex.synchronize do
-          @publisher_channel.direct(@exchange.name, :passive=>true).publish(work, {
+          @publisher_channel.topic(@exchange.name, :passive=>true).publish(work, {
             :routing_key => priority,
             :headers => {
               :job_priority => priority,
