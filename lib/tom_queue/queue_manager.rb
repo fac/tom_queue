@@ -43,6 +43,21 @@ module TomQueue
 
     include LoggingHelper
 
+    # If publisher exists, we will publish via it. Otherwise we'll use our own publishing connections
+    def self.publisher
+      @@publisher
+    end
+
+    # Setter for the publisher.
+    #
+    # instance expected to respond to #direct(exchange_name, exchange_options) and return an object
+    # that responds to #publish(message_payload, message_headers, to: exchange_name).
+    def self.publisher=(instance)
+      @@publisher = instance
+    end
+    # Make sure @@publisher is defined, albeit nil.
+    self.publisher = nil
+
     # Public: Return the string used as a prefix for all queues and exchanges
     attr_reader :prefix
 
@@ -161,16 +176,13 @@ module TomQueue
           :run_at   => run_at
         })
       else
-
         debug "[publish] Pushing work onto exchange '#{@exchange.name}' with routing key '#{priority}'"
+
+        publisher = self.class.publisher || @publisher_channel
+        publish_arguments = [work, key: priority, headers: {job_priority: priority, run_at: run_at.iso8601(4)}]
+
         @publisher_mutex.synchronize do
-          @publisher_channel.topic(@exchange.name, :passive=>true).publish(work, {
-            :routing_key => priority,
-            :headers => {
-              :job_priority => priority,
-              :run_at       => run_at.iso8601(4)
-            }
-          })
+          publisher.topic("#{@prefix}.work", passive: true).publish(*publish_arguments)
         end
       end
       nil

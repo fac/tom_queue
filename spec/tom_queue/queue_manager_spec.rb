@@ -6,10 +6,10 @@ describe TomQueue::QueueManager do
   let(:channel) { TomQueue.bunny.create_channel }
 
   describe "basic creation" do
-  
+
     it "should be a thing" do
       defined?(TomQueue::QueueManager).should be_true
-    end  
+    end
 
     it "should be created with a name-prefix" do
       manager.prefix.should =~ /^test-[\d.]+$/
@@ -81,7 +81,7 @@ describe TomQueue::QueueManager do
       end
 
       it "should throw an ArgumentError exception if :run_at isn't a Time object" do
-        lambda { 
+        lambda {
           manager.publish("future", :run_at => "around 10pm ?")
         }.should raise_exception(ArgumentError, /must be a Time object/)
       end
@@ -143,6 +143,25 @@ describe TomQueue::QueueManager do
 
   end
 
+  describe "QueueManager - external publisher handling" do
+    after { TomQueue::QueueManager.publisher = nil }
+
+    it "should default to nil" do
+      expect(TomQueue::QueueManager.publisher).to be_nil
+    end
+
+    it "should be assignable" do
+      fake_publisher = Object.new
+      TomQueue::QueueManager.publisher = fake_publisher
+
+      expect(TomQueue::QueueManager.publisher).to be fake_publisher
+    end
+
+    it "publishes via external publisher for non-deferred messages" do
+      # TomQueue::QueueManager.publisher = fake_publisher
+    end
+
+  end
 
   describe "QueueManager - deferred message handling" do
 
