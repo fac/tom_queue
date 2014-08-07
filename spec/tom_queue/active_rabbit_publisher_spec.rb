@@ -1,38 +1,43 @@
-require "spec_helper"
-require "tom_queue/active_rabbit_publisher"
+require "helper"
+begin
+  require "active_rabbit"
+  require "tom_queue/active_rabbit_publisher"
 
-describe TomQueue::ActiveRabbitPublisher do
+  describe TomQueue::ActiveRabbitPublisher do
 
-  describe "#initialize" do
-    it "requires a handler" do
-      expect { TomQueue::ActiveRabbitPublisher.new }.to raise_error(ArgumentError, /handler/)
+    describe "#initialize" do
+      it "requires a handler" do
+        expect { TomQueue::ActiveRabbitPublisher.new }.to raise_error(ArgumentError, /handler/)
+      end
+
+      it "calls #dup on the handler" do
+        handler = double
+        expect(handler).to receive(:dup).once
+
+        publisher = TomQueue::ActiveRabbitPublisher.new(handler: handler)
+      end
     end
 
-    it "calls #dup on the handler" do
-      handler = double
-      expect(handler).to receive(:dup).once
+    describe "#topic return value" do
+      before do
+        @rabbit = ActiveRabbit.new
+        @publisher = TomQueue::ActiveRabbitPublisher.new(handler: @rabbit)
+        @result = @publisher.topic("champagne")
+      end
 
-      publisher = TomQueue::ActiveRabbitPublisher.new(handler: handler)
+      it "is an ExchangeWrapper" do
+        expect(@result).to be_a_kind_of ActiveRabbit::ExchangeWrapper
+      end
+
+      it "wraps the named exchange" do
+        expect(@result.exchange_name).to eq "champagne"
+      end
+
+      it "responds to #publish" do
+        expect(@result).to respond_to(:publish)
+      end
     end
   end
-
-  describe "#topic return value" do
-    before do
-      @rabbit = ActiveRabbit.new
-      @publisher = TomQueue::ActiveRabbitPublisher.new(handler: @rabbit)
-      @result = @publisher.topic("champagne")
-    end
-
-    it "is an ExchangeWrapper" do
-      expect(@result).to be_a_kind_of ActiveRabbit::ExchangeWrapper
-    end
-
-    it "wraps the named exchange" do
-      expect(@result.exchange_name).to eq "champagne"
-    end
-
-    it "responds to #publish" do
-      expect(@result).to respond_to(:publish)
-    end
-  end
+rescue LoadError => e
+  # Not running this spec if we can't load in active_rabbit
 end
