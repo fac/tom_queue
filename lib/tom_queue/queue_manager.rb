@@ -50,12 +50,14 @@ module TomQueue
 
     # Setter for the publisher.
     #
-    # instance expected to respond to #direct(exchange_name, exchange_options) and return an object
-    # that responds to #publish(message_payload, message_headers, to: exchange_name).
+    # instance expected to respond to #topic(exchange_name) and return an object that responds
+    # to #publish(message_payload, message_headers, to: exchange_name). (eg, ActiveRabbitPublisher.)
     def self.publisher=(instance)
       @@publisher = instance
     end
-    # Make sure @@publisher is defined, albeit nil.
+
+    # Make sure @@publisher is defined, albeit nil. Default behaviour is publish via QueueManager's
+    # connections to rabbit.
     self.publisher = nil
 
     # Public: Return the string used as a prefix for all queues and exchanges
