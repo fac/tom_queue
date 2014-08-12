@@ -25,7 +25,7 @@ module TomQueue
     # exchange_arguments [Hash] any other arguments for Bunny::Exchange#initialize
     #
     # Returns ActiveRabbit::ExchangeWrapper (which responds to #publish)
-    def topic(exchange_name)
+    def topic(exchange_name, _options = {})
       handler.exchange(exchange_name)
     end
   end
