@@ -157,8 +157,44 @@ describe TomQueue::QueueManager do
       expect(TomQueue::QueueManager.publisher).to be fake_publisher
     end
 
-    it "publishes via external publisher for non-deferred messages" do
-      # TomQueue::QueueManager.publisher = fake_publisher
+    it "publishes via external publisher" do
+      fake_publisher = Class.new do
+        def exchanges
+          @exchanges ||= []
+        end
+
+        def messages
+          @messages ||= []
+        end
+
+        def topic(*details)
+          exchanges << details
+          self
+        end
+
+        def publish(*details)
+          messages << details
+          self
+        end
+      end.new
+
+      manager = TomQueue::QueueManager.new
+
+      TomQueue::QueueManager.publisher = fake_publisher
+
+      run_at = Time.now
+      manager.publish("work", "run_at" => run_at)
+
+      expect(fake_publisher.exchanges.size).to eq 1
+      exchange_details = fake_publisher.exchanges.first
+      expect(exchange_details[0]).to eq "#{manager.prefix}.work"
+      expect(exchange_details[1]).to eq(passive: true)
+
+      expect(fake_publisher.messages.size).to eq 1
+      message_details = fake_publisher.messages.first
+      expect(message_details[0]).to eq "work"
+      expect(message_details[1]).to eq(key: "normal", headers: {job_priority: "normal", run_at: run_at.iso8601(4)})
+
     end
 
   end
