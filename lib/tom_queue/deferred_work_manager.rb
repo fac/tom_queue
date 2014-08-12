@@ -39,9 +39,9 @@ module TomQueue
     #
     # This method really is just a convenience method for testing.
     #
-    # NOTE: The returned hash is both a dupe and frozen, so should be safe to 
+    # NOTE: The returned hash is both a dupe and frozen, so should be safe to
     # iterate and mutate instances.
-    # 
+    #
     # Returns: { "prefix" => DeferredWorkManager(prefix),  ... }
     def self.instances
       @@singletons.dup.freeze
@@ -104,7 +104,7 @@ module TomQueue
     #
     # Returns Ruby Thread object, or nil if it's not running
     attr_reader :thread
-    
+
     # Public: Ensure the thread is running, starting if necessary
     #
     def ensure_running
@@ -135,7 +135,7 @@ module TomQueue
     #
     # Returns [ <exchange object>, <queue object> ]
     def setup_amqp(channel)
-      exchange = channel.fanout("#{prefix}.work.deferred", 
+      exchange = channel.fanout("#{prefix}.work.deferred",
           :durable     => true,
           :auto_delete => false)
 
@@ -171,7 +171,7 @@ module TomQueue
     rescue Exception => e
       r = TomQueue.exception_reporter
       r && r.notify(e)
-      
+
       ### Avoid tight spinning workers by not re-queueing redlivered messages more than once!
       response.channel.reject(response.delivery_tag, !response.redelivered?)
     end
@@ -184,7 +184,7 @@ module TomQueue
       # Make sure we're low priority!
       Thread.current.priority = -10
 
-      # Create a dedicated channel, and ensure it's prefetch 
+      # Create a dedicated channel, and ensure it's prefetch
       # means we'll empty the queue
       @channel = TomQueue.bunny.create_channel
       @channel.prefetch(0)
@@ -193,18 +193,18 @@ module TomQueue
       _, queue = setup_amqp(@channel)
 
       @deferred_set = DeferredWorkSet.new
-      
+
       @out_manager = QueueManager.new(prefix)
 
       # This block will get called-back for new messages
-      consumer = queue.subscribe(:ack => true, &method(:thread_consumer_callback)) 
+      consumer = queue.subscribe(:ack => true, &method(:thread_consumer_callback))
 
       # This is the core event loop - we block on the deferred set to return messages
       # (which have been scheduled by the AMQP consumer). If a message is returned
       # then we re-publish the messages to our internal QueueManager and ack the deferred
       # message
       until @thread_shutdown
-        
+
         # This will block until work is ready to be returned, interrupt
         # or the 10-second timeout value.
         response, headers, payload = @deferred_set.pop(2)
@@ -225,7 +225,7 @@ module TomQueue
     ensure
       @channel && @channel.close
       @deferred_set = nil
-      @thread = nil      
+      @thread = nil
     end
 
   end
