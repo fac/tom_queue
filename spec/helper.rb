@@ -18,6 +18,15 @@ require 'delayed/backend/shared_spec'
 Delayed::Worker.logger = Logger.new('/tmp/dj.log')
 ENV['RAILS_ENV'] = 'test'
 
+RSpec.configure do |config|
+  config.color = true
+
+  config.mock_with :rspec
+
+  config.expect_with :rspec do |expect|
+    expect.syntax = %i(should expect)
+  end
+end
 
 db_adapter, gemfile = ENV["ADAPTER"], ENV["BUNDLE_GEMFILE"]
 db_adapter ||= gemfile && gemfile[%r(gemfiles/(.*?)/)] && $1
