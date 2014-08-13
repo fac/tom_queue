@@ -8,15 +8,16 @@ module TomQueue
   #   TomQueue::QueueManager.publisher = publisher
   #
   class ActiveRabbitPublisher
-    attr_accessor :handler
+    attr_reader :handler
 
     # Public: sets up ActiveRabbitPublisher instance
     #
-    # handler: [ActiveRabbit] pool to use for publishing. dup'd before keeping.
+    # options [Hash] parameters:
+    #   :handler [ActiveRabbit] pool to use for publishing. dup'd before keeping.
     #
     # Returns nothing
-    def initialize(handler:)
-      self.handler = handler.dup
+    def initialize(options = {})
+      @handler = options.fetch(:handler).dup
     end
 
     # Public: creates topic exchange wrapper

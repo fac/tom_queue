@@ -8,14 +8,14 @@ begin
 
     describe "#initialize" do
       it "requires a handler" do
-        expect { TomQueue::ActiveRabbitPublisher.new }.to raise_error(ArgumentError, /handler/)
+        expect { TomQueue::ActiveRabbitPublisher.new }.to raise_error(KeyError)
       end
 
-      it "calls #dup on the handler" do
-        handler = double
-        expect(handler).to receive(:dup).once
+      it "stores a copy of the given handler" do
+        original_handler = Object.new
+        publisher = TomQueue::ActiveRabbitPublisher.new(handler: original_handler)
 
-        publisher = TomQueue::ActiveRabbitPublisher.new(handler: handler)
+        expect(publisher.handler.object_id).not_to eq original_handler.object_id
       end
     end
 
