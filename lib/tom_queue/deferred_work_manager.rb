@@ -34,7 +34,6 @@ module TomQueue
       @@singletons_mutex.synchronize { @@singletons[prefix] ||= self.new(prefix) }
     end
 
-
     # Public: Return a hash of all prefixed singletons, keyed on their prefix
     #
     # This method really is just a convenience method for testing.
