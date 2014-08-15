@@ -24,7 +24,7 @@ RSpec.configure do |config|
   config.mock_with :rspec
 
   config.expect_with :rspec do |expect|
-    expect.syntax = %i(should expect)
+    expect.syntax = [:should, :expect]
   end
 end
 
