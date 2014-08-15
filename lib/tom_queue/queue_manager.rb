@@ -122,7 +122,7 @@ module TomQueue
     # As a convenience to tests, this will tear-down any existing connections, so it is
     # possible to simulate a failed connection by calling this a second time.
     #
-    # Retunrs nil
+    # Returns nil
     def setup_amqp!
       debug "[setup_amqp!] (re) openining channels"
       # Test convenience
@@ -180,11 +180,11 @@ module TomQueue
       else
         debug "[publish] Pushing work onto exchange '#{@exchange.name}' with routing key '#{priority}'"
 
-        publisher = self.class.publisher || @publisher_channel
+        current_publisher = self.class.publisher || @publisher_channel
         publish_arguments = [work, key: priority, headers: {job_priority: priority, run_at: run_at.iso8601(4)}]
 
         @publisher_mutex.synchronize do
-          publisher.topic("#{@prefix}.work", passive: true).publish(*publish_arguments)
+          current_publisher.topic("#{@prefix}.work", passive: true).publish(*publish_arguments)
         end
       end
       nil
