@@ -20,7 +20,7 @@ module TomQueue
 
           # Look for a matching source exchange!
           klass = TomQueue::DelayedJob.handlers.find { |klass| klass.claim_work?(work) }
-          
+
           if klass
             debug { "Resolved external handler #{klass} for message. Calling the init block." }
 

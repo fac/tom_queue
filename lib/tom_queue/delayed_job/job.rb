@@ -3,7 +3,7 @@ require 'active_support/concern'
 module TomQueue
   module DelayedJob
 
-    # This is our wrapper for Delayed::Job (ActiveRecord) which augments the 
+    # This is our wrapper for Delayed::Job (ActiveRecord) which augments the
     # save operations with AMQP notifications and replaces the reserve method
     # with a blocking AMQP pop operation.
     #
@@ -11,25 +11,25 @@ module TomQueue
     # messages and work out if a job is ready to run in the reserve method.
     #
     # In order to prevent the worker considering stale job states, we attach
-    # two pieces of information, the job ID, so the job can be located and a 
+    # two pieces of information, the job ID, so the job can be located and a
     # digest of the record attributes so stale notifications can be detected.
     #
     # This means that the worker can simply load a job and, if a record is
     # found, quickly drop the notification if any of the attributes have been
-    # changed since the message was published. Another notification will 
+    # changed since the message was published. Another notification will
     # likely be en-route.
     #
     # Cases to consider:
     #
     #   - after the commit of a transaction creating a job, we publish
     #     a message. We do this after commit as we want to make sure the
-    #     worker considers the job when it has hit stable storage and will be 
+    #     worker considers the job when it has hit stable storage and will be
     #     found.
     #
     #   - after the commit of a tx updating a job, we also publish.
     #     consider the scenario, job is created to run tomorrow, then updated
     #     to run in an hour. The first message will only get to the worker
-    #     tomorrow, so we publish a second message to arrive in an hour and 
+    #     tomorrow, so we publish a second message to arrive in an hour and
     #     know the worker will disregard the message that arrives tomorrow.
     #
     #   - rather than leaving the job un-acked for the duration of the process,
@@ -48,16 +48,16 @@ module TomQueue
     #  - if there is no record, we ack the AMQP message and do nothing.
     #
     #  - if there is a record, we lock the job with our worker and save it.
-    #    (releasing the lock) At this point, concurrent workers won't find 
+    #    (releasing the lock) At this point, concurrent workers won't find
     #    the job as it has been DJ locked by this worker.
     #
     #  - when the job completes, we ack the message from the broker, and we're
     #    done.
     #
-    #  - in the event we get a message and the job is locked, the most likely 
+    #  - in the event we get a message and the job is locked, the most likely
     #    reason is the other worker has crashed and the broker has re-delivered.
     #    Since the job will have been updated (to lock it) the digest won't match
-    #    so we schedule a message to pick up the job when the max_run_time is 
+    #    so we schedule a message to pick up the job when the max_run_time is
     #    reached.
     #
     class Job < ::Delayed::Backend::ActiveRecord::Job
@@ -76,11 +76,11 @@ module TomQueue
       end
 
       # Public: This calls #tomqueue_publish on all jobs currently
-      # in the delayed_job table. This will probably end up with 
+      # in the delayed_job table. This will probably end up with
       # duplicate messages, but the worker should do the right thing
       #
       # Jobs should automatically publish themselves, so you should only
-      # need to call this if you think TomQueue is misbehaving, or you're 
+      # need to call this if you think TomQueue is misbehaving, or you're
       # re-populating an empty queue server.
       #
       # Returns nil
@@ -98,7 +98,7 @@ module TomQueue
       # publish won't bring down the caller.
       #
       after_save   :tomqueue_trigger,          :if => lambda { persisted? && !!run_at && !failed_at && !skip_publish}
-      
+
       after_commit :tomqueue_publish_triggers, :unless => lambda { self.class.tomqueue_triggers.empty? }
       after_rollback :tomqueue_clear_triggers, :unless => lambda { self.class.tomqueue_triggers.empty? }
 
@@ -117,7 +117,7 @@ module TomQueue
         self.class.tomqueue_triggers << self
       end
 
-      # Public: Send a notification to a worker to consider this job, 
+      # Public: Send a notification to a worker to consider this job,
       # via AMQP. This is called automatically when a job is created
       # or updated (so you shouldn't need to call it directly unless
       # you believe TomQueue is misbehaving)
@@ -131,7 +131,7 @@ module TomQueue
         raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if new_record?
 
         debug "[tomqueue_publish] Pushing notification for #{self.id} to run in #{((custom_run_at || self.run_at) - Time.now).round(2)}"
-        
+
 
         self.class.tomqueue_manager.publish(tomqueue_payload, {
           :run_at   => custom_run_at || self.run_at,
@@ -144,14 +144,14 @@ module TomQueue
 
         error "[tomqueue_publish] Exception during publish: #{e.inspect}"
         e.backtrace.each { |l| info l }
-        
+
         raise
       end
 
       # Private: Returns the mapped tom-queue priority for this job's priority vlaue
       def tomqueue_priority
         TomQueue::DelayedJob.priority_map.fetch(self.priority, nil).tap do |ret|
-          if ret.nil?            
+          if ret.nil?
             warn "[tomqueue_priority] Unknown priority level #{self.priority} specified, mapping to NORMAL priority"
             return TomQueue::NORMAL_PRIORITY
           end
@@ -195,7 +195,7 @@ module TomQueue
 
       # Public: Retrieves a job with a specific ID, acquiring a lock
       # preventing other concurrent workers from doing the same.
-      # 
+      #
       # job_id - the ID of the job to acquire
       # worker - the Delayed::Worker attempting to acquire the lock
       # block  - if provided, it is yeilded with the job object as the only argument
@@ -223,14 +223,14 @@ module TomQueue
 
           if job.nil?
             job = nil
-          
+
           elsif job.failed?
             warn "[tomqueue] Received notification for failed job #{job.id}"
             job = nil
 
           elsif job.locked?
             job = false
-          
+
           elsif job.locked_at || job.locked_by || (!block_given? || yield(job) == true)
 
               if job.run_at > self.db_time_now + 5
@@ -241,7 +241,7 @@ module TomQueue
                 job = nil
               else
                 job.skip_publish = true
-                
+
                 job.locked_by = worker.name
                 job.locked_at = self.db_time_now
                 job.save!
@@ -333,7 +333,7 @@ module TomQueue
         error "[reserve] Failed to parse JSON payload: #{e.message}. Dropping AMQP message."
 
         TomQueue.exception_reporter && TomQueue.exception_reporter.notify(e)
-        
+
         nil
 
       rescue SignalException => e

@@ -1,14 +1,13 @@
-require 'tom_queue/helper'
-require 'tom_queue/delayed_job'
+require 'spec_helper'
 
 describe Delayed::Job, "integration spec", :timeout => 10 do
-    
+
   class TestJobClass
     cattr_accessor :perform_hook
-    
+
     @@flunk_count = 0
-    cattr_accessor :flunk_count 
-    
+    cattr_accessor :flunk_count
+
     @@asplode_count = 0
     cattr_accessor :asplode_count
 
@@ -44,7 +43,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     TomQueue::DelayedJob.apply_hook!
     Delayed::Job.delete_all
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
-    
+
     # Keep track of how many times the job is run
     @called = []
     TestJobClass.perform_hook = lambda { |name| @called << name }
@@ -70,7 +69,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     Delayed::Job.enqueue(TestJobClass.new(job_name))
     TestJobClass.flunk_count = 1
 
-    Benchmark.realtime { 
+    Benchmark.realtime {
       Delayed::Worker.new.work_off(1).should == [0, 1]
       Delayed::Worker.new.work_off(1).should == [1, 0]
     }.should > 0.5
@@ -117,7 +116,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     # The job should get ignored for both runs
     Delayed::Worker.new.work_off(1)
     Delayed::Worker.new.work_off(1)
-    
+
     # And, since it never got run, it should still exist!
     Delayed::Job.find_by_id(job.id).should_not be_nil
     # And it should have been noisy, too.
@@ -142,7 +141,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
   #   job.reload
   #   job.locked_at.should_not be_nil
   #   job.locked_by.should_not be_nil
-    
+
   #   # Now wait for the max_run_time, which is artificially low
   #   while Delayed::Job.find_by_id(job.id)
   #     Delayed::Worker.new.work_off(1)

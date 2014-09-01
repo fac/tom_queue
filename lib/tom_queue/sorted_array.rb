@@ -11,7 +11,7 @@ class Range
     low = min
     high = max
 
-    while (low <= high) 
+    while (low <= high)
       mid = (high + low) >> 1
 
       output = yield mid

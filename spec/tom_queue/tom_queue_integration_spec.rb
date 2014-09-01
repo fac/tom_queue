@@ -1,6 +1,5 @@
-
 require 'net/http'
-require 'tom_queue/helper'
+require 'spec_helper'
 
 describe TomQueue::QueueManager, "simple publish / pop" do
 
@@ -44,7 +43,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       manager.publish i.to_s
     end
 
-    (input.size / 2).times do 
+    (input.size / 2).times do
       a = consumer.pop
       b = consumer2.pop
       output << a.ack!.payload
@@ -65,7 +64,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
   end
 
   it "should handle priority queueing, maintaining per-priority FIFO ordering" do
-    manager.publish("1", :priority => TomQueue::BULK_PRIORITY) 
+    manager.publish("1", :priority => TomQueue::BULK_PRIORITY)
     manager.publish("2", :priority => TomQueue::NORMAL_PRIORITY)
     manager.publish("3", :priority => TomQueue::HIGH_PRIORITY)
 
@@ -74,9 +73,9 @@ describe TomQueue::QueueManager, "simple publish / pop" do
 
     manager.publish("4", :priority => TomQueue::NORMAL_PRIORITY)
 
-    # 1,2,4 in the queue - 2 wins as it's highest (NORMAL) and first in    
+    # 1,2,4 in the queue - 2 wins as it's highest (NORMAL) and first in
     consumer.pop.ack!.payload.should == "2"
-    
+
     manager.publish("5", :priority => TomQueue::BULK_PRIORITY)
 
     # 1,4,5 in the queue - we'd expect 4 (highest), 1 (first bulk), 5 (second bulk)
@@ -86,10 +85,10 @@ describe TomQueue::QueueManager, "simple publish / pop" do
   end
 
   it "should handle priority queueing across two consumers" do
-    manager.publish("1", :priority => TomQueue::BULK_PRIORITY) 
+    manager.publish("1", :priority => TomQueue::BULK_PRIORITY)
     manager.publish("2", :priority => TomQueue::HIGH_PRIORITY)
     manager.publish("3", :priority => TomQueue::NORMAL_PRIORITY)
-    
+
 
     # 1,2,3 in the queue - 3 wins as it's highest priority
     order = []
@@ -97,7 +96,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
 
     manager.publish("4", :priority => TomQueue::NORMAL_PRIORITY)
 
-    # 1,2,4 in the queue - 2 wins as it's highest (NORMAL) and first in    
+    # 1,2,4 in the queue - 2 wins as it's highest (NORMAL) and first in
     order << consumer.pop.ack!.payload
 
     manager.publish("5", :priority => TomQueue::BULK_PRIORITY)
@@ -165,9 +164,9 @@ describe TomQueue::QueueManager, "simple publish / pop" do
             recv_time = Time.now
 
             Thread.exit if work.payload == "done"
-            
+
             work_obj = WorkObject.new(work.payload, recv_time, Time.parse(work.headers[:headers]['run_at']))
-            @work << work_obj 
+            @work << work_obj
             @work_proc && @work_proc.call(work_obj)
 
             work.ack!
@@ -192,7 +191,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     it "should work with lots of messages, without dropping and deliver FIFO" do
       source_order = []
 
-      # Run both consumers, in parallel threads, so in some cases, 
+      # Run both consumers, in parallel threads, so in some cases,
       # there should be a thread waiting for work
       consumers = 16.times.collect do |i|
         consumer = TomQueue::QueueManager.new(manager.prefix, "thread-#{i}")
@@ -205,7 +204,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
         source_order << work
         manager.publish(work)
       end
-        
+
       # Now publish a bunch of messages to cause the threads to exit the loop
       consumers.each { |c| c.signal_shutdown }
       consumers.each { |c| c.thread.join }
@@ -220,7 +219,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     it "should be able to drain the queue, block and resume when new work arrives" do
       source_order = []
 
-      # Run both consumers, in parallel threads, so in some cases, 
+      # Run both consumers, in parallel threads, so in some cases,
       # there should be a thread waiting for work
       consumers = 10.times.collect do |i|
         consumer = TomQueue::QueueManager.new(manager.prefix, "thread-#{i}")
@@ -268,7 +267,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
 
       # Generate some work
       max_run_at = Time.now
-      200.times do |i| 
+      200.times do |i|
         run_at = Time.now + (rand * 6.0)
         max_run_at = [max_run_at, run_at].max
         manager.publish(JSON.dump(:id => i), :run_at => run_at)

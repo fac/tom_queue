@@ -1,5 +1,4 @@
-require 'tom_queue/helper'
-require 'tom_queue/delayed_job'
+require 'spec_helper'
 
 describe "External consumers" do
 
@@ -125,7 +124,7 @@ describe "External consumers" do
       it "should call the bind block, which calls the init and defers the perform call" do
         subject
         trace.map { |a| a[0] }.should == [:bind_block, :init, :job_performed]
-      end 
+      end
 
       it "should be init'd directly with the custom arguments" do
         subject
@@ -138,7 +137,7 @@ describe "External consumers" do
       end
 
     end
-    
+
   end
 
 
