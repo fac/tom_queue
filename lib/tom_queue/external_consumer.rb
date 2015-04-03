@@ -113,7 +113,7 @@ module TomQueue
           new(payload, work.headers).delay.perform
         end
         binding_defaults = { :routing_key => "#" }
-        @bind_exchange = [type, name, opts.merge(binding_defaults), block]
+        @bind_exchange = [type, name, binding_defaults.merge(opts), block]
         @producer_args = [type, name, opts, block]
       end
 
