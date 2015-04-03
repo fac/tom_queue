@@ -71,10 +71,21 @@ module TomQueue
       def publish(message)
         message = @encoder.encode(message) if @encoder
         routing_key = @config.fetch(:routing_key, nil)
+
+        exchange.publish(message, :routing_key => routing_key)
+      end
+
+      private
+
+      # Internal: set up an exchange for publishing messages to
+      def exchange
         auto_delete = @config.fetch(:auto_delete, false)
         durable = @config.fetch(:durable, true)
-
-        Delayed::Job.tomqueue_manager.channel.exchange(@name, :type => @type, :auto_delete => auto_delete, :durable => durable).publish(message, :routing_key => routing_key)
+        Delayed::Job.tomqueue_manager.channel.exchange(@name,
+          :type => @type,
+          :auto_delete => auto_delete,
+          :durable => durable
+        )
       end
     end
 
