@@ -173,8 +173,11 @@ describe "External consumers" do
     Delayed::Worker.new.work_off(2)
     consumer_class.producer.publish('message', :routing_key => "better.key")
     Delayed::Worker.new.work_off(2)
+    consumer_class.producer.publish('message')
+    Delayed::Worker.new.work_off(2)
     trace.should include [:routing_key, "good.key"]
     trace.should include [:routing_key, "better.key"]
+    trace.should include [:routing_key, ""]
   end
 
 
