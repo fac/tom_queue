@@ -163,6 +163,20 @@ describe "External consumers" do
     trace.last[1].response.routing_key.should eq "better.key"
   end
 
+  it "matches any routing key by default on message publication" do
+    consumer_class.class_exec(exchange_name) do |exchange_name|
+      bind_exchange(:topic, exchange_name) do |work|
+        trace :routing_key, work.response.routing_key
+      end
+    end
+    consumer_class.producer.publish('message', :routing_key => "good.key")
+    Delayed::Worker.new.work_off(2)
+    consumer_class.producer.publish('message', :routing_key => "better.key")
+    Delayed::Worker.new.work_off(2)
+    trace.should include [:routing_key, "good.key"]
+    trace.should include [:routing_key, "better.key"]
+  end
+
 
   it "should use the encoder if specified"
 

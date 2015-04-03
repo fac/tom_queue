@@ -71,6 +71,20 @@ module TomQueue
       end
 
       # Public: Push a message to the AMQP exchange associated with this consumer
+      #
+      # options - some options for the message:
+      #   :routing_key = a specific routing key to publish this message with, overriding the
+      #                  Producer's default config
+      #
+      # Examples:
+      #
+      #   class AcceptingConsumer
+      #     bind_exchange(:topic, "foo") { … }
+      #   end
+      #
+      #   AcceptingConsumer.producer.publish("message", :routing_key => "any.key")
+      #   AcceptingConsumer.producer.publish("message", :routing_key => "will.do")
+      #
       def publish(message, options = {})
         message = @encoder.encode(message) if @encoder
         routing_key = options.fetch(:routing_key, @routing_key)
