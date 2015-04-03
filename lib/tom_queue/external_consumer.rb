@@ -68,9 +68,9 @@ module TomQueue
       end
 
       # Public: Push a message to the AMQP exchange associated with this consumer
-      def publish(message)
+      def publish(message, options = {})
         message = @encoder.encode(message) if @encoder
-        routing_key = @config.fetch(:routing_key, nil)
+        routing_key = options.fetch(:routing_key, @config.fetch(:routing_key, nil))
 
         exchange.publish(message, :routing_key => routing_key)
       end
@@ -111,14 +111,16 @@ module TomQueue
           end
           new(payload, work.headers).delay.perform
         end
-        @bind_exchange = [type, name, opts, block]
+        binding_defaults = { :routing_key => "#" }
+        @bind_exchange = [type, name, opts.merge(binding_defaults), block]
+        @producer_args = [type, name, opts, block]
       end
 
       # Public: Create and return a producer for the consumer
       #
       # Returns TomQueue::ExternalConsumer::Producer object
       def producer
-        TomQueue::ExternalConsumer::Producer.new(*@bind_exchange)
+        TomQueue::ExternalConsumer::Producer.new(*@producer_args)
       end
 
       def claim_work?(work)

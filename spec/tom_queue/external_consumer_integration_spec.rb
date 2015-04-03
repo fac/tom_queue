@@ -152,6 +152,18 @@ describe "External consumers" do
     trace.last[1].response.routing_key.should eq "my.key"
   end
 
+  it "overrides the configured routing key through to the exchange on publication" do
+    consumer_class.class_exec(exchange_name) do |exchange_name|
+      bind_exchange(:topic, exchange_name) do |work|
+        trace(:bind_block, work)
+      end
+    end
+    consumer_class.producer.publish('message', :routing_key => "better.key")
+    subject
+    trace.last[1].response.routing_key.should eq "better.key"
+  end
+
+
   it "should use the encoder if specified"
 
 
