@@ -63,14 +63,17 @@ module TomQueue
     # This class is the producer that is
     class Producer
       def initialize(type, name, config={}, *args)
-        @type, @name, @config = type, name, config
+        @type, @name =  type, name
+        @routing_key = config.fetch(:routing_key, nil)
+        @auto_delete = config.fetch(:auto_delete, false)
+        @durable = config.fetch(:durable, true)
         @encoder = config.fetch(:encoder, nil)
       end
 
       # Public: Push a message to the AMQP exchange associated with this consumer
       def publish(message, options = {})
         message = @encoder.encode(message) if @encoder
-        routing_key = options.fetch(:routing_key, @config.fetch(:routing_key, nil))
+        routing_key = options.fetch(:routing_key, @routing_key)
 
         exchange.publish(message, :routing_key => routing_key)
       end
@@ -79,12 +82,10 @@ module TomQueue
 
       # Internal: set up an exchange for publishing messages to
       def exchange
-        auto_delete = @config.fetch(:auto_delete, false)
-        durable = @config.fetch(:durable, true)
         Delayed::Job.tomqueue_manager.channel.exchange(@name,
           :type => @type,
-          :auto_delete => auto_delete,
-          :durable => durable
+          :auto_delete => @auto_delete,
+          :durable => @durable
         )
       end
     end
