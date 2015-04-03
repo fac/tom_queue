@@ -141,6 +141,16 @@ describe "External consumers" do
     
   end
 
+  it "passes the configured routing key through to the exchange on publication" do
+    consumer_class.class_exec(exchange_name) do |exchange_name|
+      bind_exchange(:topic, exchange_name, :routing_key => "my.key") do |work|
+        trace(:bind_block, work)
+      end
+    end
+    consumer_class.producer.publish('message')
+    subject
+    trace.last[1].response.routing_key.should eq "my.key"
+  end
 
   it "should use the encoder if specified"
 
