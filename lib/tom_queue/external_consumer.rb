@@ -38,7 +38,7 @@ module TomQueue
   # creating a delayed job object to do the actual work of reacting to the message.
   #
   # If you return a Delayed::Job record to the block caller, then the worker will immediately
-  # perform that job. Also, if you omit the block entirely, there is a default block provided 
+  # perform that job. Also, if you omit the block entirely, there is a default block provided
   # that carries out the following:
   #
   #   class MyAwesomeConsumer
@@ -60,7 +60,7 @@ module TomQueue
   #
   module ExternalConsumer
 
-    # This class is the producer that is 
+    # This class is the producer that is
     class Producer
       def initialize(type, name, opts={}, *args)
         @type, @name, @opts = type, name, opts
@@ -112,7 +112,7 @@ module TomQueue
 
       def claim_work?(work)
         type, name, opts, block = @bind_exchange
-        
+
         (work.response.exchange == @bind_exchange[1]) ? @bind_exchange.last : false
       end
 
