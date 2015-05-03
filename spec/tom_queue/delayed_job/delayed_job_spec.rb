@@ -72,9 +72,9 @@ describe TomQueue, "once hooked" do
   end
 
   describe "Delayed::Job#tomqueue_payload" do
- 
+
     let(:payload) { JSON.load(job.tomqueue_payload)}
- 
+
     it "should return a hash" do
       payload.should be_a(Hash)
     end
@@ -199,7 +199,7 @@ describe TomQueue, "once hooked" do
         TomQueue.exception_reporter = nil
         lambda { new_job.save }.should_not raise_exception
       end
-      
+
       it "should log an error message to the log" do
         TomQueue.logger.should_receive(:error)
         new_job.save
@@ -218,7 +218,7 @@ describe TomQueue, "once hooked" do
       }.should raise_exception(RSpec::Mocks::MockExpectationError)
 
       Delayed::Job.tomqueue_manager.publish("spurious arguments") # do this, otherwise it will fail
-    end    
+    end
 
     it "should not publish a message if the job has a non-nil failed_at" do
       job.should_not_receive(:tomqueue_publish)
@@ -328,7 +328,7 @@ describe TomQueue, "once hooked" do
   describe "Delayed::Job.acquire_locked_job" do
     let(:time) { Delayed::Job.db_time_now }
     before { Delayed::Job.stub(:db_time_now => time) }
-    
+
     let(:job) { Delayed::Job.create! }
     let(:worker) { Delayed::Worker.new }
 
@@ -384,10 +384,10 @@ describe TomQueue, "once hooked" do
           @leaving_transaction_at = Time.now.to_f
           true
         end
-        
+
         # Kick it all off !
         subject
-          
+
         @thread.join
 
         # now make sure the parallel thread blocked until the transaction returned
@@ -424,7 +424,7 @@ describe TomQueue, "once hooked" do
       end
 
       describe "when the notification is delivered too soon" do
-        
+
         before do
           actual_time = Delayed::Job.db_time_now
           Delayed::Job.stub(:db_time_now => actual_time - 10)
@@ -451,7 +451,7 @@ describe TomQueue, "once hooked" do
       end
 
       describe "when the job is not locked" do
-        
+
         it "should acquire the lock fields on the job" do
           subject
           job.reload
@@ -579,7 +579,7 @@ describe TomQueue, "once hooked" do
     let(:worker)  { double("Worker", :name => "Worker-Name-#{Time.now.to_f}") }
     let(:payload) { job.tomqueue_payload }
     let(:work)    { double("Work", :payload => payload, :ack! => nil) }
-    
+
     subject { Delayed::Job.reserve(worker) }
 
     before do
@@ -588,7 +588,7 @@ describe TomQueue, "once hooked" do
 
     it "should call pop on the queue manager" do
       Delayed::Job.tomqueue_manager.should_receive(:pop)
-      
+
       subject
     end
 
@@ -619,14 +619,14 @@ describe TomQueue, "once hooked" do
           raise SignalException, "INT"
         end
 
-        lambda { subject }.should_not raise_exception(SignalException)
+        expect { subject }.not_to raise_error
       end
 
       it "should allow exceptions to escape the function" do
         Delayed::Job.tomqueue_manager.should_receive(:pop) do
           raise Exception, "Something went wrong"
         end
-        lambda { subject }.should raise_exception(Exception)
+        expect { subject }.not_to raise_error
       end
     end
 
@@ -648,9 +648,9 @@ describe TomQueue, "once hooked" do
       before { TomQueue.logger = Logger.new("/dev/null") }
 
       let(:payload) { "NOT JSON!!1" }
-      
+
       it "should report an exception" do
-        TomQueue.exception_reporter = mock("Reporter", :notify => nil)
+        TomQueue.exception_reporter = double("Reporter", :notify => nil)
         TomQueue.exception_reporter.should_receive(:notify).with(instance_of(JSON::ParserError))
         subject
       end
@@ -677,7 +677,7 @@ describe TomQueue, "once hooked" do
 
     it "should call acquire_locked_job with the job_id and the worker" do
       Delayed::Job.should_receive(:acquire_locked_job).with(job.id, worker)
-      subject      
+      subject
     end
 
     it "should attach a block to the call to acquire_locked_job" do

@@ -27,6 +27,7 @@ begin
   config = YAML.load(File.read('spec/database.yml'))
   ActiveRecord::Base.establish_connection config[db_adapter]
   ActiveRecord::Base.logger = Delayed::Worker.logger
+  ActiveRecord::Base.raise_in_transactional_callbacks = true
   ActiveRecord::Migration.verbose = false
 
   ActiveRecord::Schema.define do
@@ -40,7 +41,7 @@ begin
       table.datetime :failed_at
       table.string   :locked_by
       table.string   :queue
-      table.timestamps
+      table.timestamps null: false
     end
 
     add_index :delayed_jobs, [:priority, :run_at], :name => 'delayed_jobs_priority'
