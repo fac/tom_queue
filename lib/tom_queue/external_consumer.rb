@@ -38,7 +38,7 @@ module TomQueue
   # creating a delayed job object to do the actual work of reacting to the message.
   #
   # If you return a Delayed::Job record to the block caller, then the worker will immediately
-  # perform that job. Also, if you omit the block entirely, there is a default block provided 
+  # perform that job. Also, if you omit the block entirely, there is a default block provided
   # that carries out the following:
   #
   #   class MyAwesomeConsumer
@@ -60,21 +60,47 @@ module TomQueue
   #
   module ExternalConsumer
 
-    # This class is the producer that is 
+    # This class is the producer that is
     class Producer
-      def initialize(type, name, opts={}, *args)
-        @type, @name, @opts = type, name, opts
-        @encoder = opts.fetch(:encoder, nil)
+      def initialize(type, name, config={}, *args)
+        @type, @name =  type, name
+        @routing_key = config.fetch(:routing_key, nil)
+        @auto_delete = config.fetch(:auto_delete, false)
+        @durable = config.fetch(:durable, true)
+        @encoder = config.fetch(:encoder, nil)
       end
 
       # Public: Push a message to the AMQP exchange associated with this consumer
-      def publish(message)
+      #
+      # options - some options for the message:
+      #   :routing_key = a specific routing key to publish this message with, overriding the
+      #                  Producer's default config
+      #
+      # Examples:
+      #
+      #   class AcceptingConsumer
+      #     bind_exchange(:topic, "foo") { … }
+      #   end
+      #
+      #   AcceptingConsumer.producer.publish("message", :routing_key => "any.key")
+      #   AcceptingConsumer.producer.publish("message", :routing_key => "will.do")
+      #
+      def publish(message, options = {})
         message = @encoder.encode(message) if @encoder
-        routing_key = @opts.fetch(:routing_key, nil)
-        auto_delete = @opts.fetch(:auto_delete, false)
-        durable = @opts.fetch(:durable, true)
+        routing_key = options.fetch(:routing_key, @routing_key)
 
-        Delayed::Job.tomqueue_manager.channel.exchange(@name, :type => @type, :auto_delete => auto_delete, :durable => durable).publish(message, :routing_key => routing_key)
+        exchange.publish(message, :routing_key => routing_key)
+      end
+
+      private
+
+      # Internal: set up an exchange for publishing messages to
+      def exchange
+        Delayed::Job.tomqueue_manager.channel.exchange(@name,
+          :type => @type,
+          :auto_delete => @auto_delete,
+          :durable => @durable
+        )
       end
     end
 
@@ -100,19 +126,21 @@ module TomQueue
           end
           new(payload, work.headers).delay.perform
         end
-        @bind_exchange = [type, name, opts, block]
+        binding_defaults = { :routing_key => "#" }
+        @bind_exchange = [type, name, binding_defaults.merge(opts), block]
+        @producer_args = [type, name, opts, block]
       end
 
       # Public: Create and return a producer for the consumer
       #
       # Returns TomQueue::ExternalConsumer::Producer object
       def producer
-        TomQueue::ExternalConsumer::Producer.new(*@bind_exchange)
+        TomQueue::ExternalConsumer::Producer.new(*@producer_args)
       end
 
       def claim_work?(work)
         type, name, opts, block = @bind_exchange
-        
+
         (work.response.exchange == @bind_exchange[1]) ? @bind_exchange.last : false
       end
 
