@@ -15,6 +15,7 @@ module TomQueue
     def apply_hook!
       Delayed::Worker.sleep_delay = 0
       Delayed::Worker.backend = TomQueue::DelayedJob::Job
+      TomQueue.active = true
     end
     module_function :apply_hook!
 

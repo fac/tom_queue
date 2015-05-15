@@ -50,6 +50,11 @@ module TomQueue
   class << self
     attr_accessor :exception_reporter
     attr_accessor :logger
+    attr_accessor :active
+
+    def you_there?
+      !! active
+    end
   end
 
 
