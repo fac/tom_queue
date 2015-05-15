@@ -4,12 +4,12 @@ require 'tom_queue/delayed_job'
 describe Delayed::Job, "integration detection spec", :timeout => 10 do
 
   it "detects when the hook has not been applied" do
-    expect(TomQueue.you_there?).to be false
+    expect(TomQueue.active?).to be false
   end
 
   it "detects when the hook has been applied" do
     TomQueue::DelayedJob.apply_hook!
-    expect(TomQueue.you_there?).to be true
+    expect(TomQueue.active?).to be true
   end
 
 end

@@ -54,7 +54,7 @@ module TomQueue
     attr_accessor :logger
     attr_accessor :active
 
-    def you_there?
+    def active?
       !! active
     end
   end
