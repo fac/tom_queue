@@ -20,6 +20,8 @@ module TomQueue
 
   require 'tom_queue/sorted_array'
 
+  NotActiveError = Class.new(RuntimeError)
+
   # Public: Sets the bunny instance to use for new QueueManager objects
   def bunny=(new_bunny)
     @@bunny = new_bunny

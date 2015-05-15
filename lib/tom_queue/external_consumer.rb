@@ -96,6 +96,7 @@ module TomQueue
 
       # Internal: set up an exchange for publishing messages to
       def exchange
+        fail NotActiveError unless TomQueue.you_there?
         Delayed::Job.tomqueue_manager.channel.exchange(@name,
           :type => @type,
           :auto_delete => @auto_delete,
