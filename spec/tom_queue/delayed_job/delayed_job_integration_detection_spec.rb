@@ -8,9 +8,7 @@ describe Delayed::Job, "integration detection spec", :timeout => 10 do
   end
 
   it "detects when the hook has been applied" do
-    TomQueue.default_prefix = "test-#{Time.now.to_f}"
     TomQueue::DelayedJob.apply_hook!
-
     expect(TomQueue.you_there?).to be true
   end
 
