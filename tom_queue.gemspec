@@ -3,7 +3,7 @@
 Gem::Specification.new do |spec|
   spec.add_dependency   'activerecord', '~> 3.2.15'
   spec.add_dependency   'delayed_job_active_record'
-  spec.add_dependency   'bunny', '1.7.0'
+  spec.add_dependency   'bunny'
   spec.authors        = ["Thomas Haggett"]
   spec.description    = 'AMQP hook for Delayed Job, backed by ActiveRecord'
   spec.email          = ['thomas+gemfiles@freeagent.com']
