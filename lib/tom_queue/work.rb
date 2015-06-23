@@ -57,6 +57,14 @@ module TomQueue
       @manager.ack(self)
       self
     end
+
+    # Public: Reject this message, with a nack (not acked). Optionally re-queue the message
+    # or just drop it if requeue == false
+    #
+    # Returns self
+    def nack!(requeue = true)
+      @manager.nack(self)
+    end
   end
 
 end

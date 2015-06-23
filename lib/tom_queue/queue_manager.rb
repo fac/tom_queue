@@ -187,6 +187,17 @@ module TomQueue
       work
     end
 
+    # Public: Reject some work
+    #
+    # work - the TomQueue::Work object to acknowledge
+    # requeue - boolean, wether to requeue the work or drop it
+    #
+    # Returns the work object passed.
+    def nack(work, requeue = true)
+      @channel.nack(work.response.delivery_tag, false, requeue)
+      work
+    end
+
     # Public: Pop some work off the queue
     #
     # This call will block, if necessary, until work becomes available.

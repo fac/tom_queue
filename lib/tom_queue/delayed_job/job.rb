@@ -333,18 +333,20 @@ module TomQueue
         error "[reserve] Failed to parse JSON payload: #{e.message}. Dropping AMQP message."
 
         TomQueue.exception_reporter && TomQueue.exception_reporter.notify(e)
-        
+
         nil
 
       rescue SignalException => e
 
-        error "[reserve] SignalException in reserve method: #{e.message}."
+        work.nack!
+        error "[reserve] SignalException in reserve method, nacked work (will be requeued): #{e.message}."
 
         nil
 
       rescue Exception => e
 
-        error "[reserve] Exception in reserve method: #{e.message}."
+        work.nack!
+        error "[reserve] Exception in reserve method, nacked work (will be requeued): #{e.message}."
         TomQueue.exception_reporter && TomQueue.exception_reporter.notify(e)
 
         raise
