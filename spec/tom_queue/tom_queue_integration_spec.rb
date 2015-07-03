@@ -212,7 +212,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
 
       # Merge the list of received work together sorted by received time,
       # and compare to the source list
-      sink_order = consumers.map { |c| c.work }.flatten.sort.map { |a| a.payload }
+      sink_order = consumers.map(&:work).flatten.sort { |a, b| a[:run_at] <=> b[:run_at] }.map(&:payload)
 
       source_order.should == sink_order
     end
@@ -253,7 +253,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
 
       # Now merge all the consumers internal work arrays into one
       # sorted by the received_at timestamps
-      sink_order = consumers.map { |c| c.work }.flatten.sort.map { |a| a.payload }
+      sink_order = consumers.map(&:work).flatten.sort { |a, b| a[:run_at] <=> b[:run_at] }.map(&:payload)
 
       # Compare what the publisher did to what the workers did.
       sink_order.should == source_order
