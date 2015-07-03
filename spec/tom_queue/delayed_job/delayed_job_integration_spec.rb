@@ -78,7 +78,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
 
   it "should support run_at" do
     Benchmark.realtime {
-      Delayed::Job.enqueue(TestJobClass.new("job1"), :run_at => Time.now + 0.5)
+      Delayed::Job.enqueue(TestJobClass.new("job1"), :run_at => Time.now + 0.9)
       Delayed::Job.enqueue(TestJobClass.new("job2"), :run_at => Time.now + 0.1)
       Delayed::Worker.new.work_off(2).should == [2, 0]
     }.should > 0.1
