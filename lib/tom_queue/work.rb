@@ -63,7 +63,7 @@ module TomQueue
     #
     # Returns self
     def nack!(requeue = true)
-      @manager.nack(self)
+      @manager.nack(self, requeue)
     end
   end
 

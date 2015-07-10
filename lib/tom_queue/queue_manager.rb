@@ -190,7 +190,7 @@ module TomQueue
     # Public: Reject some work
     #
     # work - the TomQueue::Work object to acknowledge
-    # requeue - boolean, wether to requeue the work or drop it
+    # requeue - boolean, whether to requeue the work or drop it
     #
     # Returns the work object passed.
     def nack(work, requeue = true)
