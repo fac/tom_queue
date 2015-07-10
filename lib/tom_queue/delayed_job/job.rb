@@ -338,14 +338,14 @@ module TomQueue
 
       rescue SignalException => e
 
-        work.nack!
+        work && work.nack!
         error "[reserve] SignalException in reserve method, nacked work (will be requeued): #{e.message}."
 
         nil
 
       rescue Exception => e
 
-        work.nack!
+        work && work.nack!
         error "[reserve] Exception in reserve method, nacked work (will be requeued): #{e.message}."
         TomQueue.exception_reporter && TomQueue.exception_reporter.notify(e)
 
