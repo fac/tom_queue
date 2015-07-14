@@ -125,7 +125,7 @@ describe "External consumers" do
       it "should call the bind block, which calls the init and defers the perform call" do
         subject
         trace.map { |a| a[0] }.should == [:bind_block, :init, :job_performed]
-      end 
+      end
 
       it "should be init'd directly with the custom arguments" do
         subject
@@ -138,7 +138,46 @@ describe "External consumers" do
       end
 
     end
-    
+
+  end
+
+  it "passes the configured routing key through to the exchange on publication" do
+    consumer_class.class_exec(exchange_name) do |exchange_name|
+      bind_exchange(:topic, exchange_name, :routing_key => "my.key") do |work|
+        trace(:bind_block, work)
+      end
+    end
+    consumer_class.producer.publish('message')
+    subject
+    trace.last[1].response.routing_key.should eq "my.key"
+  end
+
+  it "overrides the configured routing key through to the exchange on publication" do
+    consumer_class.class_exec(exchange_name) do |exchange_name|
+      bind_exchange(:topic, exchange_name) do |work|
+        trace(:bind_block, work)
+      end
+    end
+    consumer_class.producer.publish('message', :routing_key => "better.key")
+    subject
+    trace.last[1].response.routing_key.should eq "better.key"
+  end
+
+  it "matches any routing key by default on message publication" do
+    consumer_class.class_exec(exchange_name) do |exchange_name|
+      bind_exchange(:topic, exchange_name) do |work|
+        trace :routing_key, work.response.routing_key
+      end
+    end
+    consumer_class.producer.publish('message', :routing_key => "good.key")
+    Delayed::Worker.new.work_off(2)
+    consumer_class.producer.publish('message', :routing_key => "better.key")
+    Delayed::Worker.new.work_off(2)
+    consumer_class.producer.publish('message')
+    Delayed::Worker.new.work_off(2)
+    trace.should include [:routing_key, "good.key"]
+    trace.should include [:routing_key, "better.key"]
+    trace.should include [:routing_key, ""]
   end
 
 

@@ -614,11 +614,19 @@ describe TomQueue, "once hooked" do
         Delayed::Worker.raise_signal_exceptions.should == true
       end
 
-      it "should allow exceptions to escape the function" do
+      it "should not allow signal exceptions to escape the function" do
         Delayed::Job.tomqueue_manager.should_receive(:pop) do
           raise SignalException, "INT"
         end
-        lambda { subject }.should raise_exception(SignalException)
+
+        lambda { subject }.should_not raise_exception(SignalException)
+      end
+
+      it "should allow exceptions to escape the function" do
+        Delayed::Job.tomqueue_manager.should_receive(:pop) do
+          raise Exception, "Something went wrong"
+        end
+        lambda { subject }.should raise_exception(Exception)
       end
     end
 
@@ -774,6 +782,66 @@ describe TomQueue, "once hooked" do
 
     end
 
+    describe "when SignalException raised before work found" do
+      let(:work) { double("Work", :payload => payload, :nack! => nil) }
+
+      before do
+        Delayed::Job.tomqueue_manager.stub(:pop).and_raise(SignalException.new("QUIT"))
+      end
+
+      it "should return nil" do
+        subject.should be_nil
+      end
+    end
+
+    describe "when Exception raised before work found" do
+      let(:work) { double("Work", :payload => payload, :nack! => nil) }
+
+      before do
+        Delayed::Job.tomqueue_manager.stub(:pop).and_raise(Exception)
+      end
+
+      it "should raise exception" do
+        expect { subject }.should raise_exception(Exception)
+      end
+    end
+
+    describe "when SignalException after work found" do
+      let(:work) { double("Work", :payload => payload, :nack! => nil) }
+
+      before do
+        Delayed::Job.stub(:acquire_locked_job).and_raise(SignalException.new("QUIT"))
+      end
+
+      it "should nack the work" do
+        work.should_receive(:nack!)
+        subject
+      end
+
+      it "should return nil" do
+        subject.should be_nil
+      end
+    end
+
+    describe "when Exception after work found" do
+      let(:work) { double("Work", :payload => payload, :nack! => nil) }
+
+      before do
+        Delayed::Job.stub(:acquire_locked_job).and_raise(Exception)
+      end
+
+      it "should nack the work" do
+        work.should_receive(:nack!)
+        begin
+          subject
+        rescue Exception
+        end
+      end
+
+      it "should raise exception" do
+        expect { subject }.should raise_exception(Exception)
+      end
+    end
 
   end
 

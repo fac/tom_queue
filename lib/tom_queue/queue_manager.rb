@@ -10,7 +10,7 @@ module TomQueue
   #
   # The scheduler simply trumps lower-priority jobs with higher
   # priority jobs. So ensure you don't saturate the worker with many
-  # or lengthy high priority jobs as you'll negatively impact normal 
+  # or lengthy high priority jobs as you'll negatively impact normal
   # and bulk jobs.
   #
   # HIGH_PRIORITY - use where the job is relatively short and the
@@ -20,7 +20,7 @@ module TomQueue
   # NORMAL_PRIORITY - use for longer-interactive tasks (rebuilding ledgers?)
   #
   # BULK_PRIORITY - typically when you want to schedule lots of work to be done
-  #   at some point in the future - background emailing, cron-triggered 
+  #   at some point in the future - background emailing, cron-triggered
   #   syncs, etc.
   #
   HIGH_PRIORITY = "high"
@@ -52,18 +52,18 @@ module TomQueue
 
     # Internal: The work queues used by consumers
     #
-    # Internal, this is an implementation detail. Accessor is mainly for 
+    # Internal, this is an implementation detail. Accessor is mainly for
     # convenient testing
-    # 
+    #
     # Returns a hash of { "priority" => <Bunny::Queue>, ... }
     attr_reader :queues
 
     # Internal: The exchange to which work is published
     #
-    # Internal, this is an implementation detail. Accessor is mainly for 
+    # Internal, this is an implementation detail. Accessor is mainly for
     # convenient testing
     #
-    # Returns Bunny::Exchange instance. 
+    # Returns Bunny::Exchange instance.
     attr_reader :exchange
 
     class PersistentWorkPool < ::Bunny::ConsumerWorkPool
@@ -78,7 +78,7 @@ module TomQueue
     # name  - used as a prefix for AMQP exchanges and queues.
     #         (this will default to TomQueue.default_prefix if set)
     #
-    # NOTE: All consumers and producers sharing work must have the same 
+    # NOTE: All consumers and producers sharing work must have the same
     #       prefix value.
     #
     # Returns an instance, duh!
@@ -103,7 +103,7 @@ module TomQueue
 
     # Internal: Opens channels and declares the necessary queues, exchanges and bindings
     #
-    # As a convenience to tests, this will tear-down any existing connections, so it is 
+    # As a convenience to tests, this will tear-down any existing connections, so it is
     # possible to simulate a failed connection by calling this a second time.
     #
     # Retunrs nil
@@ -113,7 +113,7 @@ module TomQueue
       @publisher_channel && @publisher_channel.close
       @channel && @channel.close
 
-      # Publishing is going to come in from the host app, as well as 
+      # Publishing is going to come in from the host app, as well as
       # the Deferred thread, so create a dedicated channel and mutex
       @publisher_channel = Bunny::Channel.new(@bunny, nil, @work_pool)
       @publisher_channel.open
@@ -121,7 +121,7 @@ module TomQueue
 
       @channel = Bunny::Channel.new(@bunny, nil, @work_pool)
       @channel.open
-      @channel.prefetch(1)
+      @channel.basic_qos(1, true)
 
       @queues = {}
 
@@ -162,10 +162,10 @@ module TomQueue
           :run_at   => run_at
         })
       else
-        
+
         debug "[publish] Pushing work onto exchange '#{@exchange.name}' with routing key '#{priority}'"
         @publisher_mutex.synchronize do
-          @publisher_channel.direct(@exchange.name, :passive=>true).publish(work, {
+          @publisher_channel.topic(@exchange.name, :passive=>true).publish(work, {
             :routing_key => priority,
             :headers => {
               :job_priority => priority,
@@ -180,10 +180,21 @@ module TomQueue
     # Public: Acknowledge some work
     #
     # work - the TomQueue::Work object to acknowledge
-    # 
+    #
     # Returns the work object passed.
     def ack(work)
       @channel.ack(work.response.delivery_tag)
+      work
+    end
+
+    # Public: Reject some work
+    #
+    # work - the TomQueue::Work object to acknowledge
+    # requeue - boolean, whether to requeue the work or drop it
+    #
+    # Returns the work object passed.
+    def nack(work, requeue = true)
+      @channel.nack(work.response.delivery_tag, false, requeue)
       work
     end
 
