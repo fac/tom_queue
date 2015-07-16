@@ -137,7 +137,7 @@ module TomQueue
 
       @channel = Bunny::Channel.new(@bunny, nil, @work_pool)
       @channel.open
-      @channel.prefetch(1)
+      @channel.basic_qos(1, true)
 
       @queues = {}
 
@@ -197,6 +197,17 @@ module TomQueue
     # Returns the work object passed.
     def ack(work)
       @channel.ack(work.response.delivery_tag)
+      work
+    end
+
+    # Public: Reject some work
+    #
+    # work - the TomQueue::Work object to acknowledge
+    # requeue - boolean, whether to requeue the work or drop it
+    #
+    # Returns the work object passed.
+    def nack(work, requeue = true)
+      @channel.nack(work.response.delivery_tag, false, requeue)
       work
     end
 
