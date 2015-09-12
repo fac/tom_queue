@@ -12,9 +12,10 @@ module TomQueue
 
     # Public: This installs the dynamic patches into Delayed Job to move scheduling over
     # to AMQP. Generally, this should be called during a Rails initializer at some point.
-    def apply_hook!    
+    def apply_hook!
       Delayed::Worker.sleep_delay = 0
       Delayed::Worker.backend = TomQueue::DelayedJob::Job
+      TomQueue.active = true
     end
     module_function :apply_hook!
 
