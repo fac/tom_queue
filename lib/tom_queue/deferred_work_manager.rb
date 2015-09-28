@@ -24,11 +24,14 @@ module TomQueue
 
     include LoggingHelper
 
-    attr_reader :prefix
+    attr_accessor :prefix, :exchange, :queue, :consumer, :deferred_set, :out_manager, :channel
 
     def initialize(prefix = nil)
-      @prefix ||= TomQueue.default_prefix
+      @prefix = prefix || TomQueue.default_prefix
       @prefix || raise(ArgumentError, 'prefix is required')
+      setup_amqp
+      @deferred_set = DeferredWorkSet.new
+      @out_manager = QueueManager.new(prefix)
     end
 
     # Public: Return the Thread associated with this manager
@@ -36,34 +39,21 @@ module TomQueue
     # Returns Ruby Thread object, or nil if it's not running
     attr_reader :thread
 
-    # Public: Ensure the thread is running, starting if necessary
-    #
-    def ensure_running
-      @thread_shutdown = false
-      @thread = nil unless @thread && @thread.alive?
-      @thread ||= begin
-        debug "[ensure_running] Starting thread"
-        Thread.new(&method(:thread_main))
-      end
-    end
 
     # Internal: Creates the bound exchange and queue for deferred work on the provided channel
     #
-    # channel - a Bunny channel to use to create the queue / exchange binding. If you intend
-    #           to use the returned channel / exchange objects, they will be accessed via
-    #           this channel.
-    #
     # Returns [ <exchange object>, <queue object> ]
-    def setup_amqp(channel)
-      exchange = channel.fanout("#{prefix}.work.deferred",
+    def setup_amqp
+      @channel = TomQueue.bunny.create_channel
+      @channel.prefetch(0)
+
+      @exchange = channel.fanout("#{prefix}.work.deferred",
           :durable     => true,
           :auto_delete => false)
 
-      queue = channel.queue("#{prefix}.work.deferred",
+      @queue = channel.queue("#{prefix}.work.deferred",
           :durable     => true,
           :auto_delete => false).bind(exchange.name)
-
-      [exchange, queue]
     end
 
     ##### Thread Internals #####
@@ -87,7 +77,7 @@ module TomQueue
       run_at = Time.at(headers[:headers]['run_at'])
 
       # schedule it in the work set
-      @deferred_set.schedule(run_at, [response, headers, payload])
+      deferred_set.schedule(run_at, [response, headers, payload])
     rescue Exception => e
       r = TomQueue.exception_reporter
       r && r.notify(e)
@@ -98,54 +88,36 @@ module TomQueue
 
     # Internal: The main loop of the thread
     #
-    def thread_main
-      debug "[thread_main] Deferred thread starting up"
-
-      # Make sure we're low priority!
-      Thread.current.priority = -10
-
-      # Create a dedicated channel, and ensure it's prefetch
-      # means we'll empty the queue
-      @channel = TomQueue.bunny.create_channel
-      @channel.prefetch(0)
-
-      # Create an exchange and queue
-      _, queue = setup_amqp(@channel)
-
-      @deferred_set = DeferredWorkSet.new
-
-      @out_manager = QueueManager.new(prefix)
+    def start
+      debug "[DeferredWorkManager] Deferred process starting up"
 
       # This block will get called-back for new messages
-      consumer = queue.subscribe(:ack => true, &method(:thread_consumer_callback))
+      @consumer = queue.subscribe(:ack => true, &method(:thread_consumer_callback))
 
       # This is the core event loop - we block on the deferred set to return messages
       # (which have been scheduled by the AMQP consumer). If a message is returned
       # then we re-publish the messages to our internal QueueManager and ack the deferred
       # message
-      until @thread_shutdown
-
+      while true
         # This will block until work is ready to be returned, interrupt
         # or the 10-second timeout value.
-        response, headers, payload = @deferred_set.pop(2)
+        response, headers, payload = deferred_set.pop(2)
 
         if response
           headers[:headers].delete('run_at')
-          @out_manager.publish(payload, headers[:headers])
-          @channel.ack(response.delivery_tag)
+          out_manager.publish(payload, headers[:headers])
+          channel.ack(response.delivery_tag)
         end
       end
-
-      consumer.cancel
-
-    rescue
+    rescue Exception => e
+      error e
       reporter = TomQueue.exception_reporter
       reporter && reporter.notify($!)
+    end
 
-    ensure
-      @channel && @channel.close
-      @deferred_set = nil
-      @thread = nil
+    def stop
+      consumer.cancel
+      channel && channel.close
     end
 
   end

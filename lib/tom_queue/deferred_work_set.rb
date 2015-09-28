@@ -8,6 +8,8 @@ module TomQueue
   #
   class DeferredWorkSet
 
+    include TomQueue::LoggingHelper
+
     # Internal: A wrapper object to store the run at and the opaque work object inside the @work array.
     class Element < Struct.new(:run_at, :work)
       include Comparable
@@ -87,7 +89,9 @@ module TomQueue
 
           begin
             end_time = [next_run_at, timeout_end].compact.min
+            debug "End Time: #{end_time}"
             delay = end_time - Time.now
+            debug "Delay: #{delay}"
             @condvar.wait(@mutex, delay) if delay > 0
           end while Time.now < end_time and @interrupt == false
 
