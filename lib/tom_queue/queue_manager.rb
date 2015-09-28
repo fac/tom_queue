@@ -113,8 +113,7 @@ module TomQueue
       @publisher_channel && @publisher_channel.close
       @channel && @channel.close
 
-      # Publishing is going to come in from the host app, as well as
-      # the Deferred thread, so create a dedicated channel and mutex
+      # Publishing is going to come in from the host app so create a dedicated channel and mutex
       @publisher_channel = Bunny::Channel.new(@bunny, nil, @work_pool)
       @publisher_channel.open
       @publisher_mutex = Mutex.new
@@ -125,7 +124,10 @@ module TomQueue
 
       @queues = {}
 
+      # @exchange is used for both publishing and subscription so it's declared on the @channel
       @exchange = @channel.topic("#{@prefix}.work", :durable => true, :auto_delete => false)
+      # @deferred_exchange is used only for publishing so declare it on the @publisher_channel
+      @deferred_exchange = @publisher_channel.fanout("#{@prefix}.work.deferred", :durable => true, :auto_delete => false)
 
       PRIORITIES.each do |priority|
         @queues[priority] = @channel.queue("#{@prefix}.balance.#{priority}", :durable => true)
@@ -152,29 +154,31 @@ module TomQueue
       raise ArgumentError, 'unknown priority level' unless PRIORITIES.include?(priority)
       raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.nil? or run_at.is_a?(Time)
 
-      if run_at > Time.now
-
-        debug "[publish] Handing work to deferred work manager to be run in #{run_at - Time.now}"
-
-        #  Make sure we explicitly pass all options in, even if they're the defaulted values
-        DeferredWorkManager.instance(self.prefix).handle_deferred(work, {
-          :priority => priority,
-          :run_at   => run_at
-        })
-      else
-
-        debug "[publish] Pushing work onto exchange '#{@exchange.name}' with routing key '#{priority}'"
-        @publisher_mutex.synchronize do
-          @publisher_channel.topic(@exchange.name, :passive=>true).publish(work, {
-            :routing_key => priority,
-            :headers => {
-              :job_priority => priority,
-              :run_at       => run_at.iso8601(4)
-            }
-          })
+      @publisher_mutex.synchronize do
+        if run_at > Time.now
+          publish_deferred work, run_at, priority
+        else
+          publish_immediate work, run_at, priority
         end
       end
       nil
+    end
+
+    def publish_immediate(work, run_at, priority)
+      debug "[publish] Pushing work onto exchange '#{@exchange.name}' with routing key '#{priority}'"
+      @publisher_channel.topic(@exchange.name, :passive=>true).publish(work, {
+          :routing_key => priority,
+          :headers => {
+            :job_priority => priority,
+            :run_at       => run_at.iso8601(4)
+          }
+        })
+    end
+
+    def publish_deferred(work, run_at, priority)
+      debug "[publish] Handing work to deferred work manager to be run in #{run_at - Time.now}"
+
+      @deferred_exchange.publish(work, mandatory: true, headers: {priority: priority, run_at: run_at.to_f})
     end
 
     # Public: Acknowledge some work
@@ -204,8 +208,6 @@ module TomQueue
     #
     # Returns QueueManager::Work instance
     def pop(opts={})
-      DeferredWorkManager.instance(self.prefix).ensure_running
-
       work = sync_poll_queues
       work ||= wait_for_message
       work
