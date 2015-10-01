@@ -116,6 +116,7 @@ module TomQueue
     end
 
     def stop
+      deferred_set && deferred_set.interrupt
       consumer.cancel
       channel && channel.close
     end
