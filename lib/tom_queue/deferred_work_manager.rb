@@ -34,11 +34,6 @@ module TomQueue
       @out_manager = QueueManager.new(prefix)
     end
 
-    # Public: Return the Thread associated with this manager
-    #
-    # Returns Ruby Thread object, or nil if it's not running
-    attr_reader :thread
-
 
     # Internal: Creates the bound exchange and queue for deferred work on the provided channel
     #
@@ -56,11 +51,6 @@ module TomQueue
           :auto_delete => false).bind(exchange.name)
     end
 
-    ##### Thread Internals #####
-    #
-    # Cross this barrier with care :)
-    #
-
     # Internal: This is called on a bunny internal work thread when
     # a new message arrives on the deferred work queue.
     #
@@ -73,7 +63,7 @@ module TomQueue
     # payload  - (String) the message payload
     #
     #
-    def thread_consumer_callback(response, headers, payload)
+    def schedule(response, headers, payload)
       run_at = Time.at(headers[:headers]['run_at'])
 
       # schedule it in the work set
@@ -86,13 +76,11 @@ module TomQueue
       response.channel.reject(response.delivery_tag, !response.redelivered?)
     end
 
-    # Internal: The main loop of the thread
-    #
     def start
       debug "[DeferredWorkManager] Deferred process starting up"
 
       # This block will get called-back for new messages
-      @consumer = queue.subscribe(:ack => true, &method(:thread_consumer_callback))
+      @consumer = queue.subscribe(:ack => true, &method(:schedule))
 
       # This is the core event loop - we block on the deferred set to return messages
       # (which have been scheduled by the AMQP consumer). If a message is returned
