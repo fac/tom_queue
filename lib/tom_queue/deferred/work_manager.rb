@@ -11,7 +11,7 @@ module TomQueue
   # DefferedWorkManager#new takes a prefix value to set up RabbitMQ exchange
   # and queue for deferred jobs
   #
-  # Work is also pushed to this maanger by the QueueManager when it needs to be deferred.
+  # Work is also pushed to this manager by the QueueManager when it needs to be deferred.
   #
   # For the purpose of listening to the deferred jobs queue and handling jobs when they're
   # ready to run DeferredWorkManager::start is intended to run AS A SEPARATE PROCESS
