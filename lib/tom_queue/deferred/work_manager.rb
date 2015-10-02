@@ -70,12 +70,9 @@ module TomQueue
         deferred_set_mutex.synchronize do
           deferred_set << Work.new(run_at, [response, headers, payload])
         end
-      rescue Exception => e
+      rescue StandardError => e
         r = TomQueue.exception_reporter
         r && r.notify(e)
-
-        ### Avoid tight spinning workers by not re-queueing redlivered messages more than once!
-        response.channel.reject(response.delivery_tag, !response.redelivered?)
       end
 
       def start
@@ -102,7 +99,7 @@ module TomQueue
 
           sleep timeout
         end
-      rescue Exception => e
+      rescue StandardError => e
         error e
         reporter = TomQueue.exception_reporter
         reporter && reporter.notify($!)
