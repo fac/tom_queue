@@ -7,7 +7,7 @@ module TomQueue
 
       def initialize(run_at, job)
         # Convert time object to integer for faster comparsion
-        @run_at = (run_at.to_f * 1000).to_i
+        @run_at = run_at.to_f
         @job = job
       end
 

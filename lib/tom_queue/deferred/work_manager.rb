@@ -87,13 +87,16 @@ module TomQueue
         while true
           deferred_set_mutex.synchronize do
             work = deferred_set.first
-            if work
-              response, headers, payload = work.job
 
-              deferred_set.delete(work)
-              headers[:headers].delete('run_at')
-              out_manager.publish(payload, headers[:headers])
-              channel.ack(response.delivery_tag)
+            if work
+              if work.run_at < Time.now.to_f
+                response, headers, payload = work.job
+
+                deferred_set.delete(work)
+                headers[:headers].delete('run_at')
+                out_manager.publish(payload, headers[:headers])
+                channel.ack(response.delivery_tag)
+              end
             end
           end
 
