@@ -13,12 +13,9 @@ module TomQueue
   require 'tom_queue/queue_manager'
   require 'tom_queue/work'
   
-  require 'tom_queue/deferred_work_set'
-  require 'tom_queue/deferred_work_manager'
+  require 'tom_queue/deferred/work_manager'
 
   require 'tom_queue/external_consumer'
-
-  require 'tom_queue/sorted_array'
 
   # Public: Sets the bunny instance to use for new QueueManager objects
   def bunny=(new_bunny)

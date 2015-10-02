@@ -1,5 +1,5 @@
 require "set"
-require "mutex"
+require "thread"
 
 require "tom_queue/deferred/work"
 
@@ -87,9 +87,9 @@ module TomQueue
         while true
           deferred_set_mutex.synchronize do
             work = deferred_set.first
-            response, headers, payload = work.job
+            if work
+              response, headers, payload = work.job
 
-            if response
               deferred_set.delete(work)
               headers[:headers].delete('run_at')
               out_manager.publish(payload, headers[:headers])
