@@ -1,6 +1,6 @@
 require 'tom_queue/helper'
 
-## "Integration" For lack of a better word, trying to simulate various 
+## "Integration" For lack of a better word, trying to simulate various
 # failures, such as the deferred thread shitting itself
 #
 
@@ -9,7 +9,7 @@ describe "DeferredWorkManager integration scenarios"  do
   let(:consumer) { TomQueue::QueueManager.new(manager.prefix) }
 
   # Allow us to manipulate the deferred set object to induce a crash
-  before do  
+  before do
     # Look away now...
     class TomQueue::DeferredWorkManager
       attr_reader :deferred_set
@@ -17,9 +17,9 @@ describe "DeferredWorkManager integration scenarios"  do
     # ... and welcome back.
   end
 
-  # Push a single piece of work through to make sure the 
+  # Push a single piece of work through to make sure the
   # deferred thread is running OK
-  before do 
+  before do
     # This will start the deferred manager, and should block
     # until the thread is actually functional
     consumer.publish("work1", :run_at => Time.now + 0.1)
@@ -33,7 +33,7 @@ describe "DeferredWorkManager integration scenarios"  do
 
     describe "when the thread is shutdown" do
 
-      # This will shut the thread down with a single un-acked deferred messsage 
+      # This will shut the thread down with a single un-acked deferred messsage
       before { manager.ensure_stopped }
 
       it "should restore un-acked messages when the thread is shutdown" do
@@ -58,7 +58,7 @@ describe "DeferredWorkManager integration scenarios"  do
         TomQueue.exception_reporter = nil
         # Crash the deferred thread with a YAK stampede
         manager.deferred_set.should_receive(:pop).and_raise(RuntimeError, "Yaks Everywhere!")
-      end    
+      end
 
       let(:crash!) do
         thread = manager.thread
@@ -111,7 +111,7 @@ describe "DeferredWorkManager integration scenarios"  do
 
         crash!
       end
-      
+
     end
   end
 
@@ -159,7 +159,7 @@ describe "DeferredWorkManager integration scenarios"  do
       TomQueue.exception_reporter.should_receive(:notify).at_least(:once) do |exception|
         exception.should be_a(RuntimeError)
         exception.message.should == "ENOHAIR"
-      end
+      end.at_least(:once)
 
       crash!
       TomQueue::DeferredWorkManager.instance(consumer.prefix).ensure_stopped

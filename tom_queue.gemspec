@@ -19,4 +19,6 @@ Gem::Specification.new do |spec|
   spec.version        = '0.0.1.dev'
 
   spec.add_development_dependency('rest-client')
+  spec.add_development_dependency('rake')
+  spec.add_development_dependency("stomp")
 end

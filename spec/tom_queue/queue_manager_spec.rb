@@ -6,10 +6,10 @@ describe TomQueue::QueueManager do
   let(:channel) { TomQueue.bunny.create_channel }
 
   describe "basic creation" do
-  
+
     it "should be a thing" do
       defined?(TomQueue::QueueManager).should be_true
-    end  
+    end
 
     it "should be created with a name-prefix" do
       manager.prefix.should =~ /^test-[\d.]+$/
@@ -81,7 +81,7 @@ describe TomQueue::QueueManager do
       end
 
       it "should throw an ArgumentError exception if :run_at isn't a Time object" do
-        lambda { 
+        lambda {
           manager.publish("future", :run_at => "around 10pm ?")
         }.should raise_exception(ArgumentError, /must be a Time object/)
       end
@@ -143,6 +143,61 @@ describe TomQueue::QueueManager do
 
   end
 
+  describe "QueueManager - external publisher handling" do
+    after { TomQueue::QueueManager.publisher = nil }
+
+    it "should default to nil" do
+      expect(TomQueue::QueueManager.publisher).to be_nil
+    end
+
+    it "should be assignable" do
+      fake_publisher = Object.new
+      TomQueue::QueueManager.publisher = fake_publisher
+
+      expect(TomQueue::QueueManager.publisher).to be fake_publisher
+    end
+
+    it "publishes via external publisher" do
+      fake_publisher = Class.new do
+        def exchanges
+          @exchanges ||= []
+        end
+
+        def messages
+          @messages ||= []
+        end
+
+        def topic(*details)
+          exchanges << details
+          self
+        end
+
+        def publish(*details)
+          messages << details
+          self
+        end
+      end.new
+
+      manager = TomQueue::QueueManager.new
+
+      TomQueue::QueueManager.publisher = fake_publisher
+
+      run_at = Time.now
+      manager.publish("work", "run_at" => run_at)
+
+      expect(fake_publisher.exchanges.size).to eq 1
+      exchange_details = fake_publisher.exchanges.first
+      expect(exchange_details[0]).to eq "#{manager.prefix}.work"
+      expect(exchange_details[1]).to eq(passive: true)
+
+      expect(fake_publisher.messages.size).to eq 1
+      message_details = fake_publisher.messages.first
+      expect(message_details[0]).to eq "work"
+      expect(message_details[1]).to eq(key: "normal", headers: {job_priority: "normal", run_at: run_at.iso8601(4)})
+
+    end
+
+  end
 
   describe "QueueManager - deferred message handling" do
 

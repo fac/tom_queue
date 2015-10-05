@@ -1,9 +1,9 @@
 module TomQueue
 
-  # Internal: This class wraps the pool of work items that are waiting for their run_at 
+  # Internal: This class wraps the pool of work items that are waiting for their run_at
   # time to be reached.
-  # 
-  # It also incorporates the logic and coordination required to stall a thread until the 
+  #
+  # It also incorporates the logic and coordination required to stall a thread until the
   # work is ready to run.
   #
   class DeferredWorkSet
@@ -30,7 +30,7 @@ module TomQueue
       # Internal: Comparison function, referencing the scheduled run-time of the element
       #
       # NOTE: We don't compare the Time objects directly as this is /dog/ slow, as is comparing
-      # float objects, and this function will be called a /lot/ - so we compare reasonably 
+      # float objects, and this function will be called a /lot/ - so we compare reasonably
       # accurate integer values created in the initializer.
       #
       def <=> (other)
@@ -41,7 +41,7 @@ module TomQueue
       # too soon.
       #
       # When #<=> is used with `Comparable`, we get #== for free, but when it operates using run_at, it has
-      # the undesirable side-effect that when Array#delete is called with an element, all other elements with 
+      # the undesirable side-effect that when Array#delete is called with an element, all other elements with
       # the same run_at are deleted, too (since #== is used by Array#delete).
       #
       def == (other)
@@ -66,7 +66,7 @@ module TomQueue
     # or the timeout expires.
     #
     # This is intended to be called from a single worker thread, for the
-    # time being, if you try and block on this method concurrently in 
+    # time being, if you try and block on this method concurrently in
     # two threads, it will raise an exception!
     #
     # timeout - (Fixnum, seconds) how long to wait before timing out
@@ -104,7 +104,7 @@ module TomQueue
 
       returned_work
     end
-    
+
     # Public: Interrupt anything sleeping on this set
     #
     # This is "thread-safe" and is designed to be called from threads
