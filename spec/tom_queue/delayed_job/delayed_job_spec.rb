@@ -626,7 +626,7 @@ describe TomQueue, "once hooked" do
         Delayed::Job.tomqueue_manager.should_receive(:pop) do
           raise Exception, "Something went wrong"
         end
-        expect { subject }.not_to raise_error
+        expect { subject }.to raise_error(Exception)
       end
     end
 

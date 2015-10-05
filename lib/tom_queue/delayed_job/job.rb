@@ -107,7 +107,7 @@ module TomQueue
 
       def tomqueue_publish_triggers
         while job = self.class.tomqueue_triggers.pop
-          job.tomqueue_publish
+          job.tomqueue_publish rescue nil
         end
       end
       def tomqueue_clear_triggers
