@@ -223,7 +223,7 @@ describe TomQueue::QueueManager do
         manager.publish("work", :run_at => Time.now + 0.1)
       end
       it "should pass the original options" do
-        run_time = Time.now + 0.5
+        run_time = Time.now + 5
         TomQueue::DeferredWorkManager.instance(manager.prefix).should_receive(:handle_deferred).with(anything, hash_including(:priority => TomQueue::NORMAL_PRIORITY, :run_at => run_time))
         manager.publish("work", :run_at => run_time)
       end

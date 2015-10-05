@@ -156,7 +156,7 @@ describe "DeferredWorkManager integration scenarios"  do
 
     it "should notify the exception_reporter" do
       TomQueue.exception_reporter = double("Reporter")
-      TomQueue.exception_reporter.should_receive(:notify) do |exception|
+      TomQueue.exception_reporter.should_receive(:notify).at_least(:once) do |exception|
         exception.should be_a(RuntimeError)
         exception.message.should == "ENOHAIR"
       end.at_least(:once)
