@@ -362,15 +362,15 @@ describe TomQueue, "once hooked" do
         ActiveRecord::Base.connection.reset!
 
         # Assert we have separate connections
-        second_connection.select("SELECT connection_id() as id;").first["id"].should_not ==
-          ActiveRecord::Base.connection.select("SELECT connection_id() as id;").first["id"]
+        second_connection.execute("SELECT connection_id() as id;").first.should_not ==
+          ActiveRecord::Base.connection.execute("SELECT connection_id() as id;").first
 
         # This is called in a thread when the transaction is open to query the job, store the response
         # and the time when the response comes back
         parallel_query = lambda do |job_id|
           begin
             # Simulate another worker performing a SELECT ... FOR UPDATE request
-            @query_result = second_connection.select("SELECT * FROM delayed_jobs WHERE id=#{job_id} LIMIT 1 FOR UPDATE").first
+            @query_result = second_connection.execute("SELECT locked_at, locked_by FROM delayed_jobs WHERE id=#{job_id} LIMIT 1 FOR UPDATE").first
             @query_returned_at = Time.now.to_f
           rescue
             puts "Failed #{$!.inspect}"
@@ -394,8 +394,8 @@ describe TomQueue, "once hooked" do
         @query_returned_at.should > @leaving_transaction_at
 
         # make sure the returned record showed the lock
-        @query_result["locked_at"].should_not be_nil
-        @query_result["locked_by"].should_not be_nil
+        @query_result[0].should_not be_nil
+        @query_result[1].should_not be_nil
       end
 
       describe "when the job is marked as failed" do
