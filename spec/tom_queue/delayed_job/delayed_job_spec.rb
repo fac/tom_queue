@@ -782,6 +782,66 @@ describe TomQueue, "once hooked" do
 
     end
 
+    describe "when SignalException raised before work found" do
+      let(:work) { double("Work", :payload => payload, :nack! => nil) }
+
+      before do
+        Delayed::Job.tomqueue_manager.stub(:pop).and_raise(SignalException.new("QUIT"))
+      end
+
+      it "should return nil" do
+        subject.should be_nil
+      end
+    end
+
+    describe "when Exception raised before work found" do
+      let(:work) { double("Work", :payload => payload, :nack! => nil) }
+
+      before do
+        Delayed::Job.tomqueue_manager.stub(:pop).and_raise(Exception)
+      end
+
+      it "should raise exception" do
+        expect { subject }.should raise_exception(Exception)
+      end
+    end
+
+    describe "when SignalException after work found" do
+      let(:work) { double("Work", :payload => payload, :nack! => nil) }
+
+      before do
+        Delayed::Job.stub(:acquire_locked_job).and_raise(SignalException.new("QUIT"))
+      end
+
+      it "should nack the work" do
+        work.should_receive(:nack!)
+        subject
+      end
+
+      it "should return nil" do
+        subject.should be_nil
+      end
+    end
+
+    describe "when Exception after work found" do
+      let(:work) { double("Work", :payload => payload, :nack! => nil) }
+
+      before do
+        Delayed::Job.stub(:acquire_locked_job).and_raise(Exception)
+      end
+
+      it "should nack the work" do
+        work.should_receive(:nack!)
+        begin
+          subject
+        rescue Exception
+        end
+      end
+
+      it "should raise exception" do
+        expect { subject }.should raise_exception(Exception)
+      end
+    end
 
   end
 
