@@ -20,4 +20,5 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency('rest-client')
   spec.add_development_dependency('rake')
+  spec.add_development_dependency("stomp")
 end
