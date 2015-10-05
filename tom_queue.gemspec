@@ -1,7 +1,7 @@
 # coding: utf-8
 
 Gem::Specification.new do |spec|
-  spec.add_dependency   'activerecord', '~> 4.2'
+  spec.add_dependency   'activerecord', '>= 4.1'
   spec.add_dependency   'delayed_job_active_record'
   spec.add_dependency   'bunny', '1.0.5'
   spec.authors        = ["Thomas Haggett"]
@@ -18,5 +18,8 @@ Gem::Specification.new do |spec|
   spec.test_files     = Dir.glob("spec/**/*")
   spec.version        = '0.0.1.dev'
 
+  spec.add_development_dependency "activerecord", "~> 4.2"
   spec.add_development_dependency('rest-client')
+  spec.add_development_dependency('rake')
+  spec.add_development_dependency("stomp")
 end
