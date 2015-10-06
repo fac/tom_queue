@@ -145,31 +145,15 @@ describe TomQueue::QueueManager do
 
 
   describe "QueueManager - deferred message handling" do
-
-    describe "when popping a message" do
-      it "should ensure a deferred manager with the same prefix is running" do
-        manager.publish("work")
-        TomQueue::DeferredWorkManager.instance(manager.prefix).should_receive(:ensure_running)
-        manager.pop
-      end
-    end
-
     describe "when publishing a deferred message" do
       it "should not publish to the normal AMQP queue" do
-        manager.publish("work", :run_at => Time.now + 0.1)
+        manager.publish("work", :run_at => Time.now + 1)
         manager.queues.values.find { |q| channel.basic_get(q.name).first }.should be_nil
       end
-      it "should call #handle_deferred on the appropriate deferred work manager" do
-        TomQueue::DeferredWorkManager.instance(manager.prefix).should_receive(:handle_deferred)
-        manager.publish("work", :run_at => Time.now + 0.1)
-      end
-      it "should pass the original payload" do
-        TomQueue::DeferredWorkManager.instance(manager.prefix).should_receive(:handle_deferred).with("work", anything)
-        manager.publish("work", :run_at => Time.now + 0.1)
-      end
-      it "should pass the original options" do
-        run_time = Time.now + 5
-        TomQueue::DeferredWorkManager.instance(manager.prefix).should_receive(:handle_deferred).with(anything, hash_including(:priority => TomQueue::NORMAL_PRIORITY, :run_at => run_time))
+
+      it "should call #publish_deferred" do
+        run_time = Time.now + 1
+        manager.should_receive(:publish_deferred).with("work", run_time, TomQueue::NORMAL_PRIORITY)
         manager.publish("work", :run_at => run_time)
       end
     end
