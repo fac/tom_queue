@@ -24,7 +24,7 @@ describe "DeferredWorkManager integration scenarios"  do
     ch.queue("#{@prefix}.work.deferred", durable: true).pop.last.should == "work"
   end
 
-  describe "if the AMQP consumer thread crashes" do
+  describe "if the AMQP consumer thread crashes", timeout: 4 do
     after do
       class TomQueue::DeferredWorkSet
         if method_defined?(:orig_schedule)
@@ -33,7 +33,7 @@ describe "DeferredWorkManager integration scenarios"  do
         end
       end
 
-      Process.kill("SIGINT", @pid)
+      Process.kill("SIGKILL", @pid)
     end
 
     before do
