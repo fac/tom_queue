@@ -32,6 +32,7 @@ module TomQueue
       setup_amqp
       @deferred_set = DeferredWorkSet.new
       @out_manager = QueueManager.new(prefix)
+      @shutdown = false
     end
 
 
@@ -86,7 +87,7 @@ module TomQueue
       # (which have been scheduled by the AMQP consumer). If a message is returned
       # then we re-publish the messages to our internal QueueManager and ack the deferred
       # message
-      while true
+      until @shutdown
         # This will block until work is ready to be returned, interrupt
         # or the 10-second timeout value.
         response, headers, payload = deferred_set.pop(2)
@@ -97,6 +98,9 @@ module TomQueue
           channel.ack(response.delivery_tag)
         end
       end
+
+      consumer.cancel
+      channel && channel.close
     rescue Exception => e
       error e
       reporter = TomQueue.exception_reporter
@@ -104,9 +108,8 @@ module TomQueue
     end
 
     def stop
+      @shutdown = true
       deferred_set && deferred_set.interrupt
-      consumer.cancel
-      channel && channel.close
     end
 
   end
