@@ -91,6 +91,7 @@ module TomQueue
         # This will block until work is ready to be returned, interrupt
         # or the 10-second timeout value.
         response, headers, payload = deferred_set.pop(2)
+        puts "[DeferredWorkManager] Popped a message with run_at: #{headers && headers[:headers]['run_at']}"
 
         if response
           headers[:headers].delete('run_at')
