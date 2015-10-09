@@ -4,30 +4,6 @@ require 'rest_client'
 require 'tom_queue'
 require 'tom_queue/delayed_job'
 
-# Patch AR to allow Mock errors to escape after_commit callbacks
-# There is a test to check this hook works in delayed_job_spec.rb
-require 'active_record/connection_adapters/abstract/database_statements'
-module ActiveRecord::ConnectionAdapters::DatabaseStatements
-  alias orig_commit_transaction_records commit_transaction_records
-  def commit_transaction_records
-    records = @_current_transaction_records.flatten
-    @_current_transaction_records.clear
-    unless records.blank?
-      records.uniq.each do |record|
-        begin
-          record.committed!
-        rescue Exception => e
-          if e.class.to_s =~ /^RSpec/
-            raise
-          else
-            record.logger.error(e) if record.respond_to?(:logger) && record.logger
-          end
-        end
-      end
-    end
-  end
-end
-
 begin
   begin
     RestClient.delete("http://guest:guest@localhost:15672/api/vhosts/test")
@@ -51,7 +27,7 @@ RSpec.configure do |r|
         puts exception.backtrace.join("\n")
       end
     end.new
-    
+
     TomQueue.logger = Logger.new($stdout) if ENV['DEBUG']
   end
 
