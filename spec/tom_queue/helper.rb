@@ -11,7 +11,8 @@ begin
   end
   RestClient.put("http://guest:guest@localhost:15672/api/vhosts/test", "{}", :content_type => :json, :accept => :json)
   RestClient.put("http://guest:guest@localhost:15672/api/permissions/test/guest", '{"configure":".*","write":".*","read":".*"}', :content_type => :json, :accept => :json)
-  TheBunny = Bunny.new(:host => 'localhost', :vhost => 'test', :user => 'guest', :password => 'guest')
+  TEST_AMQP_CONFIG = {:host => 'localhost', :vhost => 'test', :user => 'guest', :password => 'guest'}
+  TheBunny = Bunny.new(TEST_AMQP_CONFIG)
   TheBunny.start
 rescue Errno::ECONNREFUSED
   $stderr.puts "\033[1;31mFailed to connect to RabbitMQ, is it running?\033[0m\n\n"
@@ -52,16 +53,4 @@ RSpec.configure do |r|
       Timeout.timeout(timeout) { test.call }
     end
   end
-
-  r.around do |test|
-    begin
-      TomQueue::DeferredWorkManager.reset!
-
-      test.call
-
-    ensure
-      TomQueue::DeferredWorkManager.reset!
-    end
-  end
-
 end
