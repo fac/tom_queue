@@ -13,7 +13,7 @@ Considering alternatives (such as [Resque](http://resquework.org) we decided tha
 Great, how do I use it?
 -----------------------
 
-Ok, first you need an RabbitMQ server [installed](https://www.rabbitmq.com/download.html) and running. It also helps to have [Management Plugin](https://www.rabbitmq.com/management.html) enables. It'll enable RabbitMQ web interface at http://localhost:15672
+Ok, first you need an RabbitMQ server [installed](https://www.rabbitmq.com/download.html) and running. It also helps to have [Management Plugin](https://www.rabbitmq.com/management.html) enabled. It'll run RabbitMQ web interface at `http://localhost:15672`.
 
 Once you have this, open your projects `Gemfile` and add the entry:
 
@@ -29,7 +29,7 @@ TomQueue::DelayedJob.priority_map[2] = TomQueue::LOW_PRIORITY
 TomQueue::DelayedJob.priority_map[4] = TomQueue::NORMAL_PRIORITY
 TomQueue::DelayedJob.priority_map[3] = TomQueue::HIGH_PRIORITY
 
-# Make sure internal exceptions in TomQueue make it to Hoptoad!
+# Make sure internal exceptions in TomQueue make it to Hoptoad (or Honeybadger or whatever)!
 TomQueue.exception_reporter = ErrorService
 TomQueue.logger = Rails.logger
 ```
@@ -38,7 +38,7 @@ The priority map maps Delayed Job's numerical priority values to discrete priori
 
 The `logger` is a bog-standard `Logger` object that, when set, receives warnings and errors from the TomQueue internals, useful for figuring out what is going on and when things go wrong. The `exception_reporter`, if set, should respond to `notify(exception)` and will receive any exceptions caught during the job lifecycle. If this isn't set, exceptions will just be logged.
 
-Now you need to configure TomQueue in your rails environments and wire in the AMQP broker configuration for them. In, for example, `config/environments/production.rb` add the lines:
+Now you need to configure TomQueue in your Rails environments and wire in the AMQP broker configuration for them. In, for example, `config/environments/production.rb` add the lines:
 
 ```ruby    
 AMQP_CONFIG = {
@@ -84,7 +84,9 @@ Will send a message for *all* jobs in the DB, useful to fill a fresh AMQP broker
 So, how does this thing work?
 -----------------------------
 
-When we call `apply_hook!` in initializer it modifies Delayed::Job config so that it uses `TomQueue::DelayedJob::Job` class as a backend. This class defines an `after_save` hook for when the job is saved to the database. After job is persisted it gets published to the [RabbitMQ exchange](http://rubybunny.info/articles/exchanges.html). TomQueue uses [Bunny](http://rubybunny.info) gem for interacting with RabbitMQ broker.
+When we call `apply_hook!` in initializer it modifies Delayed::Job config so that it uses `TomQueue::DelayedJob::Job` class as a backend. This class defines an `after_save` hook for when the job is saved to the database. After job is persisted it gets published to the [RabbitMQ exchange](http://rubybunny.info/articles/exchanges.html).
+
+TomQueue uses [Bunny](http://rubybunny.info) gem for interacting with RabbitMQ broker.
 
 After the job was scheduled it ends up in two places: the database and RabbitMQ queue. There're 5 possible queues:
 
@@ -94,11 +96,11 @@ After the job was scheduled it ends up in two places: the database and RabbitMQ 
 - high priority;
 - deferred queue (more on that later);
 
-You can specify what priority should the job have.
+You can explicitly set a priority for a job.
 
-While code in `TomQueue::DelayedJob::Job#tomqueue_publish` runs within the app, Delayed::Job workers run repeatedly run `TomQueue::DelayedJob::Job#reserve` method. This method implements the main process of acquiring a job from the RabbitMQ queue.
+While code in `TomQueue::DelayedJob::Job#tomqueue_publish` runs within the app, Delayed::Job workers repeatedly run `TomQueue::DelayedJob::Job#reserve` method. This method implements the main process of acquiring a job from the RabbitMQ queue.
 
-In a nutshell it checks if there's a job available in all 4 priority queues (from high to bulk). If there's a job to run, it gets a message from the queue, gets job if from the message and then **retrieves the job from the DB** by id.
+In a nutshell it checks if there's a job available in all 4 priority queues (in order from high to bulk). If there's a job to run, it gets a message from the queue, gets job id from the message and then **retrieves the job from the DB** by id.
 
 If there're no jobs, worker waits until one comes.
 
@@ -108,13 +110,13 @@ Some jobs are have to be run at some point in the future. To separate the jobs t
 
 When the job is published to the queue `TomQueue::QueueManager` decides whether it should be published to one of the priority queues or to the deferred queue.
 
-Note: It gets confusing sometimes, so it's important to remember that RabbitMQ messages don't get published to the queue. They get published to the **exchange** and then they're **routed** to the queue. E.g. TomQueue uses one exchange per all 4 priority queues.
+Note: It gets confusing sometimes, so it's important to remember that RabbitMQ messages don't get published to the queue. They get published to the **exchange** and then they're later **routed** to the queue. E.g. TomQueue uses one exchange per all 4 priority queues.
 
 If job's `run_at` attribute is set in the future it ends up in the deferred queue.
 
-There's a special process that is started separately from all DJ workers (but at the same time) that only listens to the deferred queue. It reads all the messages that come to the queue and holds them in memory in a sorted by `run_at` queue.
+There's a special process that is started separately from all DJ workers (but at the same time) that only listens to the deferred queue. It reads all the messages that come to the queue and holds them in memory in a sorted by `run_at` queue. When the job's time comes the process publishes the job to the "normal" exchange.
 
-If you look at the deferred queue in the web interface when this "deferred process" is running you'll noticed that messages in that queue are ["Unacked"](https://www.rabbitmq.com/reliability.html). It means that consumer (deferred process) received a message but didn't send an acknowledgment for it. In the semantics of the deferred process it means that job is waiting for the time to run in deferred process's memory. We do it this way in case deferred process dies before dispatching all deferred jobs. In that case all the unacknowledged messages just get re-queued to the deferred queue. `TomQueue::DeferredWorkManager` class is responsible for managing deferred jobs and runs in a separate process.
+If you look at the deferred queue in the web interface when this "deferred process" is running you'll noticed that messages in that queue are ["Unacked"](https://www.rabbitmq.com/reliability.html). It means that consumer (deferred process) received a message but didn't send an acknowledgment for it. In the semantics of the deferred process it means that job is waiting for the time to run in deferred process's memory. We do it this way to account for the case when deferred process dies before dispatching all deferred jobs. In that case all the unacknowledged messages just get re-queued to the deferred queue. `TomQueue::DeferredWorkManager` class is responsible for managing deferred jobs and runs in a separate process.
 
 What about when I'm developing?
 -------------------------------
