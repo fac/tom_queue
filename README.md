@@ -21,15 +21,18 @@ Once you have this, open your projects `Gemfile` and add the entry:
 
 Then, the next step is to add the generic TomQueue configuration - we stuff this into a Rails initializer:
 
-    require 'tom_queue/delayed_job'
-    TomQueue::DelayedJob.priority_map[1] = TomQueue::BULK_PRIORITY
-    TomQueue::DelayedJob.priority_map[2] = TomQueue::LOW_PRIORITY
-    TomQueue::DelayedJob.priority_map[4] = TomQueue::NORMAL_PRIORITY
-    TomQueue::DelayedJob.priority_map[3] = TomQueue::HIGH_PRIORITY
+``` ruby
+require 'tom_queue/delayed_job'
 
-    # Make sure internal exceptions in TomQueue make it to Hoptoad!
-    TomQueue.exception_reporter = ErrorService
-    TomQueue.logger = Rails.logger
+TomQueue::DelayedJob.priority_map[1] = TomQueue::BULK_PRIORITY
+TomQueue::DelayedJob.priority_map[2] = TomQueue::LOW_PRIORITY
+TomQueue::DelayedJob.priority_map[4] = TomQueue::NORMAL_PRIORITY
+TomQueue::DelayedJob.priority_map[3] = TomQueue::HIGH_PRIORITY
+
+# Make sure internal exceptions in TomQueue make it to Hoptoad!
+TomQueue.exception_reporter = ErrorService
+TomQueue.logger = Rails.logger
+```
 
 The priority map maps Delayed Job's numerical priority values to discrete priority levels, of BULK, LOW, NORMAL and HIGH, since we can't support arbitrary priorities. Any un-mapped values are presumed to be NORMAL. See below for further discussion on how job-priority works.
 
@@ -37,22 +40,24 @@ The `logger` is a bog-standard `Logger` object that, when set, receives warnings
 
 Now you need to configure TomQueue in your rails environments and wire in the AMQP broker configuration for them. In, for example, `config/environments/production.rb` add the lines:
 
-    AMQP_CONFIG = {
-      :host     => 'localhost',
-      :port     => 5672,
-      :vhost    => '/',
-      :ssl      => false,
-      :user     => 'guest',
-      :password => 'guest',
-      :read_timeout => 10,
-      :write_timeout => 10,
-    }
+```ruby    
+AMQP_CONFIG = {
+  :host     => 'localhost',
+  :port     => 5672,
+  :vhost    => '/',
+  :ssl      => false,
+  :user     => 'guest',
+  :password => 'guest',
+  :read_timeout => 10,
+  :write_timeout => 10,
+}
 
-    TomQueue.bunny = Bunny.new(AMQP_CONFIG)
-    TomQueue.bunny.start
-    TomQueue.default_prefix = "tomqueue-production"
+TomQueue.bunny = Bunny.new(AMQP_CONFIG)
+TomQueue.bunny.start
+TomQueue.default_prefix = "tomqueue-production"
 
-    TomQueue::DelayedJob.apply_hook!
+TomQueue::DelayedJob.apply_hook!
+```
 
 Replacing `AMQP_CONFIG` with the necessary Bunny configuration for your environment. The `default_prefix` is prefixed onto all AMQP exchanges and queues created by tom-queue, which can be a handy name-space. If you omit the `apply_hook!` call, DelayedJob behaviour will not be changed, a handy back-out path if things don't quite go to plan :)
 
@@ -63,12 +68,16 @@ Hopefully, DelayedJob should work as-is, but notifications for job events should
 
 It does add a couple of methods to the `DelayedJob` class and instances, which allow you to re-populate the AMQP broker with any jobs that reside in the DB. This is good if your broker drops offline for some reason, and misses some notifications.
 
-    job = Delayed::Job.first
-    job.tomqueue_publish
+```ruby
+job = Delayed::Job.first
+job.tomqueue_publish
+```
 
 This will send a notification for a given job via the broker.
 
-    Delayed::Job.tomqueue_republish
+```ruby
+Delayed::Job.tomqueue_republish
+```
 
 Will send a message for *all* jobs in the DB, useful to fill a fresh AMQP broker if it's missing messages or you have, for example, failed-over to a new broker.
 
@@ -120,7 +129,3 @@ Cool. Is it safe to use?
 Sure! We use it in production at FreeAgent pushing hundreds of thousands of jobs a day. That said, you do so at your own risk, and I'd advise understanding how it behaves before relying on it!
 
 Do let us know if you find any bugs or improve it (or just manage to get it to work!!) open an issue or pull-request here or alternatively ping me a mail at thomas -at- freeagent -dot- com 
-
-
-
-
