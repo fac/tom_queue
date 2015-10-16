@@ -6,9 +6,9 @@ TomQueue is a backend for [Delayed::Job](https://github.com/collectiveidea/delay
 Why?
 ----
 
-At FreeAgent, we have always used Delayed::Job to manage asynchronous work and find it still fits our needs well. That said, when it is backed by MySQL, we've found that it performs particularly poorly when the work queued gets large (i.e. 10k+). In fact, the larger the queue of work gets, the *slower* the query to pull the next job! The more Delayed:::Job workers are running the bigger problem it becomes.
+At FreeAgent, we have always used Delayed::Job to manage asynchronous work and find it still fits our needs well. That said, when it is backed by MySQL, we've found that it performs particularly poorly when the work queued gets large (i.e. 10k+). In fact, the larger the queue of work gets, the *slower* the query to pull the next job! The more Delayed:::Job workers that are running the bigger problem it becomes.
 
-Considering alternatives (such as [Resque](http://resquework.org) we decided that we'd like to retain database as the "source of truth". We also would still like to use Delayed::Job logic for handling failed jobs, managing locking etc. All we need is a more suitable queue-server. This is where TomQueue comes in.
+Considering alternatives (such as [Resque](http://resquework.org)) we decided that we'd like to retain database as the "source of truth". We also would still like to use Delayed::Job logic for handling failed jobs, managing locking etc. All we need is a more suitable queue-server. This is where TomQueue comes in.
 
 Great, how do I use it?
 -----------------------
