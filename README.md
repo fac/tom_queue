@@ -106,7 +106,7 @@ If there're no jobs, worker waits until one comes.
 
 ### Deferred jobs
 
-Some jobs are have to be run at some point in the future. To separate the jobs that should be run immediately from the "deferred" jobs TomQueue has a separate deferred queue and a **separate process** to manage these jobs.
+Some jobs have to be run at some point in the future. To separate the jobs that should be run immediately from the "deferred" jobs TomQueue has a separate deferred queue and a **separate process** to manage these jobs.
 
 When the job is published to the queue `TomQueue::QueueManager` decides whether it should be published to one of the priority queues or to the deferred queue.
 
