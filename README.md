@@ -1,21 +1,21 @@
 TomQueue
 =========
 
-TomQueue hooks onto [delayed_job_active_record](https://github.com/collectiveidea/delayed_job_active_record) to move the work-load queue out of the database onto a more suitable queueing server, in our case [RabbitMQ](http://rabbitmq.com).
+TomQueue is a backend for [Delayed::Job](https://github.com/collectiveidea/delayed_job) gem. TomQueue hooks onto [delayed_job_active_record](https://github.com/collectiveidea/delayed_job_active_record) backend and replaces the mechanism by which Delayed::Job workers acquire jobs. By default Delayed::Job workers poll the database for new jobs. TomQueue replaces "polling" logic with subscription to [RabbitMQ](http://rabbitmq.com) queue. Delayed::Job workers receive a new job as soon as it gets published to the queue.
 
 Why?
 ----
 
-At FreeAgent, we have always used Delayed Job to manage asynchronous work and find it still fits our needs well, not only in getting code running in production but also in its handling of failed jobs as well as ensuring our entire engineering team understand how it behaves. It's a core part of our workflow and infrastructure and we're happy with it.
+At FreeAgent, we have always used Delayed::Job to manage asynchronous work and find it still fits our needs well. That said, when it is backed by MySQL, we've found that it performs particularly poorly when the work queued gets large (i.e. 10k+). In fact, the larger the queue of work gets, the *slower* the query to pull the next job! The more Delayed:::Job workers are running the bigger problem it becomes.
 
-That said, when it is backed by MySQL, we've found that it performs particularly poorly when the work queued gets large (i.e. 10k+). In fact, the larger the queue of work gets, the *slower* the query to pull the next job! To cut a long story short, databases make really poor work queues.
-
-Rather than move our "Source of Truth" for jobs and their state out of the database as well as re-wire our job code to use some alternative (such as [Resque](http://resquework.org), etc.) I've opted to fix the problem by replacing the work-queue to a more suitable server, namely AMQP / RabbitMQ, whilst maintaining the definitive job-list in the database. This is where TomQueue comes in.
+Considering alternatives (such as [Resque](http://resquework.org) we decided that we'd like to retain database as the "source of truth". We also would still like to use Delayed::Job logic for handling failed jobs, managing locking etc. All we need is a more suitable queue-server. This is where TomQueue comes in.
 
 Great, how do I use it?
 -----------------------
 
-Ok, first you need an AMQP broker, we recommend and use RabbitMQ. Once you have this, open your projects `Gemfile` and add the entry:
+Ok, first you need an RabbitMQ server [installed](https://www.rabbitmq.com/download.html) and running. It also helps to have [Management Plugin](https://www.rabbitmq.com/management.html) enables. It'll enable RabbitMQ web interface at http://localhost:15672
+
+Once you have this, open your projects `Gemfile` and add the entry:
 
     gem 'tom_queue'
 
@@ -37,13 +37,24 @@ The `logger` is a bog-standard `Logger` object that, when set, receives warnings
 
 Now you need to configure TomQueue in your rails environments and wire in the AMQP broker configuration for them. In, for example, `config/environments/production.rb` add the lines:
 
-    TomQueue.bunny = Bunny.new( ... )
+    AMQP_CONFIG = {
+      :host     => 'localhost',
+      :port     => 5672,
+      :vhost    => '/',
+      :ssl      => false,
+      :user     => 'guest',
+      :password => 'guest',
+      :read_timeout => 10,
+      :write_timeout => 10,
+    }
+
+    TomQueue.bunny = Bunny.new(AMQP_CONFIG)
     TomQueue.bunny.start
     TomQueue.default_prefix = "tomqueue-production"
 
     TomQueue::DelayedJob.apply_hook!
 
-Replacing the `...` with the necessary Bunny configuration for your environment. The `default_prefix` is prefixed onto all AMQP exchanges and queues created by tom-queue, which can be a handy name-space. If you omit the `apply_hook!` call, DelayedJob behaviour will not be changed, a handy back-out path if things don't quite go to plan :)
+Replacing `AMQP_CONFIG` with the necessary Bunny configuration for your environment. The `default_prefix` is prefixed onto all AMQP exchanges and queues created by tom-queue, which can be a handy name-space. If you omit the `apply_hook!` call, DelayedJob behaviour will not be changed, a handy back-out path if things don't quite go to plan :)
 
 Ok, so what happens now?
 ------------------------
@@ -64,7 +75,37 @@ Will send a message for *all* jobs in the DB, useful to fill a fresh AMQP broker
 So, how does this thing work?
 -----------------------------
 
-Magic dust. Seriously.
+When we call `apply_hook!` in initializer it modifies Delayed::Job config so that it uses `TomQueue::DelayedJob::Job` class as a backend. This class defines an `after_save` hook for when the job is saved to the database. After job is persisted it gets published to the [RabbitMQ exchange](http://rubybunny.info/articles/exchanges.html). TomQueue uses [Bunny](http://rubybunny.info) gem for interacting with RabbitMQ broker.
+
+After the job was scheduled it ends up in two places: the database and RabbitMQ queue. There're 5 possible queues:
+
+- bulk priority;
+- low priority;
+- normal priority;
+- high priority;
+- deferred queue (more on that later);
+
+You can specify what priority should the job have.
+
+While code in `TomQueue::DelayedJob::Job#tomqueue_publish` runs within the app, Delayed::Job workers run repeatedly run `TomQueue::DelayedJob::Job#reserve` method. This method implements the main process of acquiring a job from the RabbitMQ queue.
+
+In a nutshell it checks if there's a job available in all 4 priority queues (from high to bulk). If there's a job to run, it gets a message from the queue, gets job if from the message and then **retrieves the job from the DB** by id.
+
+If there're no jobs, worker waits until one comes.
+
+### Deferred jobs
+
+Some jobs are have to be run at some point in the future. To separate the jobs that should be run immediately from the "deferred" jobs TomQueue has a separate deferred queue and a **separate process** to manage these jobs.
+
+When the job is published to the queue `TomQueue::QueueManager` decides whether it should be published to one of the priority queues or to the deferred queue.
+
+Note: It gets confusing sometimes, so it's important to remember that RabbitMQ messages don't get published to the queue. They get published to the **exchange** and then they're **routed** to the queue. E.g. TomQueue uses one exchange per all 4 priority queues.
+
+If job's `run_at` attribute is set in the future it ends up in the deferred queue.
+
+There's a special process that is started separately from all DJ workers (but at the same time) that only listens to the deferred queue. It reads all the messages that come to the queue and holds them in memory in a sorted by `run_at` queue.
+
+If you look at the deferred queue in the web interface when this "deferred process" is running you'll noticed that messages in that queue are ["Unacked"](https://www.rabbitmq.com/reliability.html). It means that consumer (deferred process) received a message but didn't send an acknowledgment for it. In the semantics of the deferred process it means that job is waiting for the time to run in deferred process's memory. We do it this way in case deferred process dies before dispatching all deferred jobs. In that case all the unacknowledged messages just get re-queued to the deferred queue. `TomQueue::DeferredWorkManager` class is responsible for managing deferred jobs and runs in a separate process.
 
 What about when I'm developing?
 -------------------------------
