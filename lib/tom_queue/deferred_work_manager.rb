@@ -136,7 +136,7 @@ module TomQueue
     def handle_signals
       sig = Thread.main[:signals].shift
       if sig
-        logger.info "Caught signal #{sig}, stopping deffered workers"
+        info "Caught signal #{sig}, stopping deffered workers"
         stop
       end
     end
