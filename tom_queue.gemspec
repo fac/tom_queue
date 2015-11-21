@@ -1,4 +1,4 @@
-# coding: utf-8
+require File.expand_path('../lib/tom_queue/version', __FILE__)
 
 Gem::Specification.new do |spec|
   spec.add_dependency   'activerecord', '~> 4.1'
@@ -16,7 +16,7 @@ Gem::Specification.new do |spec|
   spec.require_paths  = ['lib']
   spec.summary        = 'AMQP hook for ActiveRecord backend for DelayedJob'
   spec.test_files     = Dir.glob("spec/**/*")
-  spec.version        = '0.0.2'
-
+  spec.version        = TomQueue::VERSION
+  spec.executables    = ['deferred_work_manager']
   spec.add_development_dependency('rest-client')
 end
