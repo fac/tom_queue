@@ -7,7 +7,7 @@ module TomQueue
   # DefferedWorkManager#new takes a prefix value to set up RabbitMQ exchange
   # and queue for deferred jobs
   #
-  # Work is also pushed to this maanger by the QueueManager when it needs to be deferred.
+  # Work is also pushed to this manager by the QueueManager when it needs to be deferred.
   #
   # For the purpose of listening to the deferred jobs queue and handling jobs when they're
   # ready to run DeferredWorkManager::start is intended to run AS A SEPARATE PROCESS
@@ -83,6 +83,10 @@ module TomQueue
       # This block will get called-back for new messages
       @consumer = queue.subscribe(:ack => true, &method(:schedule))
 
+      main_loop
+    end
+
+    def main_loop
       # This is the core event loop - we block on the deferred set to return messages
       # (which have been scheduled by the AMQP consumer). If a message is returned
       # then we re-publish the messages to our internal QueueManager and ack the deferred
@@ -112,7 +116,5 @@ module TomQueue
       @shutdown = true
       deferred_set && deferred_set.interrupt
     end
-
   end
-
 end

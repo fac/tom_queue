@@ -5,7 +5,7 @@ module TomQueue
       base.extend(TomQueue::LoggingHelper)
     end
 
-    [:debug, :info, :warn, :error].each do |level|
+    [:debug, :info, :warn, :error, :fatal].each do |level|
       eval <<-RUBY
         def #{level}(message=nil, &block)
           if TomQueue.logger && TomQueue.logger.#{level}?
