@@ -1,5 +1,4 @@
 #!/usr/bin/env ruby
-$LOAD_PATH << File.dirname(__FILE__) + "/../lib" if $0 == __FILE__
 
 require "tom_queue/deferred_work_manager_cli"
 
