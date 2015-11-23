@@ -7,7 +7,7 @@ module TomQueue
     include LoggingHelper
 
     def run(argv = ARGV)
-      load_rails!(".")
+      return unless load_rails!(".")
 
       deferred_manager = DeferredWorkManager.new
       deferred_manager.start
