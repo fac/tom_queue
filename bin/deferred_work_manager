@@ -7,7 +7,9 @@ module TomQueue
     include LoggingHelper
 
     def run(argv = ARGV)
-      return unless load_rails!(".")
+      unless load_rails!
+        raise RuntimeError, "Rails is not loaded successfully"
+      end
 
       deferred_manager = DeferredWorkManager.new
       deferred_manager.start
@@ -16,7 +18,7 @@ module TomQueue
     # Load Rails environment
     #
     # Returns true/false indicate whether Rails is loaded or not
-    def load_rails!(path)
+    def load_rails!(path = ".")
       rails_path = File.expand_path(File.join(path, 'config/environment.rb'))
       if File.exists?(rails_path)
         info "Loading rails from `#{rails_path}`"

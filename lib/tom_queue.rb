@@ -9,7 +9,7 @@
 #
 module TomQueue
   require 'tom_queue/version'
-  
+
   require 'tom_queue/logging_helper'
 
   require 'tom_queue/queue_manager'
@@ -46,7 +46,7 @@ module TomQueue
   # Public: Set an object to receive notifications if an internal exception
   # is caught and handled.
   #
-  # IT should be an object that responds to #notify(exception) and should be
+  # It should be an object that responds to #notify(exception) and should be
   # thread safe as reported exceptions will be from background threads crashing.
   #
   class << self
