@@ -69,17 +69,16 @@ module TomQueue
     #
     # Returns true/false indicate whether Rails is loaded or not
     def load_rails!(path)
-      rails_env_path = File.expand_path(File.join(path, 'config/environment.rb'))
+      env_file = File.expand_path(File.join(path, 'config/environment.rb'))
+      app_file = File.expand_path(File.join(path, 'config/application.rb'))
 
-      if File.exists?(rails_env_path)
-        info "Loading Rails from env file: #{rails_env_path}"
-        ENV['RACK_ENV'] = ENV['RAILS_ENV'] ||= "development"
-        require rails_env_path
-        ::Rails.application.eager_load!
-        true
-      else
-        false
-      end
+      return false unless File.exist?(env_file) && File.exist?(app_file)
+
+      ENV['RACK_ENV'] = ENV['RAILS_ENV'] ||= "development"
+
+      require env_file
+      ::Rails.application.config.eager_load = true
+      require app_file
     end
   end
 end

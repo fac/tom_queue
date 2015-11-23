@@ -52,7 +52,7 @@ module TomQueue
           :auto_delete => false).bind(exchange.name)
     end
 
-    # Internal: This is called on a bunny internal work thread when
+    # Internal: This is called on a bunny internal work thread when
     # a new message arrives on the deferred work queue.
     #
     # A given message will be delivered only to one deferred manager
@@ -80,17 +80,19 @@ module TomQueue
     def start
       debug "[DeferredWorkManager] Deferred process starting up"
 
+      register_signal_handlers
+
       # This block will get called-back for new messages
       @consumer = queue.subscribe(:ack => true, &method(:schedule))
 
       main_loop
     end
 
+    # This is the core event loop - we block on the deferred set to return messages
+    # (which have been scheduled by the AMQP consumer). If a message is returned
+    # then we re-publish the messages to our internal QueueManager and ack the deferred
+    # message    
     def main_loop
-      # This is the core event loop - we block on the deferred set to return messages
-      # (which have been scheduled by the AMQP consumer). If a message is returned
-      # then we re-publish the messages to our internal QueueManager and ack the deferred
-      # message
       until @shutdown
         # This will block until work is ready to be returned, interrupt
         # or the 10-second timeout value.
@@ -102,6 +104,8 @@ module TomQueue
           out_manager.publish(payload, headers[:headers])
           channel.ack(response.delivery_tag)
         end
+
+        handle_signals
       end
 
       consumer.cancel
@@ -115,6 +119,26 @@ module TomQueue
     def stop
       @shutdown = true
       deferred_set && deferred_set.interrupt
+    end
+
+    # Register handlers to shut down the manager gracefully
+    def register_signal_handlers
+      Thread.main[:signals] = []
+
+      [:QUIT, :INT, :TERM].each do |sig|
+        trap(sig) do
+          Thread.main[:signals] << sig
+        end
+      end
+    end
+
+    # Handle the queued signals
+    def handle_signals
+      sig = Thread.main[:signals].shift
+      if sig
+        info "Caught signal #{sig}, stopping deferred workers..."
+        stop
+      end
     end
   end
 end
