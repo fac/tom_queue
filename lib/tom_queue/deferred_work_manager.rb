@@ -32,7 +32,6 @@ module TomQueue
       setup_amqp
       @deferred_set = DeferredWorkSet.new
       @out_manager = QueueManager.new(prefix)
-      @shutdown = false
     end
 
 
@@ -80,65 +79,32 @@ module TomQueue
     def start
       debug "[DeferredWorkManager] Deferred process starting up"
 
-      register_signal_handlers
-
       # This block will get called-back for new messages
       @consumer = queue.subscribe(:ack => true, &method(:schedule))
 
-      main_loop
-    end
-
-    # This is the core event loop - we block on the deferred set to return messages
-    # (which have been scheduled by the AMQP consumer). If a message is returned
-    # then we re-publish the messages to our internal QueueManager and ack the deferred
-    # message    
-    def main_loop
-      until @shutdown
+      # This is the core event loop - we block on the deferred set to return messages
+      # (which have been scheduled by the AMQP consumer). If a message is returned
+      # then we re-publish the messages to our internal QueueManager and ack the deferred
+      # message
+      while true
         # This will block until work is ready to be returned, interrupt
         # or the 10-second timeout value.
         response, headers, payload = deferred_set.pop(2)
-        puts "[DeferredWorkManager] Popped a message with run_at: #{headers && headers[:headers]['run_at']}"
 
         if response
           headers[:headers].delete('run_at')
           out_manager.publish(payload, headers[:headers])
           channel.ack(response.delivery_tag)
         end
-
-        handle_signals
       end
-
-      consumer.cancel
-      channel && channel.close
+    rescue SignalException
+      info "#{self.class} shut down..."
+      exit
     rescue Exception => e
       error e
       reporter = TomQueue.exception_reporter
       reporter && reporter.notify($!)
     end
 
-    def stop
-      @shutdown = true
-      deferred_set && deferred_set.interrupt
-    end
-
-    # Register handlers to shut down the manager gracefully
-    def register_signal_handlers
-      Thread.main[:signals] = []
-
-      [:QUIT, :INT, :TERM].each do |sig|
-        trap(sig) do
-          Thread.main[:signals] << sig
-        end
-      end
-    end
-
-    # Handle the queued signals
-    def handle_signals
-      sig = Thread.main[:signals].shift
-      if sig
-        info "Caught signal #{sig}, stopping deferred workers..."
-        stop
-      end
-    end
   end
 end

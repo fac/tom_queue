@@ -1,6 +1,37 @@
 #!/usr/bin/env ruby
 
-require "tom_queue/deferred_work_manager_cli"
+require "optparse"
+require "tom_queue"
+
+module TomQueue
+  class DeferredWorkManagerCLI
+    include LoggingHelper
+
+    def run(argv = ARGV)
+      load_rails!(".")
+
+      deferred_manager = DeferredWorkManager.new
+      deferred_manager.start
+    end
+
+    # Load Rails environment
+    #
+    # Returns true/false indicate whether Rails is loaded or not
+    def load_rails!(path)
+      rails_path = File.expand_path(File.join(path, 'config/environment.rb'))
+      if File.exists?(rails_path)
+        info "Loading rails from `#{rails_path}`"
+
+        ENV['RACK_ENV'] ||= ENV['RAILS_ENV'] ||= 'development'
+        require rails_path
+        ::Rails.application.eager_load!
+        true
+      else
+        false
+      end
+    end
+  end
+end
 
 cli = TomQueue::DeferredWorkManagerCLI.new
 cli.run(ARGV)
