@@ -3,7 +3,7 @@
 require "tom_queue"
 
 module TomQueue
-  class DeferredWorkManagerCLI
+  class Daemon
     include LoggingHelper
 
     def run(argv = ARGV)
@@ -32,5 +32,5 @@ module TomQueue
   end
 end
 
-cli = TomQueue::DeferredWorkManagerCLI.new
+cli = TomQueue::Daemon.new
 cli.run(ARGV)
