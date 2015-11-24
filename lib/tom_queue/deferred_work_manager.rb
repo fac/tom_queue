@@ -32,7 +32,6 @@ module TomQueue
       setup_amqp
       @deferred_set = DeferredWorkSet.new
       @out_manager = QueueManager.new(prefix)
-      @shutdown = false
     end
 
 
@@ -52,7 +51,7 @@ module TomQueue
           :auto_delete => false).bind(exchange.name)
     end
 
-    # Internal: This is called on a bunny internal work thread when
+    # Internal: This is called on a bunny internal work thread when
     # a new message arrives on the deferred work queue.
     #
     # A given message will be delivered only to one deferred manager
@@ -87,7 +86,7 @@ module TomQueue
       # (which have been scheduled by the AMQP consumer). If a message is returned
       # then we re-publish the messages to our internal QueueManager and ack the deferred
       # message
-      until @shutdown
+      loop do
         # This will block until work is ready to be returned, interrupt
         # or the 10-second timeout value.
         response, headers, payload = deferred_set.pop(2)
@@ -102,17 +101,13 @@ module TomQueue
 
       consumer.cancel
       channel && channel.close
+    rescue SignalException
+      info "#{self.class} shut down..."
+      exit
     rescue Exception => e
       error e
       reporter = TomQueue.exception_reporter
       reporter && reporter.notify($!)
     end
-
-    def stop
-      @shutdown = true
-      deferred_set && deferred_set.interrupt
-    end
-
   end
-
 end
