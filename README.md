@@ -61,10 +61,18 @@ This will send a notification for a given job via the broker.
 
 Will send a message for *all* jobs in the DB, useful to fill a fresh AMQP broker if it's missing messages or you have, for example, failed-over to a new broker.
 
-So, how does this thing work?
+Deferred Work Manager
 -----------------------------
 
-Magic dust. Seriously.
+`DeferredWorkManager` has to be started as a separate process. You can start it via running `DeferredWorkManager.new.start` (as long as you've configured `TomQueue.bunny` and `TomQueue.default_prefix` properly).
+
+To stop it running, you might need to send the TERM signals to your `DeferredWorkManager` process.
+
+```bash
+KILL -SIGTERM 123
+```
+
+![](http://g.recordit.co/xkSDK27pxJ.gif)
 
 What about when I'm developing?
 -------------------------------
@@ -78,8 +86,4 @@ Cool. Is it safe to use?
 
 Sure! We use it in production at FreeAgent pushing hundreds of thousands of jobs a day. That said, you do so at your own risk, and I'd advise understanding how it behaves before relying on it!
 
-Do let us know if you find any bugs or improve it (or just manage to get it to work!!) open an issue or pull-request here or alternatively ping me a mail at thomas -at- freeagent -dot- com 
-
-
-
-
+Do let us know if you find any bugs or improve it (or just manage to get it to work!!) open an issue or pull-request here or alternatively ping me a mail at thomas -at- freeagent -dot- com
