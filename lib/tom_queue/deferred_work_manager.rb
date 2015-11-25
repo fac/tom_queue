@@ -98,9 +98,6 @@ module TomQueue
           channel.ack(response.delivery_tag)
         end
       end
-
-      consumer.cancel
-      channel && channel.close
     rescue SignalException
       # When the deferred work manager receives signals it will simply exit.
       info "#{self.class} shut down..."
