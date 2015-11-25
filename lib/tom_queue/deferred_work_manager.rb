@@ -100,6 +100,13 @@ module TomQueue
       end
     rescue SignalException
       # When the deferred work manager receives signals it will simply exit.
+      #
+      # How it works:
+      #  * Run `DeferredWorkManager.new.start` as a standalone process.
+      #  * Run `kill -SIGTERM PROCESS_ID`.
+      #  * "DeferredWorkManager shut down..."" would be logged.
+      #  * The daemon process is killed successfully.
+      #
       info "#{self.class} shut down..."
       exit
     rescue Exception => e
