@@ -93,7 +93,7 @@ module TomQueue
         response, headers, payload = deferred_set.pop(2)
 
         if response
-          puts "[DeferredWorkManager] Popped a message with run_at: #{headers && headers[:headers]['run_at']}"
+          debug "[DeferredWorkManager] Popped a message with run_at: #{headers && headers[:headers]['run_at']}"
           headers[:headers].delete('run_at')
           out_manager.publish(payload, headers[:headers])
           channel.ack(response.delivery_tag)
