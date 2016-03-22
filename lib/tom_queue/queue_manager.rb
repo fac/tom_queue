@@ -166,7 +166,7 @@ module TomQueue
 
     def publish_immediate(work, run_at, priority)
       debug "[publish] Pushing work onto exchange '#{@exchange.name}' with routing key '#{priority}'"
-      @publisher_channel.topic(@exchange.name, :passive=>true).publish(work, {
+      @exchange.publish(work, {
           :routing_key => priority,
           :headers => {
             :job_priority => priority,
