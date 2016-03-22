@@ -37,9 +37,14 @@ RSpec.configure do |r|
     TomQueue.bunny = TheBunny
   end
 
+  r.around do |test|
+    TomQueue.default_prefix = "test-#{Time.now.to_f}"
+    test.call
+  end
+
   r.before do
     TomQueue.logger ||= Logger.new("/dev/null")
-    TomQueue.default_prefix = "test-#{Time.now.to_f}"
+
     TomQueue::DelayedJob.apply_hook!
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
   end
@@ -51,6 +56,22 @@ RSpec.configure do |r|
       test.call
     else
       Timeout.timeout(timeout) { test.call }
+    end
+  end
+
+  r.around(:each, deferred_work_manager: true) do |example|
+    begin
+      pid = fork do
+        TomQueue.bunny = Bunny.new(TEST_AMQP_CONFIG)
+        TomQueue.bunny.start
+        TomQueue::DeferredWorkManager.new(TomQueue.default_prefix).start
+      end
+
+      sleep 1
+
+      example.call
+    ensure
+      Process.kill(:KILL, pid)
     end
   end
 end

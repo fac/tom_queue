@@ -4,7 +4,7 @@ require 'tom_queue/helper'
 
 describe TomQueue::QueueManager, "simple publish / pop" do
 
-  let(:manager) { TomQueue::QueueManager.new("test-#{Time.now.to_f}", 'manager') }
+  let(:manager) { TomQueue::QueueManager.new(TomQueue.default_prefix, 'manager') }
   let(:consumer) { TomQueue::QueueManager.new(manager.prefix, 'consumer1') }
   let(:consumer2) { TomQueue::QueueManager.new(manager.prefix, 'consumer2') }
 
@@ -132,7 +132,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     consumer2.pop.ack!.payload.should == "stuff 3"
   end
 
-  it "should allow a message to be deferred for future execution" do
+  it "should allow a message to be deferred for future execution", deferred_work_manager: true do
     execution_time = Time.now + 0.2
     manager.publish("future-work", :run_at => execution_time )
 
@@ -260,7 +260,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       Set.new(sink_order).should == Set.new(source_order)
     end
 
-    it "should work with lots of deferred work on the queue, and still schedule all messages" do
+    it "should work with lots of deferred work on the queue, and still schedule all messages", deferred_work_manager: true do
       # sit in a loop to pop it all off again
       consumers = 5.times.collect do |i|
         consumer = TomQueue::QueueManager.new(manager.prefix, "thread-#{i}")

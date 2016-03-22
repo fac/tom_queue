@@ -2,13 +2,13 @@ require 'tom_queue/helper'
 require 'tom_queue/delayed_job'
 
 describe Delayed::Job, "integration spec", :timeout => 10 do
-    
+
   class TestJobClass
     cattr_accessor :perform_hook
-    
+
     @@flunk_count = 0
-    cattr_accessor :flunk_count 
-    
+    cattr_accessor :flunk_count
+
     @@asplode_count = 0
     cattr_accessor :asplode_count
 
@@ -40,11 +40,10 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
 
   before do
     # Clean-slate ...
-    TomQueue.default_prefix = "test-#{Time.now.to_f}"
     TomQueue::DelayedJob.apply_hook!
     Delayed::Job.delete_all
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
-    
+
     # Keep track of how many times the job is run
     @called = []
     TestJobClass.perform_hook = lambda { |name| @called << name }
@@ -56,6 +55,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
   it "should actually be using the queue" do
     Delayed::Job.enqueue(TestJobClass.new(job_name))
 
+    sleep 0.25
     Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count].should == 1
   end
 
@@ -66,17 +66,17 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     @called.first.should == job_name
   end
 
-  it "should still back-off jobs" do
+  it "should still back-off jobs", deferred_work_manager: true do
     Delayed::Job.enqueue(TestJobClass.new(job_name))
     TestJobClass.flunk_count = 1
 
-    Benchmark.realtime { 
+    Benchmark.realtime {
       Delayed::Worker.new.work_off(1).should == [0, 1]
       Delayed::Worker.new.work_off(1).should == [1, 0]
     }.should > 0.5
   end
 
-  it "should support run_at" do
+  it "should support run_at", deferred_work_manager: true do
     Benchmark.realtime {
       Delayed::Job.enqueue(TestJobClass.new("job1"), :run_at => Time.now + 5)
       Delayed::Job.enqueue(TestJobClass.new("job2"), :run_at => Time.now + 1)
@@ -117,7 +117,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     # The job should get ignored for both runs
     Delayed::Worker.new.work_off(1)
     Delayed::Worker.new.work_off(1)
-    
+
     # And, since it never got run, it should still exist!
     Delayed::Job.find_by_id(job.id).should_not be_nil
     # And it should have been noisy, too.
@@ -142,7 +142,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
   #   job.reload
   #   job.locked_at.should_not be_nil
   #   job.locked_by.should_not be_nil
-    
+
   #   # Now wait for the max_run_time, which is artificially low
   #   while Delayed::Job.find_by_id(job.id)
   #     Delayed::Worker.new.work_off(1)

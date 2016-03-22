@@ -308,6 +308,7 @@ describe TomQueue, "once hooked" do
       queue.message_count.should == 0
 
       Delayed::Job.tomqueue_republish
+      sleep 0.25
       queue.message_count.should == 10
     end
 
@@ -320,6 +321,7 @@ describe TomQueue, "once hooked" do
       queue.message_count.should == 0
 
       Delayed::Job.where('id IN (?)', second_ids).tomqueue_republish
+      sleep 0.25
       queue.message_count.should == 7
     end
 
