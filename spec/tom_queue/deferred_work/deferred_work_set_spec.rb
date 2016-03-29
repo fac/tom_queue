@@ -21,15 +21,15 @@ describe TomQueue::DeferredWorkSet do
 
     it "should return the only item if there is one item in the set" do
       work = double("Work")
-      set.schedule( Time.now + 0.3, work)
+      set.schedule(Time.now + 0.3, work)
       set.earliest.should == work
     end
 
     it "should return the item in the set with the lowest run_at value" do
-      set.schedule( Time.now + 0.2, work1 = double("Work") )
-      set.schedule( Time.now + 0.1, work2 = double("Work") )
-      set.schedule( Time.now + 0.3, work3 = double("Work") )
-      set.earliest.should == work2
+      set.schedule(Time.now + 0.2, double("Work"))
+      set.schedule(Time.now + 0.1, work = double("Work"))
+      set.schedule(Time.now + 0.3, double("Work"))
+      set.earliest.should == work
     end
 
   end
@@ -79,16 +79,6 @@ describe TomQueue::DeferredWorkSet do
       set.pop(10).should == "work"
     end
 
-    it "should return immediately if it is interrupted by an external thread" do
-      Thread.new { sleep 0.1; set.interrupt }
-      start_time = Time.now
-      set.schedule(start_time + 1.5, "work")
-      set.schedule(start_time + 5, "work")
-      set.pop(10)
-      Time.now.should > start_time + 0.1
-      Time.now.should < start_time + 0.2
-    end
-
     it "should block until the earliest work, even if earlier work is added after the block" do
       start_time = Time.now
       Thread.new do
@@ -130,5 +120,4 @@ describe TomQueue::DeferredWorkSet do
       2.times.collect { set.pop(1) }.sort.should == ["work-1", "work-2"]
     end
   end
-
 end

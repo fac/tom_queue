@@ -1,14 +1,14 @@
 module TomQueue
 
-  # Internal: This class wraps the pool of work items that are waiting for their run_at 
+  # Internal: This class wraps the pool of work items that are waiting for their run_at
   # time to be reached.
-  # 
-  # It also incorporates the logic and coordination required to stall a thread until the 
+  #
+  # It also incorporates the logic and coordination required to stall a thread until the
   # work is ready to run.
   #
   class DeferredWorkSet
 
-    # Internal: A wrapper object to store the run at and the opaque work object inside the @work array.
+    # Internal: A wrapper object to store the run at and the opaque work object inside the @work array.
     class Element < Struct.new(:run_at, :work)
       include Comparable
 
@@ -30,21 +30,21 @@ module TomQueue
       # Internal: Comparison function, referencing the scheduled run-time of the element
       #
       # NOTE: We don't compare the Time objects directly as this is /dog/ slow, as is comparing
-      # float objects, and this function will be called a /lot/ - so we compare reasonably 
+      # float objects, and this function will be called a /lot/ - so we compare reasonably
       # accurate integer values created in the initializer.
       #
-      def <=> (other)
+      def <=>(other)
         fast_run_at <=> other.fast_run_at
       end
 
-      # Internal: We need to override this in order for elements with the same run_at not to be deleted
+      # Internal: We need to override this in order for elements with the same run_at not to be deleted
       # too soon.
       #
       # When #<=> is used with `Comparable`, we get #== for free, but when it operates using run_at, it has
-      # the undesirable side-effect that when Array#delete is called with an element, all other elements with 
+      # the undesirable side-effect that when Array#delete is called with an element, all other elements with
       # the same run_at are deleted, too (since #== is used by Array#delete).
       #
-      def == (other)
+      def ==(other)
         false
       end
     end
@@ -66,21 +66,22 @@ module TomQueue
     # or the timeout expires.
     #
     # This is intended to be called from a single worker thread, for the
-    # time being, if you try and block on this method concurrently in 
+    # time being, if you try and block on this method concurrently in
     # two threads, it will raise an exception!
     #
     # timeout - (Fixnum, seconds) how long to wait before timing out
     #
     # Returns previously scheduled work, or
-    #         nil if the thread was interrupted or the timeout expired
+    #         nil if the timeout expired
     def pop(timeout)
       timeout_end = Time.now + timeout
       returned_work = nil
 
-      @interrupt = false
-
       @mutex.synchronize do
-        raise RuntimeError, 'DeferredWorkSet: another thread is already blocked on a pop' unless @blocked_thread.nil?
+        unless @blocked_thread.nil?
+          raise RuntimeError,
+            "DeferredWorkSet: another thread is already blocked on a pop"
+        end
 
         begin
           @blocked_thread = Thread.current
@@ -89,7 +90,7 @@ module TomQueue
             end_time = [next_run_at, timeout_end].compact.min
             delay = end_time - Time.now
             @condvar.wait(@mutex, delay) if delay > 0
-          end while Time.now < end_time and @interrupt == false
+          end while Time.now < end_time
 
           element = earliest_element
           if element && element.run_at < Time.now
@@ -103,18 +104,6 @@ module TomQueue
       end
 
       returned_work
-    end
-    
-    # Public: Interrupt anything sleeping on this set
-    #
-    # This is "thread-safe" and is designed to be called from threads
-    # to interrupt the work loop thread blocked on a pop.
-    #
-    def interrupt
-      @mutex.synchronize do
-        @interrupt = true
-        @condvar.signal
-      end
     end
 
     # Public: Add some work to the set
@@ -134,7 +123,7 @@ module TomQueue
       end
     end
 
-    # Public: Returns the temporally "soonest" element in the set
+    # Public: Returns the temporally "soonest" element in the set
     # i.e. the work that is next to be run
     #
     # Returns the work Object passed to schedule instance or
@@ -161,5 +150,4 @@ module TomQueue
       @work.first
     end
   end
-
 end
