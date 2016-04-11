@@ -3,7 +3,7 @@ require 'tom_queue/helper'
 # "Integration" For lack of a better word, trying to simulate various failures
 
 describe "DeferredWorkManager", "#stop" do
-  it "stops the thread" do
+  it "handles SIGTERM sends by god properly" do
     pid = fork do
       TomQueue.bunny = Bunny.new(TEST_AMQP_CONFIG)
       TomQueue.bunny.start
@@ -11,12 +11,12 @@ describe "DeferredWorkManager", "#stop" do
       manager.start
     end
 
-    sleep 0.5
+    sleep 1
 
-    expect {
-      Process.kill("SIGTERM", pid)
-    }.to_not raise_error
-
+    expect(TomQueue).to_not receive(:exception_reporter)
+    Process.kill("SIGTERM", pid)
+    Process.waitpid(pid)
+    expect($?.exitstatus).to eq 0
   end
 end
 
