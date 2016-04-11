@@ -2,6 +2,24 @@ require 'tom_queue/helper'
 
 # "Integration" For lack of a better word, trying to simulate various failures
 
+describe "DeferredWorkManager", "#stop" do
+  it "stops the thread" do
+    pid = fork do
+      TomQueue.bunny = Bunny.new(TEST_AMQP_CONFIG)
+      TomQueue.bunny.start
+      manager = TomQueue::DeferredWorkManager.new(TomQueue.default_prefix)
+      manager.start
+    end
+
+    sleep 0.5
+
+    expect {
+      Process.kill("SIGTERM", pid)
+    }.to_not raise_error
+
+  end
+end
+
 describe "DeferredWorkManager integration scenarios"  do
   it "should restore un-acked messages when the process has crashed" do
     @prefix = "test-#{Time.now.to_f}"
