@@ -256,12 +256,6 @@ module TomQueue
             job
 
           end
-        rescue => e
-          if e.class.to_s =~ /^RSpec/
-            raise
-          else
-            record.logger.error(e) if record.respond_to?(:logger) && record.logger
-          end
         end
       end
 
