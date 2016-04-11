@@ -65,6 +65,8 @@ module TomQueue
       include TomQueue::LoggingHelper
       include TomQueue::DelayedJob::ExternalMessages
 
+      after_commit :acknowledge_destroyed_jobs
+
       # Public: This provides a shared queue manager object, instantiated on
       # the first call
       #
@@ -366,16 +368,9 @@ module TomQueue
       # Returns nil or TomQueue::Work object
       attr_accessor :tomqueue_work
 
-      # Internal: This wraps the job invocation with an acknowledgement of the original
-      # TomQueue work object, if one is around.
-      #
-      def invoke_job
-        super
-      ensure
-        debug "[invoke job:#{self.id}] Invoke completed, acking message."
-        self.tomqueue_work && self.tomqueue_work.ack!
+      def acknowledge_destroyed_jobs
+        tomqueue_work.ack! if tomqueue_work && !persisted?
       end
-
     end
   end
 end
