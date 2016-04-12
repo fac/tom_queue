@@ -32,11 +32,11 @@ describe "DeferredWorkManager", "#stop" do
     sleep 0.2
 
     Process.kill("SIGTERM", pid)
-    Process.waitpid(pid)
+    _, @status = Process.waitpid2(pid)
   end
 
   it "handles SIGTERM send by god properly" do
-    expect($?.exitstatus).to eq 0
+    expect(@status.exitstatus).to eq 0
   end
 
   it "doesn't report into the exception_reporter" do
