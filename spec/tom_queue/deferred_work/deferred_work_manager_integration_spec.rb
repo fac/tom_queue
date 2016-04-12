@@ -3,20 +3,44 @@ require 'tom_queue/helper'
 # "Integration" For lack of a better word, trying to simulate various failures
 
 describe "DeferredWorkManager", "#stop" do
-  it "handles SIGTERM sends by god properly" do
-    pid = fork do
+  class ExceptionReporter
+    attr_reader :filepath
+
+    def initialize(filepath)
+      @filepath = filepath
+    end
+
+    def notify(exception)
+      File.open(filepath, "w+") { |file| file.write(exception) }
+    end
+  end
+
+  let(:exception_reporter) { ExceptionReporter.new(file.path) }
+
+  let!(:file) { Tempfile.new("exception") }
+  let!(:pid) do
+    fork do
       TomQueue.bunny = Bunny.new(TEST_AMQP_CONFIG)
       TomQueue.bunny.start
+      TomQueue.exception_reporter = exception_reporter
       manager = TomQueue::DeferredWorkManager.new(TomQueue.default_prefix)
       manager.start
     end
+  end
 
-    sleep 1
+  before(:each) do
+    sleep 0.2
 
-    expect(TomQueue).to_not receive(:exception_reporter)
     Process.kill("SIGTERM", pid)
     Process.waitpid(pid)
+  end
+
+  it "handles SIGTERM send by god properly" do
     expect($?.exitstatus).to eq 0
+  end
+
+  it "doesn't report into the exception_reporter" do
+    expect(file.size).to eq 0
   end
 end
 
