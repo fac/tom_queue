@@ -861,25 +861,19 @@ describe TomQueue, "once hooked" do
       job.invoke_job
     end
 
-    describe "if there is a tomqueue work object set on the object" do
-      let(:work_object) { double("WorkObject", :ack! => nil)}
-      before { job.tomqueue_work = work_object}
-
-      it "should call ack! on the work object after the job has been invoked" do
-        payload.should_receive(:perform).ordered
-        work_object.should_receive(:ack!).ordered
-        job.invoke_job
-      end
-
-      it "should call ack! on the work object if an exception is raised" do
-        payload.should_receive(:perform).ordered.and_raise(RuntimeError, "OMG!!!11")
-        work_object.should_receive(:ack!).ordered
-        lambda {
-          job.invoke_job
-        }.should raise_exception(RuntimeError, "OMG!!!11")
-      end
-    end
   end
 
+  describe "Job#destroy" do
+    let(:payload) { double("DelayedJobPayload", :perform => nil)}
+    let(:job) { Delayed::Job.create!(:payload_object=>payload) }
+
+    let(:work_object) { double("WorkObject", :ack! => nil)}
+    before { job.tomqueue_work = work_object}
+
+    it "should call ack! on the work object after the job has been destroyed" do
+      work_object.should_receive(:ack!).ordered
+      job.destroy
+    end
+  end
 
 end
