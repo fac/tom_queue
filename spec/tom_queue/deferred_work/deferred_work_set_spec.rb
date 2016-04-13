@@ -79,16 +79,6 @@ describe TomQueue::DeferredWorkSet do
       set.pop(10).should == "work"
     end
 
-    it "should return immediately if it is interrupted by an external thread" do
-      Thread.new { sleep 0.1; set.interrupt }
-      start_time = Time.now
-      set.schedule(start_time + 1.5, "work")
-      set.schedule(start_time + 5, "work")
-      set.pop(10)
-      Time.now.should > start_time + 0.1
-      Time.now.should < start_time + 0.2
-    end
-
     it "should block until the earliest work, even if earlier work is added after the block" do
       start_time = Time.now
       Thread.new do
