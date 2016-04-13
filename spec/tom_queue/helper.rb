@@ -75,3 +75,9 @@ RSpec.configure do |r|
     end
   end
 end
+
+def unacked_message_count(priority)
+  queue_name = Delayed::Job.tomqueue_manager.queues[priority].name
+  response = RestClient.get("http://guest:guest@localhost:15672/api/queues/test/#{queue_name}", :accept => :json)
+  JSON.parse(response)["messages_unacknowledged"]
+end
