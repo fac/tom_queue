@@ -5,7 +5,7 @@ module TomQueue
     class AckWorkPlugin < Delayed::Plugin
       callbacks do |lifecycle|
         lifecycle.after(:perform) do |_, job|
-          job.tomqueue_work.ack! if job.tomqueue_work
+          job.tomqueue_work.ack! if job.respond_to?(:tomqueue_work) && job.tomqueue_work
         end
       end
 
