@@ -1,0 +1,25 @@
+engines:
+  duplication:
+    enabled: true
+    config:
+      languages:
+        - ruby
+  fixme:
+    enabled: true
+  rubocop:
+    enabled: true
+ratings:
+  paths:
+    - Gemfile.lock
+    - "**.erb"
+    - "**.rb"
+exclude_paths:
+  - coverage/
+  - spec/
+  - Gemfile
+  # git ls-files | awk '/^\./ { print "  - " $0 }'
+  - .codeclimate.yml
+  - .gitignore
+  - .rspec
+  - .rubocop.yml
+  - .ruby-version
