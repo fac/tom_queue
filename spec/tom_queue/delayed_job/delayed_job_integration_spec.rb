@@ -124,6 +124,18 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     File.read(logfile.path).should =~ /Received notification for failed job #{job.id}/
   end
 
+  it "should remove the job from the queue after it has run" do
+    Delayed::Job.enqueue(TestJobClass.new(job_name))
+
+    sleep 0.25
+    Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count].should == 1
+    Delayed::Worker.new.work_off(1)
+
+    sleep 2
+    expect(unacked_message_count(TomQueue::NORMAL_PRIORITY)).to eq 0
+    Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count].should == 0
+  end
+
   # it "should re-run the job once max_run_time is reached if, say, a worker crashes" do
   #   Delayed::Worker.max_run_time = 2
 
