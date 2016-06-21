@@ -25,4 +25,5 @@ exclude_paths:
   - .codeclimate.yml
   - .gitignore
   - .rspec
+  - .rubocop.yml
   - .ruby-version
