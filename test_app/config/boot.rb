@@ -4,8 +4,8 @@ require "delayed_job"
 require "delayed_job_active_record"
 require "pry-byebug"
 
+APP_ENV ||= ENV["RACK_ENV"] || "development"
 APP_ROOT = Pathname.new(File.expand_path("../../", __FILE__))
-APP_ENV = ENV["RACK_ENV"] || "development"
 APP_LOGGER = Logger.new(APP_ROOT.join("log", "#{APP_ENV}.log"))
 
 # DelayedJob wants us to be on rails, so it looks for stuff
