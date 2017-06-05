@@ -1,1 +1,18 @@
 <h1>Currently Scheduled Jobs</h1>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @jobs.each do |job| %>
+      <tr>
+        <td><%= job.id %></td>
+        <td><%= job.status %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

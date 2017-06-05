@@ -1,0 +1,35 @@
+require "mysql2"
+require "yaml"
+
+APP_ENV = ENV["RACK_ENV"] || "development"
+
+SCHEMA_QUERY = <<SQL
+  CREATE TABLE `delayed_jobs` (
+    `id` int(11) NOT NULL AUTO_INCREMENT,
+    `priority` int(11) DEFAULT '0',
+    `attempts` int(11) DEFAULT '0',
+    `handler` mediumtext COLLATE utf8_unicode_ci,
+    `last_error` text COLLATE utf8_unicode_ci,
+    `run_at` datetime DEFAULT NULL,
+    `locked_at` datetime DEFAULT NULL,
+    `failed_at` datetime DEFAULT NULL,
+    `locked_by` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
+    `created_at` datetime DEFAULT NULL,
+    `updated_at` datetime DEFAULT NULL,
+    `queue` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
+    `company_id` int(11) DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `index_delayed_jobs_on_company_id` (`company_id`) USING BTREE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+SQL
+
+namespace :db do
+  task :setup do
+    settings = YAML.load_file(File.expand_path("../config/database.yml", __FILE__))[APP_ENV]
+    client = Mysql2::Client.new(host: settings["host"], username: settings["username"], password: settings["password"])
+    client.query("DROP DATABASE IF EXISTS #{settings["database"]}")
+    client.query("CREATE DATABASE #{settings["database"]}")
+    client.query("USE #{settings["database"]}")
+    client.query(SCHEMA_QUERY)
+  end
+end
