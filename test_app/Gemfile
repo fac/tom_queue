@@ -1,13 +1,15 @@
 source "https://rubygems.org"
 
 gem "sinatra"
-gem "mysql2", "0.3.21"
 gem "tom_queue", path: "../"
 gem "shotgun"
+gem "puma"
 gem "rake"
-
 gem "pry-byebug"
 
-# Specify production versions of DJ
+gem "foreman"
+
+# Specify production versions of gems
+gem "mysql2", "0.3.21"
 gem "delayed_job", "4.0.6"
 gem "delayed_job_active_record", "4.1.0"
