@@ -1,0 +1,22 @@
+---
+default: &default
+  :heartbeat: 90
+  :automatically_recover: true
+  :recover_from_connection_close: true
+  :ssl: false
+
+development:
+  <<: *default
+  :addresses:
+    - "localhost:5672"
+  :vhost: "/"
+  :user: "guest"
+  :pass: "guest"
+
+test:
+  <<: *default
+  :addresses:
+    - "localhost:5672"
+  :vhost: "/"
+  :user: "guest"
+  :pass: "guest"
