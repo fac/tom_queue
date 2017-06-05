@@ -13,9 +13,8 @@ get "/jobs" do
 end
 
 post "/jobs" do
-
-end
-
-get "/jobs/:id" do
-
+  job_klass = eval(params[:type])
+  arguments = params[:arguments].split(",")
+  Delayed::Job.enqueue(job_klass.new(*arguments))
+  redirect "/jobs"
 end

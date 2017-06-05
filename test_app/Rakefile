@@ -1,7 +1,6 @@
 require "mysql2"
 require "yaml"
-
-APP_ENV = ENV["RACK_ENV"] || "development"
+load 'delayed/tasks.rb'
 
 SCHEMA_QUERY = <<SQL
   CREATE TABLE `delayed_jobs` (
@@ -23,8 +22,12 @@ SCHEMA_QUERY = <<SQL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 SQL
 
+task :environment do
+  require File.expand_path("../config/boot", __FILE__)
+end
+
 namespace :db do
-  task :setup do
+  task :setup => :environment do
     settings = YAML.load_file(File.expand_path("../config/database.yml", __FILE__))[APP_ENV]
     client = Mysql2::Client.new(host: settings["host"], username: settings["username"], password: settings["password"])
     client.query("DROP DATABASE IF EXISTS #{settings["database"]}")
