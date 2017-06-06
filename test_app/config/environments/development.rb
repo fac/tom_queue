@@ -6,9 +6,9 @@ if defined?(AMQP_CONFIG) && !!AMQP_CONFIG && !!TomQueue.default_prefix
     TomQueue.bunny = Bunny.new(AMQP_CONFIG)
     TomQueue.bunny.start
     TomQueue::DelayedJob.apply_hook!
-  rescue Bunny::Exception => e
-    Rails.logger.error "Failed to connect to RabbitMQ server for TomQueue: #{e.message}: #{e.inspect}"
-    Rails.logger.warn "DelayedJob has not been modified."
+  # rescue Bunny::Exception => e
+  #   Rails.logger.error "Failed to connect to RabbitMQ server for TomQueue: #{e.message}: #{e.inspect}"
+  #   Rails.logger.warn "DelayedJob has not been modified."
   end
 end
 

@@ -16,12 +16,13 @@
 APP_ENV = "test"
 
 require_relative "../config/boot"
-require "with_worker_helper"
+require "job_class_helper"
 require "active_support"
 require "rest_client"
 
 RMQ_API = "http://guest:guest@localhost:15672/api"
 RMQ_VHOST_API = "#{RMQ_API}/vhosts/#{AMQP_CONFIG[:vhost]}"
+MINIMUM_JOB_DELAY = 0.1
 
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|
@@ -77,14 +78,30 @@ RSpec.configure do |config|
 
   # Truncate the database table and clear the RMQ queues before each spec
   config.before do
+    FileUtils.rm(Dir.glob(APP_ROOT.join("tmp", "job*")))
     ActiveRecord::Base.connection.truncate(:delayed_jobs)
-    queues = JSON.parse(RestClient.get("#{RMQ_API}/queues/#{AMQP_CONFIG[:vhost]}"))
-    queues.compact.each do |queue|
-      RestClient.delete("#{RMQ_VHOST_API}/#{queue["name"]}/contents") rescue nil
+    Delayed::Job.tomqueue_manager.queues.values.map(&:name).each do |name|
+      RestClient.delete("#{RMQ_API}/queues/#{AMQP_CONFIG[:vhost]}/#{name}/contents")
     end
   end
-end
 
-def queue(name)
-  JSON.parse(RestClient.get("#{RMQ_API}/queues/#{AMQP_CONFIG[:vhost]}/#{TomQueue.default_prefix}.balance.#{name}"))
+  config.around(:each, worker: true) do |example|
+    begin
+      pid = fork do
+        if pid.nil?
+          TomQueue.bunny = Bunny.new(AMQP_CONFIG)
+          TomQueue.bunny.start
+          Delayed::Worker.new.start
+        end
+      end
+
+      unless pid.nil?
+        sleep(MINIMUM_JOB_DELAY)
+        example.call
+      end
+
+    ensure
+      Process.kill(:KILL, pid)
+    end
+  end
 end

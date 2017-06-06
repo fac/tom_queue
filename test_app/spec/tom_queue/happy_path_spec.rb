@@ -1,35 +1,22 @@
 require "spec_helper"
 
-describe "Job Queueing" do
-  SimpleJob = Struct.new(:id) do
-    def perform
-      # noop
-    end
+klass = job_class
+
+describe "Job Queueing", worker: true do
+  class JobClass < DummyJob; end
+
+  before do
+    JobClass.reset!
+    expect(JobClass).not_to be_completed
   end
 
-  it "should send the job id to AMQP" do
-    expect { Delayed::Job.enqueue(SimpleJob.new(123)) }.to change { queue(:normal)["messages"] }.by(1)
+  it "should run the job immediately" do
+    Delayed::Job.enqueue(JobClass.new("Foo"))
+    expect(JobClass).to complete_within(1)
   end
 
-  it "should store the payload in Delayed::Job" do
-    expect { Delayed::Job.enqueue(SimpleJob.new(123)) }.to change { Delayed::Job.count }.by(1)
-    job = Delayed::Job.last
-    expect(YAML.load(job.handler)).to be_a(SimpleJob)
-  end
-
-  it "should execute the payload when running" do
-    with_worker do |worker|
-      Delayed::Job.enqueue(SimpleJob.new(123))
-
-    end
-  end
-
-  it "should remove the job from Delayed::Job once run" do
-    with_worker do |worker|
-      expect { Delayed::Job.enqueue(SimpleJob.new(123)) }.to change { Delayed::Job.count }.by(1)
-      job = Delayed::Job.last
-      expect { worker.step }.to change { Delayed::Job.count }.by(-1)
-      expect(Delayed::Job.where(id: job.id).first).to be_nil
-    end
+  it "should not run a job scheduled for the future immediately" do
+    Delayed::Job.enqueue(JobClass.new("Foo"), run_at: 1.minute.from_now)
+    expect(JobClass).not_to complete_within(1)
   end
 end

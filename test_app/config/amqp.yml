@@ -9,7 +9,7 @@ development:
   <<: *default
   :addresses:
     - "localhost:5672"
-  :vhost: ""
+  :vhost: "/"
   :user: "guest"
   :pass: "guest"
 
