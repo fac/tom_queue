@@ -6,6 +6,8 @@ gem "shotgun"
 gem "puma"
 gem "rake"
 gem "pry-byebug"
+gem "activesupport"
+gem "rest-client"
 
 gem "foreman"
 

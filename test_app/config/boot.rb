@@ -21,19 +21,6 @@ ActiveRecord::Base.logger = APP_LOGGER
 # this is used by DJ to guess where tmp/pids is located (default)
 RAILS_ROOT = APP_ROOT
 
-require APP_ROOT.join("config", "environments", APP_ENV)
 Dir.glob(APP_ROOT.join("config/initializers", "*.rb")) { |file| require file }
 Dir.glob(APP_ROOT.join("jobs", "*.rb")) { |file| require file }
-
-
-if defined?(AMQP_CONFIG) && !!AMQP_CONFIG && !!TomQueue.default_prefix
-  Rails.logger.info("[TomQueue] Connecting to AMQP server...")
-  begin
-    TomQueue.bunny = Bunny.new(AMQP_CONFIG)
-    TomQueue.bunny.start
-    TomQueue::DelayedJob.apply_hook!
-  rescue Bunny::Exception => e
-    Rails.logger.error "Failed to connect to RabbitMQ server for TomQueue: #{e.message}: #{e.inspect}"
-    Rails.logger.warn "DelayedJob has not been modified."
-  end
-end
+require APP_ROOT.join("config", "environments", APP_ENV)
