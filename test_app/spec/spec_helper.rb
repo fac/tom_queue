@@ -77,10 +77,8 @@ RSpec.configure do |config|
     TomQueue::DelayedJob.apply_hook!
   end
 
-  # Truncate the database table and clear the RMQ queues before each spec
+  # Clear the RMQ queues before each spec
   config.before do
-    FileUtils.rm(Dir.glob(APP_ROOT.join("tmp", "job*")))
-    ActiveRecord::Base.connection.truncate(:delayed_jobs)
     Delayed::Job.tomqueue_manager.queues.values.map(&:name).each do |name|
       RestClient.delete("#{RMQ_API}/queues/#{AMQP_CONFIG[:vhost]}/#{name}/contents")
     end
