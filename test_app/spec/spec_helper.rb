@@ -15,8 +15,9 @@
 # See http://rubydoc.info/gems/rspec-core/RSpec/Core/Configuration
 APP_ENV = "test"
 
+require "pry-byebug"
 require_relative "../config/boot"
-require "job_class_helper"
+Dir.glob(File.expand_path("../support/*.rb", __FILE__)) { |file| require file }
 require "active_support"
 require "rest_client"
 
@@ -82,26 +83,6 @@ RSpec.configure do |config|
     ActiveRecord::Base.connection.truncate(:delayed_jobs)
     Delayed::Job.tomqueue_manager.queues.values.map(&:name).each do |name|
       RestClient.delete("#{RMQ_API}/queues/#{AMQP_CONFIG[:vhost]}/#{name}/contents")
-    end
-  end
-
-  config.around(:each, worker: true) do |example|
-    begin
-      pid = fork do
-        if pid.nil?
-          TomQueue.bunny = Bunny.new(AMQP_CONFIG)
-          TomQueue.bunny.start
-          Delayed::Worker.new.start
-        end
-      end
-
-      unless pid.nil?
-        sleep(MINIMUM_JOB_DELAY)
-        example.call
-      end
-
-    ensure
-      Process.kill(:KILL, pid)
     end
   end
 end

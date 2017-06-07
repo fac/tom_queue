@@ -1,35 +1,32 @@
 require "spec_helper"
 
 describe "Job Failure", worker: true do
-  class FailingJob < DummyJob
+  class FailingJob < TestJob
     def perform
       raise "Epic Fail!"
     end
 
-    def max_attempts
-      2
+    def reschedule_at(current_time, _)
+      current_time
     end
   end
 
-  before do
-    FailingJob.reset!
-    expect(FailingJob).not_to be_completed
-  end
+  let(:payload) { FailingJob.new("Foo") }
 
   it "should increment attempts" do
-    job = Delayed::Job.enqueue(FailingJob.new)
+    job = Delayed::Job.enqueue(payload)
     expect(job.attempts).to eq(0)
-    sleep(1)
+    expect(payload).to error
     expect(job.reload.attempts).to eq(1)
     expect(job.last_error).to match(/Epic Fail!/)
   end
 
   it "should set failed_at on permanent failure" do
-    job = Delayed::Job.enqueue(FailingJob.new)
-    sleep(1)
+    job = Delayed::Job.enqueue(payload)
+    expect(payload).to error
     expect(job.reload.attempts).to eq(1)
     expect(job.failed_at).to be_nil
-    sleep(1)
+    expect(payload).to error
     expect(job.reload.attempts).to eq(2)
     expect(job.failed_at).to be_a(DateTime)
   end
