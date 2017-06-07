@@ -9,6 +9,10 @@ describe "Job Failure", worker: true do
     def reschedule_at(current_time, _)
       current_time + (0.1).seconds
     end
+
+    def max_attempts
+      2
+    end
   end
 
   let(:payload) { FailingJob.new("Foo") }
@@ -28,9 +32,9 @@ describe "Job Failure", worker: true do
     sleep(0.1)
     expect(job.reload.attempts).to eq(1)
     expect(job.failed_at).to be_nil
-    sleep(1)
+    sleep(0.1)
     expect(job.reload.attempts).to eq(2)
-    expect(job.failed_at).to be_a(DateTime)
+    expect(job.failed_at).to be_a(Time)
   end
 
   describe "backoff" do

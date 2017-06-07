@@ -78,9 +78,13 @@ RSpec.configure do |config|
   end
 
   # Clear the RMQ queues before each spec
-  config.before do
-    Delayed::Job.tomqueue_manager.queues.values.map(&:name).each do |name|
-      RestClient.delete("#{RMQ_API}/queues/#{AMQP_CONFIG[:vhost]}/#{name}/contents")
-    end
+  # config.before do
+  #   Delayed::Job.tomqueue_manager.queues.values.map(&:name).each do |name|
+  #     RestClient.delete("#{RMQ_API}/queues/#{AMQP_CONFIG[:vhost]}/#{name}/contents")
+  #   end
+  # end
+
+  config.after(:suite) do
+    `pkill rspec 2> /dev/null`
   end
 end
