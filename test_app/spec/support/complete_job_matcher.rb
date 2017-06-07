@@ -5,7 +5,6 @@ def expect_message(message, seconds)
   Timeout.timeout(seconds || MAX_TIMEOUT) do
     while !received do
       output = TomQueue.test_logger.readline
-      puts "Received: #{output}"
       received = !!(output =~ /#{Regexp.escape(message)}/)
     end
   end

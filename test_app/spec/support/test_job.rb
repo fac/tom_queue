@@ -26,7 +26,6 @@ TestJob = Struct.new(:id) do
   private
 
   def log(message)
-    TomQueue.test_logger.write("#{message}\n")
-    puts "Sent: #{message}"
+    TomQueue.test_logger.debug(message)
   end
 end

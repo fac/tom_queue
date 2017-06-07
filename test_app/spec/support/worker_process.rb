@@ -7,12 +7,12 @@ end
 RSpec.configure do |config|
   config.around(:each, worker: true) do |example|
     begin
-      puts "New Pipe..."
       worker_read_pipe, worker_write_pipe = IO.pipe
       pid = fork do
+        TomQueue::DelayedJob::Job.reset!
         TomQueue.bunny = Bunny.new(AMQP_CONFIG)
         TomQueue.bunny.start
-        TomQueue.test_logger = worker_write_pipe
+        TomQueue.test_logger = Logger.new(worker_write_pipe)
         Delayed::Worker.new.start
       end
 
