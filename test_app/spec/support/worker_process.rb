@@ -21,16 +21,25 @@ RSpec.configure do |config|
 end
 
 def with_worker(&block)
+  with_workers(1) do
+    yield
+  end
+end
+
+def with_workers(count, &block)
   worker_read_pipe, worker_write_pipe = IO.pipe
-  worker_pid = fork do
-    TomQueue::DelayedJob::Job.reset!
-    TomQueue.bunny = Bunny.new(AMQP_CONFIG)
-    TomQueue.bunny.start
-    TomQueue.test_logger = Logger.new(worker_write_pipe)
-    Delayed::Worker.new.start
+
+  child_pids = count.times.map do
+    fork do
+      TomQueue::DelayedJob::Job.reset!
+      TomQueue.bunny = Bunny.new(AMQP_CONFIG)
+      TomQueue.bunny.start
+      TomQueue.test_logger = Logger.new(worker_write_pipe)
+      Delayed::Worker.new.start
+    end
   end
 
-  deferred_work_pid = fork do
+  child_pids << fork do
     TomQueue::DelayedJob::Job.reset!
     TomQueue.bunny = Bunny.new(AMQP_CONFIG)
     TomQueue.bunny.start
@@ -44,6 +53,5 @@ def with_worker(&block)
 
 ensure
   TomQueue.test_logger.close
-  Process.kill(:KILL, worker_pid)
-  Process.kill(:KILL, deferred_work_pid)
+  child_pids.each { |pid| Process.kill(:KILL, pid) }
 end
