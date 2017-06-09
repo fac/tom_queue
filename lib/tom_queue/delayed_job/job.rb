@@ -65,10 +65,6 @@ module TomQueue
       include TomQueue::LoggingHelper
       include TomQueue::DelayedJob::ExternalMessages
 
-      def self.reset!
-        @@tomqueue_manager = nil
-      end
-
       # Public: This provides a shared queue manager object, instantiated on
       # the first call
       #

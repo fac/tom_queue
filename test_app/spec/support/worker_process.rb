@@ -4,6 +4,12 @@ module TomQueue
   end
 end
 
+class TomQueue::DelayedJob::Job
+  def self.reset!
+    @@tomqueue_manager = nil
+  end
+end
+
 RSpec.configure do |config|
   config.around(:each, worker: true) do |example|
     begin

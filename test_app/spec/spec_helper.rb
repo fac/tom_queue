@@ -20,6 +20,7 @@ require_relative "../config/boot"
 Dir.glob(File.expand_path("../support/*.rb", __FILE__)) { |file| require file }
 require "active_support"
 require "rest_client"
+require "rspec/wait"
 
 RMQ_API = "http://guest:guest@localhost:15672/api"
 RMQ_VHOST_API = "#{RMQ_API}/vhosts/#{AMQP_CONFIG[:vhost]}"
@@ -83,8 +84,4 @@ RSpec.configure do |config|
   #     RestClient.delete("#{RMQ_API}/queues/#{AMQP_CONFIG[:vhost]}/#{name}/contents")
   #   end
   # end
-
-  config.after(:suite) do
-    `pkill rspec 2> /dev/null`
-  end
 end

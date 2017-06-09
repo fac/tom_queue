@@ -1,4 +1,4 @@
-TestJob = Struct.new(:id) do
+TestJob = Struct.new(:id, :options) do
   def perform
     log("RUNNING: #{id}")
   end
