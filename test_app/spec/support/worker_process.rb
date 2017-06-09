@@ -1,10 +1,12 @@
 module TomQueue
   class << self
+    # Add a singleton location for the pipe for inter-process feedback
     attr_accessor :test_logger
   end
 end
 
 class TomQueue::DelayedJob::Job
+  # Allow @@tomqueue_manager to be unmemoized between specs
   def self.reset!
     @@tomqueue_manager = nil
   end
