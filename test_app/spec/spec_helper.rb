@@ -26,6 +26,18 @@ RMQ_API = "http://guest:guest@localhost:15672/api"
 RMQ_VHOST_API = "#{RMQ_API}/vhosts/#{AMQP_CONFIG[:vhost]}"
 MINIMUM_JOB_DELAY = 0.1
 
+JOB_PRIORITIES = [
+  LOWEST_PRIORITY   = 2,
+  LOW_PRIORITY      = 1,
+  NORMAL_PRIORITY   = 0,
+  HIGH_PRIORITY     = -1
+]
+
+TomQueue::DelayedJob.priority_map[LOWEST_PRIORITY] = TomQueue::BULK_PRIORITY
+TomQueue::DelayedJob.priority_map[LOW_PRIORITY]    = TomQueue::LOW_PRIORITY
+TomQueue::DelayedJob.priority_map[NORMAL_PRIORITY] = TomQueue::NORMAL_PRIORITY
+TomQueue::DelayedJob.priority_map[HIGH_PRIORITY]   = TomQueue::HIGH_PRIORITY
+
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|
     expectations.include_chain_clauses_in_custom_matcher_descriptions = true
