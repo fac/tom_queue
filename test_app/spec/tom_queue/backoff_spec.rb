@@ -1,6 +1,6 @@
 require "spec_helper"
 
-describe "Failed Job Backoff", worker: true do
+describe "Failed job backoff", worker: true do
   class BackoffJob < TestJob
     def perform
       super

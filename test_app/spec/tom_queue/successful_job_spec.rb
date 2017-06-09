@@ -1,6 +1,6 @@
 require "spec_helper"
 
-describe "Successful Job", worker: true do
+describe "Successful job", worker: true do
   let(:payload) { TestJob.new("Foo") }
 
   it "should run the job immediately" do

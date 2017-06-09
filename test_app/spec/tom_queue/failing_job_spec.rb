@@ -1,6 +1,6 @@
 require "spec_helper"
 
-describe "Failing Job", worker: true do
+describe "Failing job", worker: true do
   class FailingJob < TestJob
     def perform
       super
