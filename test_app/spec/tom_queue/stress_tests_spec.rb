@@ -7,6 +7,9 @@ if ENV["STRESS_TESTS"]
 
   FAILED_JOB_COUNT = JOB_COUNT / 2
   SUCCESSFUL_JOB_COUNT = JOB_COUNT - FAILED_JOB_COUNT
+  PERFORMANCE_JOB_COUNT = JOB_COUNT * 10
+  SINGLE_JOB_EXECUTION_TIME = 0.12
+  PERFORMANCE_JOB_LIMIT = (PERFORMANCE_JOB_COUNT * SINGLE_JOB_EXECUTION_TIME).seconds
 
   SanityTestJob = Struct.new(:id) do
     def perform
@@ -38,7 +41,7 @@ if ENV["STRESS_TESTS"]
 
       with_workers(WORKER_COUNT) do
         # Check all the jobs have run
-        messages = worker_messages(JOB_COUNT, (JOB_COUNT * 0.1).seconds)
+        messages = worker_messages(JOB_COUNT, (JOB_COUNT * SINGLE_JOB_EXECUTION_TIME).seconds)
         expect(messages.length).to eq(JOB_COUNT) # one message per job
         expect(worker_messages(1, 5.seconds)).to be_empty # no more messages == no more jobs to run
 
@@ -65,7 +68,7 @@ if ENV["STRESS_TESTS"]
 
       with_workers(WORKER_COUNT) do
         # Check all the jobs have run
-        messages = worker_messages(JOB_COUNT, (JOB_COUNT * 0.1).seconds)
+        messages = worker_messages(JOB_COUNT, (JOB_COUNT * SINGLE_JOB_EXECUTION_TIME).seconds)
 
         # Check total messages
         expect(messages.length).to eq(JOB_COUNT) # one message per job
@@ -86,6 +89,20 @@ if ENV["STRESS_TESTS"]
 
         # Check that the failed jobs remain in the database
         wait(1.second).for { Delayed::Job.count }.to eq(FAILED_JOB_COUNT)
+      end
+    end
+
+    it "should run #{PERFORMANCE_JOB_COUNT} jobs performantly" do
+      progress = ProgressBar.new(PERFORMANCE_JOB_COUNT)
+
+      PERFORMANCE_JOB_COUNT.times do |i|
+        Delayed::Job.enqueue(SanityTestJob.new(i))
+        progress.increment!
+      end
+
+      with_workers(WORKER_COUNT) do
+        message_count = 0
+        wait(PERFORMANCE_JOB_LIMIT).for { worker_messages(1, SINGLE_JOB_EXECUTION_TIME) ? message_count += 1 : message_count }.to eq(PERFORMANCE_JOB_COUNT)
       end
     end
   end
