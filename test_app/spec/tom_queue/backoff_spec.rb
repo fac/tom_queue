@@ -21,7 +21,7 @@ describe "Failed Job Backoff", worker: true do
     job = Delayed::Job.enqueue(payload)
     messages = worker_messages(13) # 3 x 4 messages per run + failure
     timestamps = message_timestamps(messages.select { |message| message =~ /RUNNING: Backoff/ })
-    expect(timestamps[1]).to be_within(0.1).of(timestamps[0] + 1.second) # Second attempt = 1s delay
-    expect(timestamps[2]).to be_within(0.1).of(timestamps[1] + 2.seconds) # Third attempt = 2s delay
+    expect(timestamps[1]).to be_within(A_MOMENT).of(timestamps[0] + 1.second) # Second attempt = 1s delay
+    expect(timestamps[2]).to be_within(A_MOMENT).of(timestamps[1] + 2.seconds) # Third attempt = 2s delay
   end
 end

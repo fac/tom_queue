@@ -1,5 +1,6 @@
 MAX_TIMEOUT = 5
 TIMESTAMP_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+/
+A_MOMENT = (0.1).seconds
 
 def worker_messages(count, seconds = MAX_TIMEOUT)
   messages = []
