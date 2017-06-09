@@ -23,9 +23,9 @@ describe "Successful Job", worker: true do
   it "should fire hooks in the correct order" do
     Delayed::Job.enqueue(payload)
     messages = worker_messages(4)
-    expect(messages[0]).to match("BEFORE_HOOK")
-    expect(messages[1]).to match("RUNNING")
-    expect(messages[2]).to match("SUCCESS_HOOK")
-    expect(messages[3]).to match("AFTER_HOOK")
+    expect(messages[0]).to match("BEFORE_HOOK: Foo")
+    expect(messages[1]).to match("RUNNING: Foo")
+    expect(messages[2]).to match("SUCCESS_HOOK: Foo")
+    expect(messages[3]).to match("AFTER_HOOK: Foo")
   end
 end
