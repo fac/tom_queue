@@ -1,7 +1,7 @@
 require "spec_helper"
 require "progress_bar"
 
-JOB_COUNT = (ENV["JOB_COUNT"] || 1000).to_i
+JOB_COUNT = (ENV["JOB_COUNT"] || 100_000).to_i
 WORKER_COUNT = (ENV["WORKER_COUNT"] || 10).to_i
 
 if ENV["STRESS_TESTS"]
