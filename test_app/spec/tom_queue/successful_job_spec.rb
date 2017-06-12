@@ -5,13 +5,13 @@ describe "Successful job", worker: true do
 
   it "should run the job immediately" do
     Delayed::Job.enqueue(payload)
-    wait(1.second).for { message("RUNNING: Foo") }
+    wait(1.second).for { message("RUNNING: Foo") }.to be_truthy
   end
 
   it "should clean up the database once run" do
     job = Delayed::Job.enqueue(payload)
     expect(Delayed::Job.where(id: job.id).first).to be_present
-    wait(1.second).for { message("RUNNING: Foo") }
+    wait(1.second).for { message("RUNNING: Foo") }.to be_truthy
     wait(1.second).for { Delayed::Job.where(id: job.id).first }.to be_nil
   end
 
