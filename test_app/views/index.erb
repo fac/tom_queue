@@ -1,0 +1,36 @@
+<h1>Currently Scheduled Jobs</h1>
+
+<form action="/jobs" method="post">
+  <div class="form-group">
+    <label for="type">Job Type</label>
+    <select class="form-control" name="type" id="type">
+      <option>TouchFileJob</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label for="arguments">Arguments</label>
+    <input type="text" name="arguments" class="form-control" id="arguments" placeholder="Arguments">
+  </div>
+  <button type="submit" class="btn btn-default">Submit</button>
+</form>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Priority</th>
+      <th>Attempts</th>
+      <th>Handler</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @jobs.each do |job| %>
+      <tr>
+        <td><%= job.id %></td>
+        <td><%= job.priority %></td>
+        <td><%= job.attempts %></td>
+        <td><%= job.handler %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
