@@ -20,17 +20,17 @@ module TomQueue
     #
     # Returns self so this method can be chained
     def <<(element)
-      current_length = self.length
+      current_length = length
 
-      pos = if current_length == 0 || element < self.first
+      pos = if current_length == 0 || element < first
         0
-      elsif element > self.last
+      elsif element > last
         current_length
       else
         (0..current_length).bsearch { |idx| element < self[idx] }
       end
 
-      self.insert(pos, element)
+      insert(pos, element)
     end
   end
 end
