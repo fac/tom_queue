@@ -1,4 +1,5 @@
 require 'active_support/concern'
+require "tom_queue/delayed_job/job/overrides"
 
 module TomQueue
   module DelayedJob
