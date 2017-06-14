@@ -7,7 +7,7 @@ freeagent("smartos") {
   }
 
   stage("Test") {
-    sh "mysqladmin create delayed_job_test"
+    sh "mysqladmin create -u root delayed_job_test"
     sh "bundle exec rspec"
   }
 }
