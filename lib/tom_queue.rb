@@ -20,6 +20,9 @@ module TomQueue
 
   require 'tom_queue/sorted_array'
 
+  require 'tom_queue/stack'
+  require 'tom_queue/enqueue'
+
   # Public: Sets the bunny instance to use for new QueueManager objects
   def bunny=(new_bunny)
     @@bunny = new_bunny

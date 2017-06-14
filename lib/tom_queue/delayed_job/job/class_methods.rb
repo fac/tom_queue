@@ -8,9 +8,7 @@ module TomQueue
       # Allows us to skip DJ for enqueuing new work
       #
       def enqueue(*args)
-        # attributes = TomQueue::DelayedJob::JobPreparer.new(*args).prepare
-        # puts TomQueue::Persistence::Model.create!(attributes)
-        # super
+        TomQueue.enqueue(*args)
       end
     end
   end
