@@ -5,17 +5,20 @@ require "tom_queue/layers/publish"
 
 module TomQueue
   class Enqueue < TomQueue::Stack
-    insert Layers::Publish
-    insert Layers::Persist
-    insert Layers::Log
+    use Layers::Log
+    use Layers::Persist
+    use Layers::Publish
   end
 
+  # Public: Intended to be a direct replacement for Delayed::Job.enqueue, this
+  # takes the arguments, separates them into work and queue options, and passes them
+  # into the enqueue call stack
+  #
+  # Returns [work, options]
   def enqueue(*args)
     work, options = Job::Preparer.new(*args).prepare
-    Enqueue.stack.call(work, options)
+    Enqueue.call(work, options)
   end
 
   module_function :enqueue
 end
-
-binding.pry; ""

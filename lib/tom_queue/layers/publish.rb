@@ -3,7 +3,7 @@ module TomQueue
     class Publish < TomQueue::Stack::Layer
       def call(work, options)
         puts "Publish"
-        @chain.call(work, options)
+        chain.call(work, options)
       end
     end
   end
