@@ -7,8 +7,11 @@ module TomQueue
       # Public: Override Delayed::Job.enqueue
       # Allows us to skip DJ for enqueuing new work
       #
+      # Returns a persisted model instance
       def enqueue(*args)
-        TomQueue.enqueue(*args)
+        work, options = TomQueue::Job::Preparer.new(*args).prepare
+        # first return value from the stack is the persisted instance
+        TomQueue.enqueue(work, options)[0]
       end
     end
   end

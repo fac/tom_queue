@@ -3,6 +3,7 @@ require "active_support/core_ext/array/extract_options"
 module TomQueue
   module Job
     class Preparer
+      DEFAULT_PRIORITY = 0
       attr_reader :options, :args
 
       def initialize(*args)
@@ -11,20 +12,28 @@ module TomQueue
       end
 
       def prepare
-        [work, prepare_options]
-      end
+        work = options.delete(:payload_object) || args.shift
 
-      private
+        options[:priority] ||= DEFAULT_PRIORITY
 
-      def work
-        options[:payload_object] || args.shift
-      end
+        if options[:queue].nil?
+          if options[:payload_object].respond_to?(:queue_name)
+            options[:queue] = options[:payload_object].queue_name
+          end
+          options[:queue] ||= Delayed::Worker.default_queue_name
+        end
 
-      def prepare_options
-        {
-          run_at: Time.now,
-          priority: 0
-        }.merge(options)
+        if args.size > 0
+          warn '[DEPRECATION] Passing multiple arguments to `#enqueue` is deprecated. Pass a hash with :priority and :run_at.'
+          options[:priority] = args.first || options[:priority]
+          options[:run_at]   = args[1]
+        end
+
+        unless work.respond_to?(:perform)
+          raise ArgumentError, 'Cannot enqueue items which do not respond to perform'
+        end
+
+        [work, options]
       end
     end
   end
