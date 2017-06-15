@@ -10,9 +10,9 @@ module TomQueue
       # Returns modified [work, options]
       def call(work, options)
         if delayed_job?(work)
-          job = build(work, options).tap do |job|
+          job = build(work, options).tap do |j|
             # Run the work unit's :enqueue lifecycle hook if present
-            work.enqueue(job) if work.respond_to?(:enqueue)
+            work.enqueue(j) if work.respond_to?(:enqueue)
           end
           job.save!
           chain.call(job, options)

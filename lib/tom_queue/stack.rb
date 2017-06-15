@@ -57,7 +57,7 @@ module TomQueue
       #
       # Returns modified [work, options]
       def call(work, options)
-        return [work, options]
+        [work, options]
       end
 
       # Public: Adds a new layer if this layer is at the bottom of the stack,

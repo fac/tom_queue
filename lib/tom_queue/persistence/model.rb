@@ -16,7 +16,9 @@ module TomQueue
       # Returns a string
       BROKEN_DIGEST_CLASSES = [DateTime, Time, ActiveSupport::TimeWithZone]
       def digest
-        digest_string = self.attributes.map { |k,v| BROKEN_DIGEST_CLASSES.include?(v.class) ? [k,v.to_i] : [k,v.to_s] }.to_s
+        digest_string = attributes.map do |k,v|
+          BROKEN_DIGEST_CLASSES.include?(v.class) ? [k,v.to_i] : [k,v.to_s] }.to_s
+        end
         Digest::MD5.hexdigest(digest_string)
       end
 

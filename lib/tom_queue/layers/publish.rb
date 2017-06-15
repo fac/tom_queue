@@ -9,7 +9,7 @@ module TomQueue
       # Returns modified [work, options]
       def call(work, options)
         if work.is_a?(TomQueue::Persistence::Model)
-          publish_delayed_job(work, options)
+          publish_delayed_job(work)
         else
           # TODO: Implement non DJ work
           raise "Unknown work type"
@@ -32,7 +32,7 @@ module TomQueue
       # options - a Hash of options describing the work
       #
       # Returns nothing
-      def publish_delayed_job(job, options)
+      def publish_delayed_job(job)
         raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if job.new_record?
 
         payload = JSON.dump({
