@@ -27,7 +27,7 @@ module TomQueue
       #
       # Returns a memoized TomQueue::QueueManager
       def self.queue_manager
-        @tomqueue_manager ||= TomQueue::QueueManager.new.tap do |manager|
+        @@tomqueue_manager ||= TomQueue::QueueManager.new.tap do |manager|
           setup_external_handler(manager)
         end
       end

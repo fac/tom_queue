@@ -19,22 +19,6 @@ rescue Errno::ECONNREFUSED
   raise
 end
 
-module TomQueue
-  module Layers
-    class Publish < TomQueue::Stack::Layer
-      def self.reset!
-        @tomqueue_manager = nil
-      end
-    end
-  end
-
-  module DelayedJob
-    class Job
-      @@tomqueue_manager = nil
-    end
-  end
-end
-
 RSpec.configure do |r|
 
   r.before do
@@ -51,12 +35,7 @@ RSpec.configure do |r|
   # Make sure all tests see the same Bunny instance
   r.before do |test|
     TomQueue.bunny = TheBunny
-    if !!ENV["NEUTER_DJ"]
-      TomQueue::Layers::Publish.reset!
-      TomQueue.config[:override_enqueue] = true
-    else
-      TomQueue::DelayedJob::Job.reset!
-    end
+    TomQueue.config[:override_enqueue] = ENV["NEUTER_DJ"] || false
   end
 
   r.around do |test|
@@ -68,6 +47,7 @@ RSpec.configure do |r|
     TomQueue.logger ||= Logger.new("/dev/null")
 
     TomQueue::DelayedJob.apply_hook!
+    TomQueue::Layers::Publish.class_variable_set(:@@tomqueue_manager, nil)
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
   end
 
