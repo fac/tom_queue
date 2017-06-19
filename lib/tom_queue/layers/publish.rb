@@ -1,6 +1,10 @@
+require "tom_queue/delayed_job/external_messages"
+
 module TomQueue
   module Layers
     class Publish < TomQueue::Stack::Layer
+      include TomQueue::DelayedJob::ExternalMessages
+
       # Public: Push the work unit to the queue manager
       #
       # work - the work unit being enqueued
@@ -22,8 +26,10 @@ module TomQueue
       # Private: The QueueManager instance
       #
       # Returns a memoized TomQueue::QueueManager
-      def queue_manager
-        @tomqueue_manager ||= TomQueue::QueueManager.new
+      def self.queue_manager
+        @tomqueue_manager ||= TomQueue::QueueManager.new.tap do |manager|
+          setup_external_handler(manager)
+        end
       end
 
       # Private: Publish the delayed job to the queue manager
@@ -42,7 +48,8 @@ module TomQueue
         })
 
         priority = TomQueue::DelayedJob.priority_map.fetch(job.priority, TomQueue::NORMAL_PRIORITY)
-        queue_manager.publish(payload, run_at: job.run_at, priority: priority)
+
+        self.class.queue_manager.publish(payload, run_at: job.run_at, priority: priority)
       end
     end
   end
