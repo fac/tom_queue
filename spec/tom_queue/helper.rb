@@ -35,7 +35,7 @@ RSpec.configure do |r|
   # Make sure all tests see the same Bunny instance
   r.before do |test|
     TomQueue.bunny = TheBunny
-    TomQueue.config[:override_enqueue] = ENV["NEUTER_DJ"] || false
+    TomQueue.config[:override_enqueue] = ENV["NEUTER_DJ"] == "true"
   end
 
   r.around do |test|
