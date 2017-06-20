@@ -3,6 +3,7 @@ require "tom_queue/delayed_job/external_messages"
 module TomQueue
   module Layers
     class Publish < TomQueue::Stack::Layer
+      include LoggingHelper
       include TomQueue::DelayedJob::ExternalMessages
 
       # Public: Push the work unit to the queue manager
@@ -40,6 +41,8 @@ module TomQueue
       # Returns nothing
       def publish_delayed_job(job)
         raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if job.new_record?
+
+        debug "[tomqueue_publish] Pushing notification for #{job.id} to run in #{(job.run_at - Time.now).round(2)}"
 
         payload = JSON.dump({
           "delayed_job_id"         => job.id,

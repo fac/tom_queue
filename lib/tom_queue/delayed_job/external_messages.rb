@@ -20,14 +20,13 @@ module TomQueue
 
           # Look for a matching source exchange!
           klass = TomQueue::DelayedJob.handlers.find { |klass| klass.claim_work?(work) }
-          
           if klass
             debug { "Resolved external handler #{klass} for message. Calling the init block." }
 
             block = klass.claim_work?(work)
 
             job = block.call(work)
-            if job.is_a?(Delayed::Job)
+            if job.is_a?(Delayed::Job) || job.is_a?(TomQueue::Persistence::Model)
               debug { "Got a job #{job.id}"}
               job
             else

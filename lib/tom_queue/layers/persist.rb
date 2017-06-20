@@ -39,7 +39,9 @@ module TomQueue
       #
       # Returns a non-persisted model instance
       def build(work, options)
-        TomQueue::Persistence::Model.new(attributes(work, options))
+        TomQueue::Persistence::Model.new(attributes(work, options)).tap do |j|
+          j.payload_object = work
+        end
       end
 
       # Private: Build attributes to be persisted on the model

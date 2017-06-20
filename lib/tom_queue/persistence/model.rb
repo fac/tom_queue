@@ -1,11 +1,10 @@
 module TomQueue
   module Persistence
-    class Model < ActiveRecord::Base
+    # TODO: Remove the inheritance once the link to DJ has been killed
+    class Model < ::Delayed::Job
       ENQUEUE_ATTRIBUTES = %i{priority handler run_at queue}
 
       self.table_name = :delayed_jobs
-
-      before_save :set_default_run_at
 
       # Public: Calculate a hexdigest of the attributes
       #
@@ -20,29 +19,6 @@ module TomQueue
           BROKEN_DIGEST_CLASSES.include?(v.class) ? [k,v.to_i] : [k,v.to_s]
         end.to_s
         Digest::MD5.hexdigest(digest_string)
-      end
-
-      def failed?
-        failed_at.present?
-      end
-
-      private
-
-      def set_default_run_at
-        self.run_at ||= self.class.db_time_now
-      end
-
-      # Get the current time (GMT or local depending on DB)
-      # Note: This does not ping the DB to get the time, so all your clients
-      # must have syncronized clocks.
-      def self.db_time_now
-        if Time.zone
-          Time.zone.now
-        elsif ::ActiveRecord::Base.default_timezone == :utc
-          Time.now.utc
-        else
-          Time.now
-        end
       end
     end
   end
