@@ -2,7 +2,7 @@ module TomQueue
   module Persistence
     # TODO: Remove the inheritance once the link to DJ has been killed
     class Model < ::Delayed::Job
-      ENQUEUE_ATTRIBUTES = %i{priority handler run_at queue}
+      ENQUEUE_ATTRIBUTES = %i{priority run_at queue}
 
       self.table_name = :delayed_jobs
 
