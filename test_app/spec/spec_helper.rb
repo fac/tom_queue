@@ -91,10 +91,7 @@ RSpec.configure do |config|
     TomQueue::DelayedJob.apply_hook!
   end
 
-  # Clear the RMQ queues before each spec
-  # config.before do
-  #   Delayed::Job.tomqueue_manager.queues.values.map(&:name).each do |name|
-  #     RestClient.delete("#{RMQ_API}/queues/#{AMQP_CONFIG[:vhost]}/#{name}/contents")
-  #   end
-  # end
+  config.before do
+    TomQueue.logger = Logger.new($stdout) if ENV['DEBUG']
+  end
 end

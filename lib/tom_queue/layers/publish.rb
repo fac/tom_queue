@@ -42,7 +42,7 @@ module TomQueue
       def publish_delayed_job(job)
         raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if job.new_record?
 
-        debug "[tomqueue_publish] Pushing notification for #{job.id} to run in #{(job.run_at - Time.now).round(2)}"
+        debug "[#{self.class.name}] Pushing notification for #{job.id} to run in #{(job.run_at - Time.now).round(2)}"
 
         payload = JSON.dump({
           "delayed_job_id"         => job.id,

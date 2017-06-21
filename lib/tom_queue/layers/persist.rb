@@ -1,6 +1,8 @@
 module TomQueue
   module Layers
     class Persist < TomQueue::Stack::Layer
+      include LoggingHelper
+
       # Public: For Delayed Job compatible work units, persist them to the
       # database and substitutes the work for the now persisted job
       #
@@ -15,6 +17,8 @@ module TomQueue
             work.enqueue(j) if work.respond_to?(:enqueue)
           end
           job.save!
+          debug "[#{self.class.name}] Created job #{job.id}"
+
           chain.call(job, options)
         else
           chain.call(work, options.merge(job: job))
