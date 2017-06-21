@@ -20,6 +20,14 @@ module TomQueue
         end.to_s
         Digest::MD5.hexdigest(digest_string)
       end
+
+      # Public: We never want to publish this job using callbacks, and because
+      # we inherit from Delayed::Job we need to prevent this for now.
+      #
+      # Returns boolean...
+      def skip_publish
+        true
+      end
     end
   end
 end
