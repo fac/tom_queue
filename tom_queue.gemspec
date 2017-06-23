@@ -3,7 +3,7 @@
 require_relative "lib/tom_queue/version"
 
 Gem::Specification.new do |spec|
-  spec.add_dependency   'activerecord', '~> 4.1'
+  spec.add_dependency   'activerecord', '>= 4.1', '<= 5.1'
   spec.add_dependency   'delayed_job_active_record'
   spec.add_dependency   'bunny', "~> 2.2"
   spec.authors        = ["Thomas Haggett"]
@@ -20,5 +20,6 @@ Gem::Specification.new do |spec|
   spec.test_files     = Dir.glob("spec/**/*")
   spec.version        = TomQueue::VERSION
 
-  spec.add_development_dependency('rest-client')
+  spec.add_development_dependency 'rest-client'
+  spec.add_development_dependency 'appraisal'
 end

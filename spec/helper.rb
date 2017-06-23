@@ -20,7 +20,6 @@ begin
   config = YAML.load(File.read('spec/database.yml'))
   ActiveRecord::Base.establish_connection config[db_adapter]
   ActiveRecord::Base.logger = Delayed::Worker.logger
-  ActiveRecord::Base.raise_in_transactional_callbacks = true
   ActiveRecord::Migration.verbose = false
 
   ActiveRecord::Schema.define do

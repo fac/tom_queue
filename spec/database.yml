@@ -3,6 +3,7 @@ mysql:
   database: delayed_job_test
   username: root
   encoding: utf8
+  host: 127.0.0.1
 
 postgresql:
   adapter: postgresql
