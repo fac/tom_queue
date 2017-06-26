@@ -48,8 +48,8 @@ RSpec.configure do |r|
     TomQueue.logger ||= Logger.new("/dev/null")
 
     TomQueue::DelayedJob.apply_hook!
-    TomQueue::Layers::Publish.class_variable_set(:@@tomqueue_manager, nil)
-    TomQueue::Layers::Pop.class_variable_set(:@@tomqueue_manager, nil)
+    TomQueue::Enqueue::Publish.class_variable_set(:@@tomqueue_manager, nil)
+    TomQueue::Worker::Pop.class_variable_set(:@@tomqueue_manager, nil)
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
   end
 

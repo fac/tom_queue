@@ -96,7 +96,7 @@ module TomQueue
 
       def tomqueue_manager
         if TomQueue.config[:override_enqueue]
-          TomQueue::Layers::Publish.queue_manager
+          TomQueue::Enqueue::Publish.queue_manager
         else
           Delayed::Job.tomqueue_manager
         end

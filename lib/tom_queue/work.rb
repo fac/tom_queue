@@ -1,8 +1,8 @@
 module TomQueue
 
-  # Internal: This represents a single payload of "work" to 
+  # Internal: This represents a single payload of "work" to
   #  be completed by the application. You shouldn't create it
-  #  directly, but instances will be returned by the 
+  #  directly, but instances will be returned by the
   #  QueueManager as work is de-queued.
   #
   class Work
@@ -12,11 +12,11 @@ module TomQueue
     # This is the serialized string passed to QueueManager#publish
     # and it's up to the application to work out what to do with it!
     attr_reader :payload
-    
+
     # Internal: The set of headers associated with the AMQP message
     #
     # NOTE: Use of these headers directly is discouraged, as their structure
-    # is an implementation detail of this library. See Public accessors 
+    # is an implementation detail of this library. See Public accessors
     # below before grabbing data from here.
     #
     # This is a has of string values
@@ -24,7 +24,7 @@ module TomQueue
 
     # Internal: The AMQP response returned when the work was delivered.
     #
-    # NOTE: Use of data directly from this response is discouraged, for 
+    # NOTE: Use of data directly from this response is discouraged, for
     # the same reason as #headers. It's an implementation detail...
     #
     # Returns an AMQ::Protocol::Basic::GetOk instance
@@ -37,7 +37,7 @@ module TomQueue
     #  response
     #
     # queue_manager - the QueueManager object that created this work
-    # amqp_response - this is the AMQP response object, i.e. the first 
+    # amqp_response - this is the AMQP response object, i.e. the first
     #                 returned object from @queue.pop
     # header        - this is a hash of headers attached to the message
     # payload       - the raw payload of the message
@@ -49,7 +49,7 @@ module TomQueue
       @payload = payload
     end
 
-    # Public: Ack this message, meaning the broker won't attempt to re-deliver 
+    # Public: Ack this message, meaning the broker won't attempt to re-deliver
     # the message.
     #
     # Returns self, so you chain this `pop.ack!.payload` for example
@@ -66,5 +66,4 @@ module TomQueue
       @manager.nack(self, requeue)
     end
   end
-
 end

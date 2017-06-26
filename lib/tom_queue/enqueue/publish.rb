@@ -1,7 +1,7 @@
 require "tom_queue/delayed_job/external_messages"
 
 module TomQueue
-  module Layers
+  module Enqueue
     class Publish < TomQueue::Stack::Layer
       include LoggingHelper
       include TomQueue::DelayedJob::ExternalMessages

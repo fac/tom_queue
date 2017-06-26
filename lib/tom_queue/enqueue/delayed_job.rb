@@ -1,6 +1,6 @@
 module TomQueue
-  module Layers
-    class Persist < TomQueue::Stack::Layer
+  module Enqueue
+    class DelayedJob < TomQueue::Stack::Layer
       include LoggingHelper
 
       # Public: For Delayed Job compatible work units, persist them to the
@@ -14,7 +14,7 @@ module TomQueue
         if delayed_job?(work)
           job = build(work, options).tap do |j|
             # Run the work unit's :enqueue lifecycle hook if present
-            work.enqueue(j) if work.respond_to?(:enqueue)
+            j.lifecycle.hook(:enqueue)
           end
           job.save!
           debug "[#{self.class.name}] Created job #{job.id}"

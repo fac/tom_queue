@@ -1,30 +1,34 @@
 require "tom_queue/stack"
 
 module TomQueue
-  module Layers
+  class Worker
     class Pop < TomQueue::Stack::Layer
       include LoggingHelper
       include TomQueue::DelayedJob::ExternalMessages
 
+      # Public: Pops a work unit from the queue manager and passes it into the chain
+      #
+      #
+      #
+      # Returns [work, options]
       def call(_, options)
         work = self.class.pop(options[:worker])
 
         return [false, options] unless work
 
-        chain.call(work, options)
+        chain.call(work, options).tap do
+          work.ack!
+        end
+
       rescue SignalException => e
-
         work && work.nack!
-        error "[#{self.class.name}] SignalException in reserve method, nacked work (will be requeued): #{e.message}."
-
+        error "[#{self.class.name}] SignalException in worker stack, nacked work (will be requeued): #{e.message}."
         [false, options.merge(work: work)]
 
       rescue Exception => e
-
         work && work.nack!
-        error "[#{self.class.name}] Exception in reserve method, nacked work (will be requeued): #{e.message}."
+        error "[#{self.class.name}] Exception in worker stack, nacked work (will be requeued): #{e.message}."
         TomQueue.exception_reporter && TomQueue.exception_reporter.notify(e)
-
         raise
       end
 

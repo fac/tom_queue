@@ -1,12 +1,13 @@
 require "tom_queue/job/preparer"
-require "tom_queue/layers/log"
-require "tom_queue/layers/persist"
-require "tom_queue/layers/publish"
+require "tom_queue/enqueue/delayed_job"
+require "tom_queue/enqueue/publish"
 
 module TomQueue
-  class Enqueue < TomQueue::Stack
-    use Layers::Persist
-    use Layers::Publish
+  module Enqueue
+    class Stack < TomQueue::Stack
+      use DelayedJob
+      use Publish
+    end
   end
 
   # Public: Push a work unit into the queue stack
@@ -16,7 +17,7 @@ module TomQueue
   #
   # Returns [work, options]
   def enqueue(work, options = {})
-    Enqueue.call(work, options)
+    Enqueue::Stack.call(work, options)
   end
 
   module_function :enqueue

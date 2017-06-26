@@ -8,15 +8,19 @@ require 'logger'
 require 'benchmark'
 
 require 'tom_queue/stack'
-require 'tom_queue/layers/pop'
-require 'tom_queue/layers/job_locking'
+require 'tom_queue/worker/pop'
+require 'tom_queue/worker/reschedule'
+require 'tom_queue/worker/delayed_job'
+require 'tom_queue/worker/invoke'
 
 module TomQueue
-  class Worker < Stack
-
-    use TomQueue::Layers::Pop
-    use TomQueue::Layers::JobLocking
-    # use TomQueue::Layers::Invoke
+  class Worker
+    class Stack < TomQueue::Stack
+      use Pop
+      use Reschedule
+      use DelayedJob
+      use Invoke
+    end
 
     DEFAULT_LOG_LEVEL        = 'info'.freeze
     DEFAULT_MAX_ATTEMPTS     = 25
@@ -53,7 +57,7 @@ module TomQueue
     end
 
     # Add or remove plugins in this list before the worker is instantiated
-    self.plugins = [TomQueue::Plugins::ClearLocks]
+    # self.plugins = [TomQueue::Plugins::ClearLocks]
 
     # By default failed jobs are destroyed after too many attempts. If you want to keep them around
     # (perhaps to inspect the reason for the failure), set this to false.
@@ -123,7 +127,7 @@ module TomQueue
 
     def self.setup_lifecycle
       @lifecycle = ::Delayed::Lifecycle.new
-      plugins.each { |klass| klass.new }
+      # plugins.each { |klass| klass.new }
     end
 
     def self.reload_app?

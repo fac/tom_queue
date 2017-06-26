@@ -1,3 +1,5 @@
+require "tom_queue/delayed_job/lifecycle"
+
 module TomQueue
   module Persistence
     # TODO: Remove the inheritance once the link to DJ has been killed
@@ -37,7 +39,15 @@ module TomQueue
         self.locked_by = worker_name
         self.locked_at = self.class.db_time_now
         save!
-        self
+      end
+
+      # Public: Unlock the record
+      #
+      # Returns nothing
+      def unlock!
+        self.locked_by = nil
+        self.locked_at = nil
+        save!
       end
 
       # Public: is this job locked
@@ -45,6 +55,16 @@ module TomQueue
       # Returns boolean true if the job has been locked by a worker
       def locked?
         !!locked_by && !!locked_at && (locked_at + TomQueue::Worker.max_run_time) >= self.class.db_time_now
+      end
+
+      attr_reader :error
+      def error=(error)
+        @error = error
+        self.last_error = "#{error.message}\n#{error.backtrace.join("\n")}"
+      end
+
+      def lifecycle
+        @lifecycle ||= TomQueue::DelayedJob::Lifecycle.new(self)
       end
 
       # Public: We never want to publish this job using callbacks, and because
