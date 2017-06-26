@@ -2,7 +2,7 @@ module TomQueue
   module Persistence
     # TODO: Remove the inheritance once the link to DJ has been killed
     class Model < ::Delayed::Job
-      ENQUEUE_ATTRIBUTES = %i{priority run_at queue}
+      ENQUEUE_ATTRIBUTES = %i{priority run_at queue payload_object}
 
       self.table_name = :delayed_jobs
 
@@ -19,6 +19,32 @@ module TomQueue
           BROKEN_DIGEST_CLASSES.include?(v.class) ? [k,v.to_i] : [k,v.to_s]
         end.to_s
         Digest::MD5.hexdigest(digest_string)
+      end
+
+      # Public: Is this job ready to run?
+      #
+      # Returns boolean
+      def ready_to_run?
+        run_at <= self.class.db_time_now + 5
+      end
+
+      # Public: Lock the record using the given worker name
+      #
+      # worker_name - String
+      #
+      # Returns nothing
+      def lock_with!(worker_name)
+        self.locked_by = worker_name
+        self.locked_at = self.class.db_time_now
+        save!
+        self
+      end
+
+      # Public: is this job locked
+      #
+      # Returns boolean true if the job has been locked by a worker
+      def locked?
+        !!locked_by && !!locked_at && (locked_at + TomQueue::Worker.max_run_time) >= self.class.db_time_now
       end
 
       # Public: We never want to publish this job using callbacks, and because

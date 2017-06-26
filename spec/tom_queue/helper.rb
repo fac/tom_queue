@@ -36,6 +36,7 @@ RSpec.configure do |r|
   r.before do |test|
     TomQueue.bunny = TheBunny
     TomQueue.config[:override_enqueue] = ENV["NEUTER_DJ"] == "true"
+    TomQueue.config[:override_worker] = ENV["NEUTER_DJ"] == "true"
   end
 
   r.around do |test|
@@ -48,6 +49,7 @@ RSpec.configure do |r|
 
     TomQueue::DelayedJob.apply_hook!
     TomQueue::Layers::Publish.class_variable_set(:@@tomqueue_manager, nil)
+    TomQueue::Layers::Pop.class_variable_set(:@@tomqueue_manager, nil)
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
   end
 

@@ -9,7 +9,7 @@ module TomQueue
       def call(_, options)
         work = self.class.pop(options[:worker])
 
-        return [nil, options] unless work
+        return [false, options] unless work
 
         chain.call(work, options)
       rescue SignalException => e
@@ -17,7 +17,7 @@ module TomQueue
         work && work.nack!
         error "[#{self.class.name}] SignalException in reserve method, nacked work (will be requeued): #{e.message}."
 
-        [work, options]
+        [false, options.merge(work: work)]
 
       rescue Exception => e
 

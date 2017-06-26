@@ -14,7 +14,7 @@ module TomQueue
       # Returns modified [work, options]
       def call(work, options)
         if work.is_a?(TomQueue::Persistence::Model)
-          publish_delayed_job(work)
+          publish_delayed_job(work, options)
         else
           # TODO: Implement non DJ work
           raise "Unknown work type"
@@ -39,10 +39,11 @@ module TomQueue
       # options - a Hash of options describing the work
       #
       # Returns nothing
-      def publish_delayed_job(job)
+      def publish_delayed_job(job, options)
         raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if job.new_record?
+        run_at = options[:run_at] || job.run_at
 
-        debug "[#{self.class.name}] Pushing notification for #{job.id} to run in #{(job.run_at - Time.now).round(2)}"
+        debug "[#{self.class.name}] Pushing notification for #{job.id} to run in #{(run_at - Time.now).round(2)}"
 
         payload = JSON.dump({
           "delayed_job_id"         => job.id,
@@ -52,7 +53,7 @@ module TomQueue
 
         priority = TomQueue::DelayedJob.priority_map.fetch(job.priority, TomQueue::NORMAL_PRIORITY)
 
-        self.class.queue_manager.publish(payload, run_at: job.run_at, priority: priority)
+        self.class.queue_manager.publish(payload, run_at: run_at, priority: priority)
       end
     end
   end
