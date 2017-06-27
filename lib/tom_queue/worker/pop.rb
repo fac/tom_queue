@@ -8,27 +8,33 @@ module TomQueue
 
       # Public: Pops a work unit from the queue manager and passes it into the chain
       #
+      # options - hash of options for this stack
+      #   :worker: - a TomQueue::Worker instance
       #
-      #
-      # Returns [work, options]
-      def call(_, options)
-        work = self.class.pop(options[:worker])
+      # Returns nothing
+      def call(options)
+        return unless work = self.class.pop(options[:worker])
 
-        return [false, options] unless work
+        chain.call(options.merge(work: work))
+        work.ack!
 
-        chain.call(work, options).tap do
-          work.ack!
-        end
-
-      rescue SignalException => e
+      rescue RetryableError
+        # nack the work so it's returned to the queue
         work && work.nack!
-        error "[#{self.class.name}] SignalException in worker stack, nacked work (will be requeued): #{e.message}."
-        [false, options.merge(work: work)]
+        raise
 
-      rescue Exception => e
+      rescue RepublishableError, PermanentError
+        # ack the work, either it will be republished or dropped
+        work && work.ack!
+        raise
+
+      rescue SignalException => ex
         work && work.nack!
-        error "[#{self.class.name}] Exception in worker stack, nacked work (will be requeued): #{e.message}."
-        TomQueue.exception_reporter && TomQueue.exception_reporter.notify(e)
+        raise RetryableError, "SignalException in worker stack, nacked work (will be requeued): #{ex.message}."
+
+      rescue => ex
+        # TODO: nack the work, but only a limited number of times
+        work && work.nack!
         raise
       end
 
@@ -48,7 +54,7 @@ module TomQueue
       # the process can be interrupted.
       #
       # Returns a TomQueue::Work instance
-      def self.pop(worker, max_run_time = TomQueue::Worker.max_run_time)
+      def self.pop(worker)
         # Grab a job from the QueueManager - will block here, ensure we can be interrupted!
         TomQueue::Worker.raise_signal_exceptions, old_value = true, TomQueue::Worker.raise_signal_exceptions
         work = queue_manager.pop

@@ -11,15 +11,11 @@ describe TomQueue::Worker::Pop do
 
   let(:worker) { TomQueue::Worker.new }
 
-  around do |example|
-    clear_queues
-    example.call
-    clear_queues
-  end
-
   describe "Pop.pop" do
+    let(:job) { TomQueue::Persistence::Model.create!(payload_object: TestJob.new) }
+
     it "should retrieve a work unit from the queue" do
-      publish_job
+      TomQueue::Enqueue::Publish.new.call(job, {})
       result = TomQueue::Worker::Pop.pop(worker)
       expect(result).to be_a(TomQueue::Work)
     end
@@ -32,66 +28,112 @@ describe TomQueue::Worker::Pop do
   end
 
   describe "Pop#call" do
-    let(:chain) { lambda { |work, options| [work, options] } }
+    let(:chain) { lambda { |options| options } }
     let(:instance) { TomQueue::Worker::Pop.new(chain) }
     let(:work) { instance_double("TomQueue::Work", ack!: true, nack!: true) }
 
     it "should call the next layer in the stack if work is available" do
-      expect(chain).to receive(:call).with(work, {}).and_return([true, {work: work}])
+      expect(chain).to receive(:call).with(work: work)
       allow(TomQueue::Worker::Pop).to receive(:pop).and_return(work)
-      instance.call(:bar, {})
+      instance.call({})
     end
 
     it "should ack! the work" do
       expect(work).to receive(:ack!)
       allow(TomQueue::Worker::Pop).to receive(:pop).and_return(work)
-      instance.call(:bar, {})
+      instance.call({})
     end
 
     it "should return without calling the next layer if no work is available" do
       expect(chain).not_to receive(:call)
       allow(TomQueue::Worker::Pop).to receive(:pop).and_return(nil)
-      expect(instance.call(:bar, {})).to eq([false, {}])
+      instance.call({})
     end
 
-    describe "SignalException" do
+    describe "when a SignalException is raised" do
       before do
         allow(chain).to receive(:call).and_raise(SignalException, :KILL)
         allow(TomQueue::Worker::Pop).to receive(:pop).and_return(work)
       end
 
-      it "should nack! the work and return" do
+      it "should nack! the work" do
         expect(work).to receive(:nack!)
-        expect(instance.call(:foo, {})).to eq([false, {work: work}])
+        instance.call({}) rescue nil
+      end
+
+      it "should raise a RetryableError" do
+        expect { instance.call({}) }.to raise_error(TomQueue::RetryableError)
       end
     end
 
-    describe "unhandled exceptions" do
+    describe "when a PermanentError is raised" do
+      let(:ex) { TomQueue::PermanentError.new("Spit Happens") }
+
+      before do
+        allow(chain).to receive(:call).and_raise(ex)
+        allow(TomQueue::Worker::Pop).to receive(:pop).and_return(work)
+      end
+
+      it "should ack! the work" do
+        expect(work).to receive(:ack!)
+        instance.call({}) rescue nil
+      end
+
+      it "should raise the error" do
+        expect { instance.call({}) }.to raise_error(ex)
+      end
+    end
+
+    describe "when a RepublishableError is raised" do
+      let(:ex) { TomQueue::RepublishableError.new("Spit Happens") }
+
+      before do
+        allow(chain).to receive(:call).and_raise(ex)
+        allow(TomQueue::Worker::Pop).to receive(:pop).and_return(work)
+      end
+
+      it "should ack! the work" do
+        expect(work).to receive(:ack!)
+        instance.call({}) rescue nil
+      end
+
+      it "should raise the error" do
+        expect { instance.call({}) }.to raise_error(ex)
+      end
+    end
+
+    describe "when a RetryableError is raised" do
+      let(:ex) { TomQueue::RetryableError.new("Spit Happens") }
+
+      before do
+        allow(chain).to receive(:call).and_raise(ex)
+        allow(TomQueue::Worker::Pop).to receive(:pop).and_return(work)
+      end
+
+      it "should nack! the work" do
+        expect(work).to receive(:nack!)
+        instance.call({}) rescue nil
+      end
+
+      it "should raise the error" do
+        expect { instance.call({}) }.to raise_error(ex)
+      end
+    end
+
+    describe "when an unknown Exception is raised" do
       before do
         allow(chain).to receive(:call).and_raise(RuntimeError)
         allow(TomQueue::Worker::Pop).to receive(:pop).and_return(work)
       end
 
-      it "should nack! the work and raise" do
+      it "should nack! the work" do
         expect(work).to receive(:nack!)
-        expect { instance.call(:foo, {}) }.to raise_error(RuntimeError)
+        instance.call({}) rescue nil
+      end
+
+      it "should raise the error" do
+        expect { instance.call({}) }.to raise_error(RuntimeError)
       end
     end
-  end
-
-  private
-
-  def clear_queue(priority)
-    RestClient.delete("http://guest:guest@localhost:15672/api/queues/test/#{TomQueue.default_prefix}.balance.#{priority}")
-  rescue
-  end
-
-  def clear_queues
-    TomQueue::PRIORITIES.each(&method(:clear_queue))
-  end
-
-  def publish_job
-    job = TomQueue::Persistence::Model.create!(payload_object: TestJob.new)
-    TomQueue::Enqueue::Publish.new.call(job, {})
   end
 end

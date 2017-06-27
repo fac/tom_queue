@@ -8,16 +8,16 @@ require 'logger'
 require 'benchmark'
 
 require 'tom_queue/stack'
+require 'tom_queue/worker/error_handling'
 require 'tom_queue/worker/pop'
-require 'tom_queue/worker/reschedule'
 require 'tom_queue/worker/delayed_job'
 require 'tom_queue/worker/invoke'
 
 module TomQueue
   class Worker
     class Stack < TomQueue::Stack
+      use ErrorHandling
       use Pop
-      use Reschedule
       use DelayedJob
       use Invoke
     end
