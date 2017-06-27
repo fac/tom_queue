@@ -100,7 +100,7 @@ describe "External consumers" do
     end
 
     describe "if something other than a Delayed::Job instance is returned" do
-      it "should ack the original AMQP message" do
+      xit "should ack the original AMQP message" do
         pending('...')
       end
     end

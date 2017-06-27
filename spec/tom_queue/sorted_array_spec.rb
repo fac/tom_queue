@@ -31,7 +31,7 @@ describe Range, 'tomqueue_binary_search' do
 
   describe "for two item range" do
     let(:range) { 7..8 }
-    
+
     it "should yield the lower number" do
       range.tomqueue_binary_search do |index|
         @index = index
@@ -48,7 +48,7 @@ describe Range, 'tomqueue_binary_search' do
     end
 
     it "should yield the second number if the block returns +1" do
-      range.tomqueue_binary_search do |i| 
+      range.tomqueue_binary_search do |i|
         if i == 7
           1
         elsif i == 8
@@ -56,7 +56,7 @@ describe Range, 'tomqueue_binary_search' do
           0
         end
       end
-      @yielded.should be_true
+      @yielded.should be_truthy
     end
   end
 
