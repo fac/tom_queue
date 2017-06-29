@@ -35,6 +35,7 @@ RSpec.configure do |r|
   # Make sure all tests see the same Bunny instance
   r.before do |test|
     TomQueue.bunny = TheBunny
+    TomQueue.config[:override_enqueue] = ENV["NEUTER_DJ"] == "true"
   end
 
   r.around do |test|
@@ -46,6 +47,7 @@ RSpec.configure do |r|
     TomQueue.logger ||= Logger.new("/dev/null")
 
     TomQueue::DelayedJob.apply_hook!
+    TomQueue::Layers::Publish.class_variable_set(:@@tomqueue_manager, nil)
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
   end
 

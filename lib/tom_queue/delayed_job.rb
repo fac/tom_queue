@@ -16,6 +16,10 @@ module TomQueue
     def apply_hook!
       Delayed::Worker.sleep_delay = 0
       Delayed::Worker.backend = TomQueue::DelayedJob::Job
+
+      if TomQueue.config[:override_enqueue]
+        Delayed::Job.send(:extend, TomQueue::DelayedJob::ClassMethods)
+      end
     end
     module_function :apply_hook!
 

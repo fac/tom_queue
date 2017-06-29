@@ -1,5 +1,6 @@
 require 'logger'
 require 'rspec'
+require 'pry-byebug'
 
 begin
   require 'protected_attributes'

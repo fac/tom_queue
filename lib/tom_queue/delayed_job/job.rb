@@ -1,4 +1,5 @@
 require 'active_support/concern'
+require "tom_queue/delayed_job/job/class_methods"
 
 module TomQueue
   module DelayedJob
