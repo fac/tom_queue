@@ -91,7 +91,7 @@ describe TomQueue::Worker::DelayedJob do
         with(instance_of(Hash)).
         and_call_original
 
-      expect { instance.call(options) }.to raise_error(RuntimeError)
+      expect { instance.call(options) }.to raise_error(TomQueue::RepublishableError)
     end
 
     it "should set last_error on the record" do

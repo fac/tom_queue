@@ -25,7 +25,6 @@ module TomQueue
         # An unexpected exception occurred.
         error ex.message
         TomQueue.exception_reporter && TomQueue.exception_reporter.notify(ex)
-        raise
       end
 
       private

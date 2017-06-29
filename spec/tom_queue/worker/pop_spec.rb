@@ -58,11 +58,16 @@ describe TomQueue::Worker::Pop do
 
       it "should nack! the work" do
         expect(work).to receive(:nack!)
-        instance.call({}) rescue nil
+        instance.call(worker: worker) rescue nil
+      end
+
+      it "should stop the worker" do
+        expect(worker).to receive(:stop)
+        instance.call(worker: worker) rescue nil
       end
 
       it "should raise a RetryableError" do
-        expect { instance.call({}) }.to raise_error(TomQueue::RetryableError)
+        expect { instance.call(worker: worker) }.to raise_error(TomQueue::RetryableError)
       end
     end
 

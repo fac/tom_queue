@@ -35,7 +35,7 @@ module TomQueue
 
       rescue => ex
         # TODO: nack the work, but only a limited number of times
-        work && work.ack!
+        work && work.nack!
         raise
       end
 

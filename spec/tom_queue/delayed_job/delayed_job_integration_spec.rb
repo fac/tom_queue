@@ -41,6 +41,8 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
   before do
     # Clean-slate ...
     TomQueue::DelayedJob.apply_hook!
+    Delayed::Worker.sleep_delay = 0
+    Delayed::Worker.backend = TomQueue::DelayedJob::Job
     Delayed::Job.delete_all
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
 
