@@ -11,6 +11,7 @@ require 'tom_queue/stack'
 require 'tom_queue/worker/error_handling'
 require 'tom_queue/worker/pop'
 require 'tom_queue/worker/delayed_job'
+require 'tom_queue/worker/timeout'
 require 'tom_queue/worker/invoke'
 
 module TomQueue
@@ -19,6 +20,7 @@ module TomQueue
       use ErrorHandling
       use Pop
       use DelayedJob
+      use Timeout
       use Invoke
     end
 
@@ -53,7 +55,6 @@ module TomQueue
       self.queues            = DEFAULT_QUEUES
       self.queue_attributes  = DEFAULT_QUEUE_ATTRIBUTES
       self.read_ahead        = DEFAULT_READ_AHEAD
-      @lifecycle             = nil
     end
 
     # Add or remove plugins in this list before the worker is instantiated
@@ -79,16 +80,6 @@ module TomQueue
     # ensure
     #   self.raise_signal_exceptions = old_value
     # end
-
-    def self.backend=(backend)
-      if backend.is_a? Symbol
-        require "delayed/serialization/#{backend}"
-        require "delayed/backend/#{backend}"
-        backend = "::Delayed::Backend::#{backend.to_s.classify}::Job".constantize
-      end
-      @@backend = backend # rubocop:disable ClassVars
-      silence_warnings { ::Delayed.const_set(:Job, backend) }
-    end
 
     # rubocop:disable ClassVars
     def self.queue_attributes=(val)
@@ -118,18 +109,6 @@ module TomQueue
       backend.after_fork
     end
 
-    def self.lifecycle
-      # In case a worker has not been set up, job enqueueing needs a lifecycle.
-      setup_lifecycle unless @lifecycle
-
-      @lifecycle
-    end
-
-    def self.setup_lifecycle
-      @lifecycle = ::Delayed::Lifecycle.new
-      # plugins.each { |klass| klass.new }
-    end
-
     def self.reload_app?
       defined?(ActionDispatch::Reloader) && Rails.application.config.cache_classes == false
     end
@@ -149,10 +128,6 @@ module TomQueue
       [:min_priority, :max_priority, :read_ahead, :queues, :exit_on_complete].each do |option|
         self.class.send("#{option}=", options[option]) if options.key?(option)
       end
-
-      # Reset lifecycle on the offhand chance that something lazily
-      # triggered its creation before all plugins had been registered.
-      self.class.setup_lifecycle
     end
 
     # Every worker has a unique name which by default is the pid of the process. There are some
@@ -183,30 +158,9 @@ module TomQueue
 
       say 'Starting job worker'
 
-      self.class.lifecycle.run_callbacks(:execute, self) do
-        loop do
-          self.class.lifecycle.run_callbacks(:loop, self) do
-            @realtime = Benchmark.realtime do
-              @result = work_off
-            end
-          end
-
-          count = @result[0] + @result[1]
-
-          if count.zero?
-            if self.class.exit_on_complete
-              say 'No more jobs available. Exiting'
-              break
-            elsif !stop?
-              sleep(self.class.sleep_delay)
-              reload!
-            end
-          else
-            say format("#{count} jobs processed at %.4f j/s, %d failed", count / @realtime, @result.last)
-          end
-
-          break if stop?
-        end
+      loop do
+        Stack.call(worker: self)
+        return if stop?
       end
     end
 
@@ -225,7 +179,7 @@ module TomQueue
       failure = 0
 
       num.times do
-        case reserve_and_run_one_job
+        case Stack.call(worker: self)
         when true
           success += 1
         when false
@@ -237,24 +191,6 @@ module TomQueue
       end
 
       [success, failure]
-    end
-
-    def run(job)
-      job_say job, 'RUNNING'
-      runtime = Benchmark.realtime do
-        Timeout.timeout(max_run_time(job).to_i, WorkerTimeout) { job.invoke_job }
-        job.destroy
-      end
-      job_say job, format('COMPLETED after %.4f', runtime)
-      return true # did work
-    rescue DeserializationError => error
-      job_say job, "FAILED permanently with #{error.class.name}: #{error.message}", 'error'
-
-      job.error = error
-      failed(job)
-    rescue Exception => error # rubocop:disable RescueException
-      self.class.lifecycle.run_callbacks(:error, self, job) { handle_failed_job(job, error) }
-      return false # work failed
     end
 
     # Reschedule the job in the future (when a job fails).
@@ -318,25 +254,6 @@ module TomQueue
       job.error = error
       job_say job, "FAILED (#{job.attempts} prior attempts) with #{error.class.name}: #{error.message}", 'error'
       reschedule(job)
-    end
-
-    # Run the next job we can get an exclusive lock on.
-    # If no jobs are left we return nil
-    def reserve_and_run_one_job
-      job = reserve_job
-      self.class.lifecycle.run_callbacks(:perform, self, job) { run(job) } if job
-    end
-
-    def reserve_job
-      job = TomQueue::Persistence::Model.reserve(self)
-      @failed_reserve_count = 0
-      job
-    rescue ::Exception => error # rubocop:disable RescueException
-      say "Error while reserving job: #{error}"
-      TomQueue::Persistence::Model.recover_from(error)
-      @failed_reserve_count += 1
-      raise FatalBackendError if @failed_reserve_count >= 10
-      nil
     end
 
     def reload!

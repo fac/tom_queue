@@ -14,6 +14,11 @@ namespace :tom_queue do
     TomQueue::Worker.new(@worker_options.merge(:exit_on_complete => true)).start
   end
 
+  desc "Start a deferred work manager"
+  task :deferred_manager => :environment_options do
+    TomQueue::DeferredWorkManager.new(@worker_options).start
+  end
+
   task :environment_options => :environment do
     @worker_options = {
       :min_priority => ENV['MIN_PRIORITY'],

@@ -1,4 +1,4 @@
-require "tom_queue/delayed_job/lifecycle"
+require "tom_queue/delayed_job"
 
 module TomQueue
   module Persistence

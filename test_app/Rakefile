@@ -1,5 +1,6 @@
 require "mysql2"
 require "yaml"
+load 'delayed/tasks.rb'
 load 'tom_queue/tasks.rb'
 
 task :environment do

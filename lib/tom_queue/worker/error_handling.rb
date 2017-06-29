@@ -25,15 +25,14 @@ module TomQueue
         # An unexpected exception occurred.
         error ex.message
         TomQueue.exception_reporter && TomQueue.exception_reporter.notify(ex)
+        raise
       end
 
       private
 
       # Private: Republish a job onto the queue
       #
-      # job - a TomQueue::Persistence::Model instance
-      # options - a Hash of options
-      #   :run_at: - the time to requeue the message for (optional)
+      # exception - a TomQueue::RepublishableError
       #
       # Returns nothing
       def self.republish(exception)

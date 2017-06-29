@@ -56,23 +56,27 @@ module TomQueue
         job = self.class.acquire_locked_job(payload, options)
 
         begin
-          job.lifecycle.hook(:before)
-          chain.call(job, options).tap do
-            job.lifecycle.hook(:success)
-            job.destroy
-          end
+          chain.call(options)
+          debug "[#{self.class.name}] Destroying #{job.id}"
+          job.destroy
         rescue => ex
+          worker = options[:worker]
+
+          job.attempts += 1
           job.error = ex
-          job.save
-          job.lifecycle.hook(:error, ex)
-          raise ex
+
+          if job.attempts >= worker.max_attempts(job)
+            job.failed_at = Time.now
+            job.lifecycle.hook(:failure)
+            raise TomQueue::PermanentError.new("Permanent Failure", options)
+          else
+            job.run_at = job.reschedule_at
+            raise TomQueue::RepublishableError.new(ex.message, options)
+          end
         end
 
       ensure
-        if job
-          job.lifecycle.hook(:after)
-          job.unlock! unless job.destroyed?
-        end
+        job.unlock! if job && !job.destroyed?
       end
 
       # Private: Retrieves a job with a specific ID, acquiring a lock
@@ -112,7 +116,7 @@ module TomQueue
             elsif job.locked?
               raise TomQueue::DelayedJob::LockedError.new(
                 "[#{self.name}] Received notification for locked job #{job_id}",
-                options
+                options.merge(run_at: job.locked_at + TomQueue::Worker.max_run_time + 1)
               )
             elsif digest && digest != job.digest
               raise TomQueue::DelayedJob::DigestMismatchError.new(
@@ -131,7 +135,7 @@ module TomQueue
               info "[#{self.name}] Acquired DB lock for job #{job_id}"
               job
             rescue => ex
-              raise TomQueue::DelayedJob::Error.new(
+              raise TomQueue::RetryableError.new(
                 "[#{self.name}] Unknown error acquiring lock for job #{job_id}. #{ex.message}",
                 options
               )

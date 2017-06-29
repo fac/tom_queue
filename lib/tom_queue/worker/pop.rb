@@ -12,13 +12,13 @@ module TomQueue
       #   :worker: - a TomQueue::Worker instance
       #
       # Returns nothing
-      def call(options)
+      def call(options = {})
         return unless work = self.class.pop(options[:worker])
 
         chain.call(options.merge(work: work))
         work.ack!
 
-      rescue RetryableError
+      rescue RetryableError => ex
         # nack the work so it's returned to the queue
         work && work.nack!
         raise
@@ -30,11 +30,12 @@ module TomQueue
 
       rescue SignalException => ex
         work && work.nack!
+        options[:worker].stop
         raise RetryableError, "SignalException in worker stack, nacked work (will be requeued): #{ex.message}."
 
       rescue => ex
         # TODO: nack the work, but only a limited number of times
-        work && work.nack!
+        work && work.ack!
         raise
       end
 

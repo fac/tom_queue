@@ -1,6 +1,6 @@
 module TomQueue
   class Stack
-    TERMINATOR = lambda { |work, options| [work, options] }
+    TERMINATOR = Proc.new { |*a| a }
 
     # Public: Insert a layer at the beginning of the stack.
     # layer - a descendant of TomQueue::Stack::Layer
@@ -29,8 +29,12 @@ module TomQueue
     # options - Hash of options defining how the job should be run
     #
     # Returns modified [work, options]
-    def self.call(work, options)
-      (stack || TERMINATOR).call(work, options)
+    def self.call(*args)
+      if self.stack
+        stack.call(*args)
+      else
+        return *args
+      end
     end
 
     # Internal: The class' layer stack
@@ -56,8 +60,8 @@ module TomQueue
       # options - Hash of options defining how the job should be run
       #
       # Returns modified [work, options]
-      def call(work, options)
-        [work, options]
+      def call(*args)
+        return *args
       end
 
       # Public: Adds a new layer if this layer is at the bottom of the stack,
@@ -80,7 +84,7 @@ module TomQueue
       #
       # Returns a Layer or Proc instance
       def chain
-        @chain || TomQueue::Stack::TERMINATOR
+        @chain || Stack::TERMINATOR
       end
     end
   end

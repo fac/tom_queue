@@ -49,17 +49,18 @@ describe TomQueue::Worker::DelayedJob do
 
   describe "for a job which is successfully invoked" do
     let(:chain) {
-      lambda do |job, options|
+      lambda do |options|
+        job = options[:job]
         expect(job).to be_locked
         expect(job).not_to be_changed
         expect(job.locked_by).to eq(worker.name)
-        [true, options]
+        options
       end
     }
 
     it "should lock the job record and pass into the chain" do
       expect(chain).to receive(:call).
-        with(instance_of(TomQueue::Persistence::Model), instance_of(Hash)).
+        with(instance_of(Hash)).
         and_call_original
 
       expect(job.reload).not_to be_locked
@@ -76,7 +77,8 @@ describe TomQueue::Worker::DelayedJob do
 
   describe "for an job whose payload raises an exception" do
     let(:chain) {
-      lambda do |job, options|
+      lambda do |options|
+        job = options[:job]
         expect(job).to be_locked
         expect(job).not_to be_changed
         expect(job.locked_by).to eq(worker.name)
@@ -86,7 +88,7 @@ describe TomQueue::Worker::DelayedJob do
 
     it "should lock the job record (see lambda in :chain) and pass into the chain" do
       expect(chain).to receive(:call).
-        with(instance_of(TomQueue::Persistence::Model), instance_of(Hash)).
+        with(instance_of(Hash)).
         and_call_original
 
       expect { instance.call(options) }.to raise_error(RuntimeError)

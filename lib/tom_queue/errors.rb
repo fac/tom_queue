@@ -4,9 +4,16 @@ module TomQueue
 
     def initialize(message, additional = {})
       super(message)
-      @job = additional[:job]
-      @work = additional[:work]
-      @options = additional[:options] || {}
+      @job = additional.delete(:job)
+      @work = additional.delete(:work)
+      @options = additional
+    end
+  end
+
+  class WorkerTimeout < Timeout::Error
+    def message
+      seconds = TomQueue::Worker.max_run_time.to_i
+      "#{super} (TomQueue::Worker.max_run_time is only #{seconds} second#{seconds == 1 ? '' : 's'})"
     end
   end
 
@@ -24,8 +31,8 @@ module TomQueue
   module DelayedJob
     class NotFoundError < TomQueue::PermanentError; end
     class DigestMismatchError < TomQueue::PermanentError; end
-    class EarlyNotificationError < TomQueue::RetryableError; end
-    class LockedError < TomQueue::RetryableError; end
+    class EarlyNotificationError < TomQueue::RepublishableError; end
+    class LockedError < TomQueue::RepublishableError; end
     class FailedError < TomQueue::PermanentError; end
   end
 end

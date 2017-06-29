@@ -44,7 +44,6 @@ module TomQueue
         run_at = options[:run_at] || job.run_at
 
         debug "[#{self.class.name}] Pushing notification for #{job.id} to run in #{(run_at - Time.now).round(2)}"
-
         payload = JSON.dump({
           "delayed_job_id"         => job.id,
           "delayed_job_digest"     => job.digest,
