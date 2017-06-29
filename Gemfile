@@ -1,6 +1,6 @@
 source 'https://rubygems.org'
 
-gem 'rspec', '2.14'
+gem 'rspec', '~> 3.6'
 gem 'simplecov'
 
 gem 'sqlite3'

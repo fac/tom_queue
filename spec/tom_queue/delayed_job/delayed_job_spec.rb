@@ -120,7 +120,7 @@ describe TomQueue, "once hooked" do
 
       it "should call publish on the queue manager" do
         job.tomqueue_publish
-        @called.should be_true
+        @called.should be_truthy
       end
 
       describe "job priority" do
@@ -243,7 +243,7 @@ describe TomQueue, "once hooked" do
 
         @called.should be_nil
       end
-      @called.should be_true
+      @called.should be_truthy
     end
 
     it "should be called after commit, when a record is updated" do
@@ -254,7 +254,7 @@ describe TomQueue, "once hooked" do
         @called.should be_nil
       end
 
-      @called.should be_true
+      @called.should be_truthy
     end
 
     it "should not be called when a record is destroyed" do
@@ -293,7 +293,7 @@ describe TomQueue, "once hooked" do
     before { Delayed::Job.delete_all }
 
     it "should exist" do
-      Delayed::Job.respond_to?(:tomqueue_republish).should be_true
+      Delayed::Job.respond_to?(:tomqueue_republish).should be_truthy
     end
 
     it "should return nil" do
@@ -523,11 +523,11 @@ describe TomQueue, "once hooked" do
           @called = false
           @block = lambda { |_| @called = true}
           subject
-          @called.should be_false
+          @called.should be_falsy
         end
 
         it "should return false" do
-          subject.should be_false
+          subject.should be_falsy
         end
 
         it "should not change the lock" do
@@ -569,7 +569,7 @@ describe TomQueue, "once hooked" do
           @called = false
           @block = lambda { |_| @called = true}
           subject
-          @called.should be_false
+          @called.should be_falsy
         end
       end
 
@@ -598,7 +598,7 @@ describe TomQueue, "once hooked" do
       it "should allow signal handlers during the pop" do
         Delayed::Worker.raise_signal_exceptions = false
         Delayed::Job.tomqueue_manager.should_receive(:pop) do
-          Delayed::Worker.raise_signal_exceptions.should be_true
+          Delayed::Worker.raise_signal_exceptions.should be_truthy
           work
         end
         Delayed::Job.reserve(worker)
@@ -700,19 +700,19 @@ describe TomQueue, "once hooked" do
 
       it "should return true if the digest in the message payload matches the job" do
         subject
-        @block.call(job).should be_true
+        @block.call(job).should be_truthy
       end
 
       it "should return false if the digest in the message payload doesn't match the job" do
         subject
         job.touch(:updated_at)
-        @block.call(job).should be_true
+        @block.call(job).should be_truthy
       end
 
       it "should return true if there is no digest in the payload object" do
         work.stub(:payload => JSON.dump(JSON.load(payload).merge("delayed_job_digest" => nil)))
         subject
-        @block.call(job).should be_true
+        @block.call(job).should be_truthy
       end
 
     end
@@ -804,7 +804,7 @@ describe TomQueue, "once hooked" do
       end
 
       it "should raise exception" do
-        expect { subject }.should raise_exception(Exception)
+        expect { subject }.to raise_error(Exception)
       end
     end
 
@@ -841,7 +841,7 @@ describe TomQueue, "once hooked" do
       end
 
       it "should raise exception" do
-        expect { subject }.should raise_exception(Exception)
+        expect { subject }.to raise_error(Exception)
       end
     end
 
