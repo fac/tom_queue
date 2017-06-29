@@ -20,7 +20,7 @@ module TomQueue
           if options[:payload_object].respond_to?(:queue_name)
             options[:queue] = options[:payload_object].queue_name
           end
-          options[:queue] ||= Delayed::Worker.default_queue_name
+          options[:queue] ||= TomQueue::Worker.default_queue_name
         end
 
         if args.size > 0

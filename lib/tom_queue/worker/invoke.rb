@@ -10,6 +10,7 @@ module TomQueue
         if job.is_a?(TomQueue::Persistence::Model)
           debug "[#{self.class.name}] Calling invoke_job on #{job.id}"
           job.invoke_job
+          true
         else # external consumer work unit
           raise "Waaah"
         end

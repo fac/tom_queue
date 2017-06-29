@@ -56,9 +56,10 @@ module TomQueue
         job = self.class.acquire_locked_job(payload, options)
 
         begin
-          chain.call(options)
-          debug "[#{self.class.name}] Destroying #{job.id}"
-          job.destroy
+          chain.call(options).tap do
+            debug "[#{self.class.name}] Destroying #{job.id}"
+            job.destroy
+          end
         rescue => ex
           worker = options[:worker]
 
@@ -76,7 +77,10 @@ module TomQueue
         end
 
       ensure
-        job.unlock! if job && !job.destroyed?
+        if job && !job.destroyed?
+          job.unlock
+          job.save!
+        end
       end
 
       # Private: Retrieves a job with a specific ID, acquiring a lock

@@ -41,15 +41,6 @@ module TomQueue
         save!
       end
 
-      # Public: Unlock the record
-      #
-      # Returns nothing
-      def unlock!
-        self.locked_by = nil
-        self.locked_at = nil
-        save!
-      end
-
       # Public: is this job locked
       #
       # Returns boolean true if the job has been locked by a worker

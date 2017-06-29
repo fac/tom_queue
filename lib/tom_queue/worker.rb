@@ -24,6 +24,8 @@ module TomQueue
       use Invoke
     end
 
+    include LoggingHelper
+
     DEFAULT_LOG_LEVEL        = 'info'.freeze
     DEFAULT_MAX_ATTEMPTS     = 25
     DEFAULT_MAX_RUN_TIME     = 4.hours
@@ -41,8 +43,6 @@ module TomQueue
     # Named queue into which jobs are enqueued by default
     cattr_accessor :default_queue_name
 
-    cattr_reader :backend, :queue_attributes
-
     # name_prefix is ignored if name is set directly
     attr_accessor :name_prefix
 
@@ -53,7 +53,6 @@ module TomQueue
       self.default_priority  = DEFAULT_DEFAULT_PRIORITY
       self.delay_jobs        = DEFAULT_DELAY_JOBS
       self.queues            = DEFAULT_QUEUES
-      self.queue_attributes  = DEFAULT_QUEUE_ATTRIBUTES
       self.read_ahead        = DEFAULT_READ_AHEAD
     end
 
@@ -72,46 +71,6 @@ module TomQueue
     # true - Will raise an exception on TERM and INT
     cattr_accessor :raise_signal_exceptions
     self.raise_signal_exceptions = false
-
-    # def self.with_signal_exceptions(&block) do
-    #   original_value = raise_signal_exceptions
-    #   self.raise_signal_exceptions = true
-    #   yield
-    # ensure
-    #   self.raise_signal_exceptions = old_value
-    # end
-
-    # rubocop:disable ClassVars
-    def self.queue_attributes=(val)
-      @@queue_attributes = val.with_indifferent_access
-    end
-
-    def self.before_fork
-      unless @files_to_reopen
-        @files_to_reopen = []
-        ObjectSpace.each_object(File) do |file|
-          @files_to_reopen << file unless file.closed?
-        end
-      end
-
-      backend.before_fork
-    end
-
-    def self.after_fork
-      # Re-open file handles
-      @files_to_reopen.each do |file|
-        begin
-          file.reopen file.path, 'a+'
-          file.sync = true
-        rescue ::Exception # rubocop:disable HandleExceptions, RescueException
-        end
-      end
-      backend.after_fork
-    end
-
-    def self.reload_app?
-      defined?(ActionDispatch::Reloader) && Rails.application.config.cache_classes == false
-    end
 
     def self.delay_job?(job)
       if delay_jobs.is_a?(Proc)
@@ -156,7 +115,7 @@ module TomQueue
         raise SignalException, 'INT' if self.class.raise_signal_exceptions && self.class.raise_signal_exceptions != :term
       end
 
-      say 'Starting job worker'
+      info 'Starting job worker'
 
       loop do
         Stack.call(worker: self)
@@ -193,20 +152,6 @@ module TomQueue
       [success, failure]
     end
 
-    # Reschedule the job in the future (when a job fails).
-    # Uses an exponential scale depending on the number of failed attempts.
-    def reschedule(job, time = nil)
-      if (job.attempts += 1) < max_attempts(job)
-        time ||= job.reschedule_at
-        job.run_at = time
-        job.unlock
-        job.save!
-      else
-        job_say job, "REMOVED permanently because of #{job.attempts} consecutive failures", 'error'
-        failed(job)
-      end
-    end
-
     def failed(job)
       self.class.lifecycle.run_callbacks(:failure, self, job) do
         begin
@@ -220,22 +165,6 @@ module TomQueue
       end
     end
 
-    def job_say(job, text, level = default_log_level)
-      text = "Job #{job.name} (id=#{job.id})#{say_queue(job.queue)} #{text}"
-      say text, level
-    end
-
-    def say(text, level = default_log_level)
-      text = "[Worker(#{name})] #{text}"
-      puts text unless @quiet
-      return unless logger
-      # TODO: Deprecate use of Fixnum log levels
-      unless level.is_a?(String)
-        level = Logger::Severity.constants.detect { |i| Logger::Severity.const_get(i) == level }.to_s.downcase
-      end
-      logger.send(level, "#{Time.now.strftime('%FT%T%z')}: #{text}")
-    end
-
     def max_attempts(job)
       job.max_attempts || self.class.max_attempts
     end
@@ -245,10 +174,6 @@ module TomQueue
     end
 
   protected
-
-    def say_queue(queue)
-      " (queue=#{queue})" if queue
-    end
 
     def handle_failed_job(job, error)
       job.error = error
