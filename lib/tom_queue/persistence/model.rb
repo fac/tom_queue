@@ -54,10 +54,6 @@ module TomQueue
         self.last_error = "#{error.message}\n#{error.backtrace.join("\n")}"
       end
 
-      def lifecycle
-        @lifecycle ||= TomQueue::DelayedJob::Lifecycle.new(self)
-      end
-
       # Public: We never want to publish this job using callbacks, and because
       # we inherit from Delayed::Job we need to prevent this for now.
       #

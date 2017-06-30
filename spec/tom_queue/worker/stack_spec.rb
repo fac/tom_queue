@@ -7,6 +7,10 @@ describe TomQueue::Worker::Stack do
     end
   end
 
+  before do
+    TomQueue::DelayedJob.handlers.clear
+  end
+
   let(:job) { TomQueue::Persistence::Model.create!(payload_object: JobClass.new) }
   let(:payload) {
     JSON.dump({
@@ -23,6 +27,4 @@ describe TomQueue::Worker::Stack do
     allow(TomQueue::Worker::Pop).to receive(:pop).and_return(work)
     expect { stack.call(worker: worker) }.not_to raise_error
   end
-
-
 end

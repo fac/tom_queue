@@ -19,6 +19,9 @@ rescue Errno::ECONNREFUSED
   raise
 end
 
+WORKER_CLASS = ENV["NEUTER_DJ"] == "true" ? TomQueue::Worker : Delayed::Worker
+WORKER_CLASS.logger = LOGGER
+
 RSpec.configure do |r|
 
   r.before do

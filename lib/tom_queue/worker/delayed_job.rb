@@ -16,7 +16,7 @@ module TomQueue
       #
       # Returns nothing
       def call(options)
-        payload = JSON.load(options[:work].payload)
+        payload = deserialize(options[:work].payload)
 
         if delayed_job_payload?(payload)
           debug "[#{self.class.name}] Popped notification for #{payload["delayed_job_id"]}"
@@ -25,15 +25,15 @@ module TomQueue
           # Not a delayed job, pass down the chain
           chain.call(options)
         end
-
-      rescue JSON::ParserError => e
-        raise TomQueue::DeserializationError.new(
-          "[#{self.class.name}] Failed to parse JSON payload: #{e.message}. Dropping AMQP message",
-          options
-        )
       end
 
       private
+
+      def deserialize(payload)
+        JSON.load(payload)
+      rescue
+        nil
+      end
 
       # Private: Is this a delayed job work unit?
       #
@@ -41,7 +41,7 @@ module TomQueue
       #
       # Returns boolean
       def delayed_job_payload?(payload)
-        payload.has_key?("delayed_job_id")
+        payload && payload.has_key?("delayed_job_id")
       rescue
         false
       end
@@ -67,8 +67,10 @@ module TomQueue
           job.error = ex
 
           if job.attempts >= worker.max_attempts(job)
-            job.failed_at = Time.now
-            job.lifecycle.hook(:failure)
+            worker.class.lifecycle.run_callbacks(:failure, worker, job) {
+              job.failed_at = Time.now
+              job.hook(:failure)
+            }
             raise TomQueue::PermanentError.new("Permanent Failure", options)
           else
             job.run_at = job.reschedule_at

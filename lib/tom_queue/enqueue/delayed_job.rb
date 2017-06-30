@@ -12,14 +12,15 @@ module TomQueue
       # Returns modified [work, options]
       def call(work, options)
         if delayed_job?(work)
-          job = build(work, options).tap do |j|
+          build(work, options).tap do |job|
             # Run the work unit's :enqueue lifecycle hook if present
-            j.lifecycle.hook(:enqueue)
+            TomQueue::Worker.lifecycle.run_callbacks(:enqueue, job) do
+              job.save!
+              debug "[#{self.class.name}] Created jobob #{job.id}"
+              job.hook(:enqueue)
+              return chain.call(job, options)
+            end
           end
-          job.save!
-          debug "[#{self.class.name}] Created job #{job.id}"
-
-          chain.call(job, options)
         else
           chain.call(work, options.merge(job: job))
         end

@@ -4,7 +4,6 @@ module TomQueue
     require 'tom_queue/delayed_job/ack_work_plugin'
     require 'tom_queue/delayed_job/external_messages'
     require 'tom_queue/delayed_job/job'
-    require 'tom_queue/delayed_job/lifecycle'
 
     # Map External priority values to the TomQueue priority levels
     def priority_map

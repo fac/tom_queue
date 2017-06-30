@@ -14,6 +14,8 @@ require 'tom_queue/worker/delayed_job'
 require 'tom_queue/worker/timeout'
 require 'tom_queue/worker/invoke'
 
+require 'tom_queue/lifecycle'
+
 module TomQueue
   class Worker
     class Stack < TomQueue::Stack
@@ -55,6 +57,8 @@ module TomQueue
       self.queues            = DEFAULT_QUEUES
       self.read_ahead        = DEFAULT_READ_AHEAD
     end
+
+    self.plugins = []
 
     # Add or remove plugins in this list before the worker is instantiated
     # self.plugins = [TomQueue::Plugins::ClearLocks]
@@ -173,7 +177,20 @@ module TomQueue
       job.max_run_time || self.class.max_run_time
     end
 
-  protected
+    def self.lifecycle
+      # In case a worker has not been set up, job enqueueing needs a lifecycle.
+      setup_lifecycle unless @lifecycle
+
+      @lifecycle
+    end
+
+    def self.setup_lifecycle
+      @lifecycle = TomQueue::Lifecycle.new
+      plugins.each { |klass| klass.new }
+    end
+
+
+    protected
 
     def handle_failed_job(job, error)
       job.error = error

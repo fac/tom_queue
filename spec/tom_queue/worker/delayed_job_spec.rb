@@ -18,7 +18,7 @@ describe TomQueue::Worker::DelayedJob do
   }
   let(:worker) { TomQueue::Worker.new }
   let(:work) { double(TomQueue::Work, payload: payload, ack!: true) }
-  let(:chain) { lambda { |work, options| [work, options] } }
+  let(:chain) { lambda { |*args| args } }
   let(:instance) { TomQueue::Worker::DelayedJob.new(chain) }
   let(:options) { { work: work, worker: worker } }
 
@@ -34,15 +34,12 @@ describe TomQueue::Worker::DelayedJob do
   describe "for a non-JSON work payload" do
     let(:payload) { "FooBar" }
 
-    it "should raise a DeserializationError" do
-      expect { instance.call(options) }.to raise_error(
-        TomQueue::DeserializationError,
-        /Failed to parse JSON payload/
-      )
+    it "should not raise an error" do
+      expect { instance.call(options) }.not_to raise_error
     end
 
-    it "should not call the chain" do
-      expect(chain).not_to receive(:call)
+    it "should call the chain" do
+      expect(chain).to receive(:call)
       instance.call(options) rescue nil
     end
   end
