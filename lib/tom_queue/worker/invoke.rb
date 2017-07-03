@@ -33,7 +33,7 @@ module TomQueue
       private
 
       def self.external_handler(work)
-        TomQueue::DelayedJob.handlers.find { |klass| klass.claim_work?(work) }
+        TomQueue.handlers.find { |klass| klass.claim_work?(work) }
       end
     end
   end

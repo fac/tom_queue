@@ -1,9 +1,9 @@
-require "tom_queue/delayed_job"
+require "delayed_job_active_record"
 
 module TomQueue
   module Persistence
     # TODO: Remove the inheritance once the link to DJ has been killed
-    class Model < ::Delayed::Job
+    class Model < ::Delayed::Backend::ActiveRecord::Job
       ENQUEUE_ATTRIBUTES = %i{priority run_at queue payload_object}
 
       self.table_name = :delayed_jobs

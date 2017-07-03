@@ -53,6 +53,22 @@ module TomQueue
   end
   module_function :config=, :config
 
+  # Map External priority values to the TomQueue priority levels
+  def priority_map
+    @@priority_map ||= Hash.new(TomQueue::NORMAL_PRIORITY)
+  end
+  module_function :priority_map
+
+  # Public: External Message handlers
+  #
+  def handlers=(new_handlers)
+    @@handlers = new_handlers
+  end
+  def handlers
+    @@handlers ||= []
+  end
+  module_function :handlers, :handlers=
+
   # Public: Set an object to receive notifications if an internal exception
   # is caught and handled.
   #

@@ -50,7 +50,7 @@ module TomQueue
           "delayed_job_updated_at" => job.updated_at.iso8601(0)
         })
 
-        priority = TomQueue::DelayedJob.priority_map.fetch(job.priority, TomQueue::NORMAL_PRIORITY)
+        priority = TomQueue.priority_map.fetch(job.priority, TomQueue::NORMAL_PRIORITY)
 
         self.class.queue_manager.publish(payload, run_at: run_at, priority: priority)
       end

@@ -17,8 +17,8 @@ describe "External consumers" do
     # Hopefully break the core consumer loop out of DJ
     TomQueue.default_prefix = "test-prefix-#{Time.now.to_f}"
 
-    TomQueue::DelayedJob.handlers.clear
-    TomQueue::DelayedJob.handlers << consumer_class
+    TomQueue.handlers.clear
+    TomQueue.handlers << consumer_class
   end
 
   subject { WORKER_CLASS.new.work_off(2) }

@@ -31,10 +31,10 @@ JOB_PRIORITIES = [
   HIGH_PRIORITY     = -1
 ]
 
-TomQueue::DelayedJob.priority_map[LOWEST_PRIORITY] = TomQueue::BULK_PRIORITY
-TomQueue::DelayedJob.priority_map[LOW_PRIORITY]    = TomQueue::LOW_PRIORITY
-TomQueue::DelayedJob.priority_map[NORMAL_PRIORITY] = TomQueue::NORMAL_PRIORITY
-TomQueue::DelayedJob.priority_map[HIGH_PRIORITY]   = TomQueue::HIGH_PRIORITY
+TomQueue.priority_map[LOWEST_PRIORITY] = TomQueue::BULK_PRIORITY
+TomQueue.priority_map[LOW_PRIORITY]    = TomQueue::LOW_PRIORITY
+TomQueue.priority_map[NORMAL_PRIORITY] = TomQueue::NORMAL_PRIORITY
+TomQueue.priority_map[HIGH_PRIORITY]   = TomQueue::HIGH_PRIORITY
 
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|

@@ -8,7 +8,7 @@ describe TomQueue::Worker::Stack do
   end
 
   before do
-    TomQueue::DelayedJob.handlers.clear
+    TomQueue.handlers.clear
   end
 
   let(:job) { TomQueue::Persistence::Model.create!(payload_object: JobClass.new) }
