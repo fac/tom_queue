@@ -207,6 +207,22 @@ module TomQueue
         ActionDispatch::Reloader.prepare!
       end
     end
+
+    def job_say(job, text, level = default_log_level)
+      text = "Job #{job.name} (id=#{job.id})#{say_queue(job.queue)} #{text}"
+      say text, level
+    end
+
+    def say(text, level = default_log_level)
+      text = "[Worker(#{name})] #{text}"
+      puts text unless @quiet
+      return unless logger
+      # TODO: Deprecate use of Fixnum log levels
+      unless level.is_a?(String)
+        level = Logger::Severity.constants.detect { |i| Logger::Severity.const_get(i) == level }.to_s.downcase
+      end
+      logger.send(level, "#{Time.now.strftime('%FT%T%z')}: #{text}")
+    end
   end
 end
 

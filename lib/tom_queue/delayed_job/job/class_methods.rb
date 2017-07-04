@@ -11,7 +11,7 @@ module TomQueue
       def enqueue(*args)
         work, options = TomQueue::Job::Preparer.new(*args).prepare
         # first return value from the stack is the persisted instance
-        TomQueue.enqueue(work, options)[0]
+        TomQueue.enqueue(work, options)
       end
     end
   end

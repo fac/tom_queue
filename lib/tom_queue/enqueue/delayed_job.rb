@@ -9,20 +9,20 @@ module TomQueue
       # work - the work unit being enqueued
       # options - Hash of options defining how the job should be run
       #
-      # Returns modified [work, options]
+      # Returns the persisted job (if for performable objects) or modified [work, options]
       def call(work, options)
-        if delayed_job?(work)
+        if performable?(work)
           build(work, options).tap do |job|
             # Run the work unit's :enqueue lifecycle hook if present
             TomQueue::Worker.lifecycle.run_callbacks(:enqueue, job) do
               job.save!
-              debug "[#{self.class.name}] Created jobob #{job.id}"
+              debug "[#{self.class.name}] Created job #{job.id}"
               job.hook(:enqueue)
-              return chain.call(job, options)
+              chain.call(job, options)
             end
           end
         else
-          chain.call(work, options.merge(job: job))
+          chain.call(work, options)
         end
       end
 
@@ -33,7 +33,7 @@ module TomQueue
       # work - the work unit being enqueued
       #
       # Returns boolean
-      def delayed_job?(work)
+      def performable?(work)
         work.respond_to?(:perform)
       end
 
