@@ -4,6 +4,8 @@ module TomQueue
   module Persistence
     # TODO: Remove the inheritance once the link to DJ has been killed
     class Model < ::Delayed::Backend::ActiveRecord::Job
+      attr_accessor :skip_publish
+
       ENQUEUE_ATTRIBUTES = %i{priority run_at queue payload_object}
 
       self.table_name = :delayed_jobs
@@ -52,14 +54,6 @@ module TomQueue
       def error=(error)
         @error = error
         self.last_error = "#{error.message}\n#{error.backtrace.join("\n")}"
-      end
-
-      # Public: We never want to publish this job using callbacks, and because
-      # we inherit from Delayed::Job we need to prevent this for now.
-      #
-      # Returns boolean...
-      def skip_publish
-        true
       end
     end
   end

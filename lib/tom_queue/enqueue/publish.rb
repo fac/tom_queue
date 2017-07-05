@@ -40,6 +40,7 @@ module TomQueue
       #
       # Returns nothing
       def publish_delayed_job(job, options)
+        return if job.skip_publish
         raise ArgumentError, "cannot publish an unsaved Delayed::Job object" if job.new_record?
         run_at = options[:run_at] || job.run_at
 
