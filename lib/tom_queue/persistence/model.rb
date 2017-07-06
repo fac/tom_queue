@@ -25,6 +25,14 @@ module TomQueue
         Digest::MD5.hexdigest(digest_string)
       end
 
+      def payload
+        JSON.dump({
+          "delayed_job_id"         => id,
+          "delayed_job_digest"     => digest,
+          "delayed_job_updated_at" => updated_at.iso8601(0)
+        })
+      end
+
       # Public: Is this job ready to run?
       #
       # Returns boolean

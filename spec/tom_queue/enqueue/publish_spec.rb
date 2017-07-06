@@ -11,12 +11,7 @@ describe TomQueue::Enqueue::Publish do
 
   describe "for a TomQueue::Persistence::Model" do
     let(:job) { TomQueue::Persistence::Model.create!(payload_object: TestJob.new) }
-    let(:payload) { JSON.dump({
-        "delayed_job_id"         => job.id,
-        "delayed_job_digest"     => job.digest,
-        "delayed_job_updated_at" => job.updated_at.iso8601(0)
-      })
-    }
+    let(:payload) { job.payload }
 
     it "should publish the job to the queue" do
       expect(TomQueue::Enqueue::Publish.queue_manager).to receive(:publish).with(payload, run_at: job.run_at, priority: TomQueue::NORMAL_PRIORITY).once

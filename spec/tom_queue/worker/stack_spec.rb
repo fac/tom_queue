@@ -12,13 +12,7 @@ describe TomQueue::Worker::Stack do
   end
 
   let(:job) { TomQueue::Persistence::Model.create!(payload_object: JobClass.new) }
-  let(:payload) {
-    JSON.dump({
-      "delayed_job_id" => job.id,
-      "delayed_job_digest" => job.digest,
-      "delayed_job_updated_at" => job.updated_at.iso8601(0)
-    })
-  }
+  let(:payload) { job.payload }
   let(:stack) { TomQueue::Worker::Stack }
   let(:work) { instance_double("TomQueue::Work", payload: payload, ack!: true, nack!: true) }
   let(:worker) { TomQueue::Worker.new }

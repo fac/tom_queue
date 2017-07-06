@@ -9,13 +9,7 @@ describe TomQueue::Worker::DelayedJob do
 
   let(:payload_object) { TestJob.new.to_yaml }
   let(:job) { TomQueue::Persistence::Model.create!(payload_object: payload_object) }
-  let(:payload) {
-    JSON.dump({
-      "delayed_job_id" => job.id,
-      "delayed_job_digest" => job.digest,
-      "delayed_job_updated_at" => job.updated_at.iso8601(0)
-    })
-  }
+  let(:payload) { job.payload }
   let(:worker) { TomQueue::Worker.new }
   let(:work) { double(TomQueue::Work, payload: payload, ack!: true) }
   let(:chain) { lambda { |*args| args } }

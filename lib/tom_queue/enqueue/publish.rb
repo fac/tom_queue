@@ -45,15 +45,10 @@ module TomQueue
         run_at = options[:run_at] || job.run_at
 
         debug "[#{self.class.name}] Pushing notification for #{job.id} to run in #{(run_at - Time.now).round(2)}"
-        payload = JSON.dump({
-          "delayed_job_id"         => job.id,
-          "delayed_job_digest"     => job.digest,
-          "delayed_job_updated_at" => job.updated_at.iso8601(0)
-        })
 
         priority = TomQueue.priority_map.fetch(job.priority, TomQueue::NORMAL_PRIORITY)
 
-        self.class.queue_manager.publish(payload, run_at: run_at, priority: priority)
+        self.class.queue_manager.publish(job.payload, run_at: run_at, priority: priority)
       end
     end
   end

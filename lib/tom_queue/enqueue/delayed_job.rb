@@ -18,7 +18,11 @@ module TomQueue
               job.save!
               debug "[#{self.class.name}] Created job #{job.id}"
               job.hook(:enqueue)
-              chain.call(job, options)
+              if TomQueue::Worker.delay_jobs
+                chain.call(job, options)
+              else
+                job.invoke_job
+              end
             end
           end
         else
