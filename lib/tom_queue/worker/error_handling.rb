@@ -15,19 +15,21 @@ module TomQueue
       rescue TomQueue::RepublishableError => ex
         # This exception will have caused the message to be acked, but we need to republish it
         warn ex.message
+        TomQueue.exception_reporter && TomQueue.exception_reporter.notify(ex)
         self.class.republish(ex)
         false
 
       rescue PermanentError, RetryableError => ex
         # This exception will have caused the message to be acked/nacked, and we don't need to republish it
         warn ex.message
+        TomQueue.exception_reporter && TomQueue.exception_reporter.notify(ex)
         false
 
       rescue => ex
         # An unexpected exception occurred.
         error ex.message
         TomQueue.exception_reporter && TomQueue.exception_reporter.notify(ex)
-        raise
+        false
 
       end
 
