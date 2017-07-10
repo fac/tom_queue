@@ -11,14 +11,15 @@ module TomQueue
       # options - hash of options for this stack
       #   :worker: - a TomQueue::Worker instance
       #
-      # Returns nothing
+      # Returns the result of the chained call
       def call(options = {})
         return unless work = self.class.pop(options[:worker])
 
-        chain.call(options.merge(work: work))
-        work.ack!
+        chain.call(options.merge(work: work)).tap do
+          work.ack!
+        end
 
-      rescue RetryableError => ex
+      rescue RetryableError
         # nack the work so it's returned to the queue
         work && work.nack!
         raise
@@ -54,7 +55,7 @@ module TomQueue
       # the `TomQueue::Worker.raise_signal_exceptions` during the blocking stage so
       # the process can be interrupted.
       #
-      # Returns a TomQueue::Work instance
+      # Returns a TomQueue::Work instance or nil if no work is available
       def self.pop(worker)
         # Grab a job from the QueueManager - will block here, ensure we can be interrupted!
         TomQueue::Worker.raise_signal_exceptions, old_value = true, TomQueue::Worker.raise_signal_exceptions

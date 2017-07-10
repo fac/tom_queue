@@ -8,7 +8,7 @@ module TomQueue
 
       # Public: Pass thru layer for a work unit, to catch any exceptions when processing
       #
-      # Returns nothing
+      # Returns the result of the chained call
       def call(*args)
         chain.call(*args)
 

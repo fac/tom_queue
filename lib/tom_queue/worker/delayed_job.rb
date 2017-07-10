@@ -14,7 +14,7 @@ module TomQueue
       #   :work: - required. TomQueue::Work instance
       #   :worker: - required. TomQueue::Worker instance
       #
-      # Returns nothing
+      # Returns boolean indicating job success
       def call(options)
         payload = deserialize(options[:work].payload)
 
@@ -29,6 +29,9 @@ module TomQueue
 
       private
 
+      # Private: Safely deserialize the (presumed) JSON payload
+      #
+      # Returns the deserialized payload, or nil
       def deserialize(payload)
         JSON.load(payload)
       rescue
@@ -51,7 +54,7 @@ module TomQueue
       # payload - the decoded message payload (Hash)
       # options - a hash of options for the job
       #
-      # Returns [result, options] (bool, Hash)
+      # Returns the result of the chained call
       def process_delayed_job(payload, options)
         job = self.class.acquire_locked_job(payload, options)
 
@@ -77,7 +80,6 @@ module TomQueue
             raise TomQueue::RepublishableError.new(ex.message, options)
           end
         end
-
       ensure
         if job && !job.destroyed?
           job.unlock
@@ -94,7 +96,7 @@ module TomQueue
       # digest - the expected digest of the job record
       # worker - the Delayed::Worker attempting to acquire the lock
       #
-      # Returns a TomQueue::Persistence::Model instance
+      # Returns a TomQueue::Persistence::Model instance or raises
       def self.acquire_locked_job(payload, options)
         job_id = payload['delayed_job_id']
         digest = payload['delayed_job_digest']

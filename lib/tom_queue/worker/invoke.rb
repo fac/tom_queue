@@ -5,6 +5,13 @@ module TomQueue
     class Invoke < TomQueue::Stack::Layer
       include LoggingHelper
 
+      # Public: Perform the work!
+      #
+      # options: Hash of details about the work to be performed
+      #   :work: - a TomQueue::Work instance
+      #   :job: - a TomQueue::Persistence::Model instance (optional)
+      #
+      # Returns true if the work succeeds or raises an error
       def call(options)
         work = options[:work]
         job = options[:job]
@@ -32,6 +39,9 @@ module TomQueue
 
       private
 
+      # Private: Find an external handler for the given work.
+      #
+      # Returns an ExternalConsumer class or nil
       def self.external_handler(work)
         TomQueue.handlers.find { |klass| klass.claim_work?(work) }
       end
