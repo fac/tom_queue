@@ -171,12 +171,12 @@ module TomQueue
       @lifecycle
     end
 
+    protected
+
     def self.setup_lifecycle
       @lifecycle = TomQueue::Lifecycle.new
       plugins.each { |klass| klass.new(@lifecycle) }
     end
-
-    protected
 
     def reload!
       return unless self.class.reload_app?
