@@ -15,6 +15,8 @@ require 'tom_queue/worker/timeout'
 require 'tom_queue/worker/invoke'
 
 require 'tom_queue/lifecycle'
+require 'tom_queue/plugin'
+
 
 module TomQueue
   class Worker
@@ -156,19 +158,6 @@ module TomQueue
       [success, failure]
     end
 
-    def failed(job)
-      self.class.lifecycle.run_callbacks(:failure, self, job) do
-        begin
-          job.hook(:failure)
-        rescue => error
-          say "Error when running failure callback: #{error}", 'error'
-          say error.backtrace.join("\n"), 'error'
-        ensure
-          job.destroy_failed_jobs? ? job.destroy : job.fail!
-        end
-      end
-    end
-
     def max_attempts(job)
       job.max_attempts || self.class.max_attempts
     end
@@ -178,25 +167,16 @@ module TomQueue
     end
 
     def self.lifecycle
-      # In case a worker has not been set up, job enqueueing needs a lifecycle.
       setup_lifecycle unless @lifecycle
-
       @lifecycle
     end
 
     def self.setup_lifecycle
       @lifecycle = TomQueue::Lifecycle.new
-      plugins.each { |klass| klass.new }
+      plugins.each { |klass| klass.new(@lifecycle) }
     end
-
 
     protected
-
-    def handle_failed_job(job, error)
-      job.error = error
-      job_say job, "FAILED (#{job.attempts} prior attempts) with #{error.class.name}: #{error.message}", 'error'
-      reschedule(job)
-    end
 
     def reload!
       return unless self.class.reload_app?

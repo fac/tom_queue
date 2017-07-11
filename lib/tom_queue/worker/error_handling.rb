@@ -12,7 +12,7 @@ module TomQueue
       def call(*args)
         chain.call(*args)
 
-      rescue TomQueue::RepublishableError => ex
+      rescue RepublishableError => ex
         # This exception will have caused the message to be acked, but we need to republish it
         warn ex.message
         TomQueue.exception_reporter && TomQueue.exception_reporter.notify(ex)

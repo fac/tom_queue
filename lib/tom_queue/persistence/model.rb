@@ -63,6 +63,21 @@ module TomQueue
         @error = error
         self.last_error = "#{error.message}\n#{error.backtrace.join("\n")}"
       end
+
+      def invoke_job
+        TomQueue::Worker.lifecycle.run_callbacks(:invoke_job, self) do
+          begin
+            hook :before
+            payload_object.perform
+            hook :success
+          rescue => e
+            hook :error, e
+            raise e
+          ensure
+            hook :after
+          end
+        end
+      end
     end
   end
 end
