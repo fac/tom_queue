@@ -167,4 +167,30 @@ describe TomQueue::Worker do
       worker.start
     end
   end
+
+  describe "signals" do
+    let(:worker) { TomQueue::Worker.new }
+
+    before do
+      allow(TomQueue::Worker::Stack).to receive(:call).and_return(true)
+    end
+
+    ["TERM", "INT"].each do |signal|
+      it "should shut down cleanly when receiving a #{signal} signal" do
+        pid = fork do
+          worker.start
+        end
+
+        if pid
+          sleep(1)
+          Process.kill(signal, pid)
+          Process.wait(pid)
+          status = $?
+          expect(status).to be_a(Process::Status)
+          expect(status).to be_exited
+          expect(status.exitstatus).to eq(0)
+        end
+      end
+    end
+  end
 end
