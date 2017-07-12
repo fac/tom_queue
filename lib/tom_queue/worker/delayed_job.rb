@@ -70,13 +70,15 @@ module TomQueue
           job.error = ex
 
           if job.attempts >= worker.max_attempts(job)
-            worker.class.lifecycle.run_callbacks(:failure, worker, job) {
+            worker.class.lifecycle.run_callbacks(:failure, worker, job) do
               job.failed_at = Time.now
               job.hook(:failure)
-            }
+            end
             raise TomQueue::PermanentError.new("Permanent Failure", options)
           else
-            job.run_at = job.reschedule_at
+            worker.class.lifecycle.run_callbacks(:error, worker, job) do
+              job.run_at = job.reschedule_at
+            end
             raise TomQueue::RepublishableError.new(ex.message, options)
           end
         end

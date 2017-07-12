@@ -41,7 +41,7 @@ module TomQueue
 
     cattr_accessor :min_priority, :max_priority, :max_attempts, :max_run_time,
                    :default_priority, :logger, :delay_jobs, :queues,
-                   :read_ahead, :plugins, :destroy_failed_jobs, :exit_on_complete,
+                   :read_ahead, :plugins, :destroy_failed_jobs,
                    :default_log_level
 
     # Named queue into which jobs are enqueued by default
@@ -90,7 +90,7 @@ module TomQueue
       @quiet = options.key?(:quiet) ? options[:quiet] : true
       @failed_reserve_count = 0
 
-      [:min_priority, :max_priority, :read_ahead, :queues, :exit_on_complete].each do |option|
+      [:min_priority, :max_priority, :read_ahead, :queues].each do |option|
         self.class.send("#{option}=", options[option]) if options.key?(option)
       end
     end
@@ -123,9 +123,13 @@ module TomQueue
 
       info 'Starting job worker'
 
-      loop do
-        Stack.call(worker: self)
-        return if stop?
+      self.class.lifecycle.run_callbacks(:execute, self) do
+        loop do
+          self.class.lifecycle.run_callbacks(:loop, self) do
+            Stack.call(worker: self)
+          end
+          return if stop?
+        end
       end
     end
 
@@ -189,7 +193,7 @@ module TomQueue
     end
 
     def job_say(job, text, level = default_log_level)
-      text = "Job #{job.name} (id=#{job.id})#{say_queue(job.queue)} #{text}"
+      text = "Job #{job.name} (id=#{job.id})#{job.queue} #{text}"
       say text, level
     end
 

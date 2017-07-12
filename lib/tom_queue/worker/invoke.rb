@@ -15,6 +15,7 @@ module TomQueue
       def call(options)
         work = options[:work]
         job = options[:job]
+
         if handler = self.class.external_handler(work)
           debug "Resolved external handler #{handler} for message. Calling the init block."
           block = handler.claim_work?(work)
@@ -33,7 +34,11 @@ module TomQueue
         end
 
         debug "[#{self.class.name}] Calling invoke_job on #{job.id}"
-        job.invoke_job
+
+        worker = options[:worker]
+        worker.class.lifecycle.run_callbacks(:perform, worker, job) do
+          job.invoke_job
+        end
         true
       end
 

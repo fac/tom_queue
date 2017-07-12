@@ -30,7 +30,6 @@ module TomQueue
         error ex.message
         TomQueue.exception_reporter && TomQueue.exception_reporter.notify(ex)
         false
-
       end
 
       private
