@@ -1,5 +1,6 @@
 require 'logger'
 require 'rspec'
+require 'pry-byebug'
 
 begin
   require 'protected_attributes'
@@ -8,9 +9,8 @@ end
 require 'delayed_job_active_record'
 require 'delayed/backend/shared_spec'
 
-Delayed::Worker.logger = Logger.new('/tmp/dj.log')
+LOGGER = Logger.new('/tmp/dj.log')
 ENV['RAILS_ENV'] = 'test'
-
 
 db_adapter, gemfile = ENV["ADAPTER"], ENV["BUNDLE_GEMFILE"]
 db_adapter ||= gemfile && gemfile[%r(gemfiles/(.*?)/)] && $1
@@ -19,7 +19,7 @@ db_adapter ||= 'mysql'
 begin
   config = YAML.load(File.read('spec/database.yml'))
   ActiveRecord::Base.establish_connection config[db_adapter]
-  ActiveRecord::Base.logger = Delayed::Worker.logger
+  ActiveRecord::Base.logger = LOGGER
   ActiveRecord::Base.raise_in_transactional_callbacks = true
   ActiveRecord::Migration.verbose = false
 

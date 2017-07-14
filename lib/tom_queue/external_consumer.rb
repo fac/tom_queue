@@ -94,9 +94,17 @@ module TomQueue
 
       private
 
+      def tomqueue_manager
+        if TomQueue.config[:override_enqueue]
+          TomQueue::Enqueue::Publish.queue_manager
+        else
+          Delayed::Job.tomqueue_manager
+        end
+      end
+
       # Internal: set up an exchange for publishing messages to
       def exchange
-        Delayed::Job.tomqueue_manager.channel.exchange(@name,
+        tomqueue_manager.channel.exchange(@name,
           :type => @type,
           :auto_delete => @auto_delete,
           :durable => @durable

@@ -1,4 +1,5 @@
 require 'active_support/concern'
+require "tom_queue/delayed_job/job/class_methods"
 
 module TomQueue
   module DelayedJob
@@ -150,7 +151,7 @@ module TomQueue
 
       # Private: Returns the mapped tom-queue priority for this job's priority vlaue
       def tomqueue_priority
-        TomQueue::DelayedJob.priority_map.fetch(self.priority, nil).tap do |ret|
+        TomQueue.priority_map.fetch(self.priority, nil).tap do |ret|
           if ret.nil?
             warn "[tomqueue_priority] Unknown priority level #{self.priority} specified, mapping to NORMAL priority"
             return TomQueue::NORMAL_PRIORITY

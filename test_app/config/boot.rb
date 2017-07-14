@@ -1,7 +1,12 @@
 require "pathname"
-require "tom_queue"
+
+require "active_record"
+ActiveRecord::Base.raise_in_transactional_callbacks = true
+
 require "delayed_job"
 require "delayed_job_active_record"
+
+require "tom_queue"
 require "pry-byebug"
 
 APP_ENV ||= ENV["RACK_ENV"] || "development"

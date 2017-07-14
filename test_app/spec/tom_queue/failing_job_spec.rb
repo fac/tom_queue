@@ -42,7 +42,6 @@ describe "Failing job", worker: true do
     wait(1.second).for { job.reload.attempts }.to eq(1)
     expect(job.failed_at).to be_nil
 
-
     # Second Attempt
     messages = worker_messages(5)
     expect(messages[0]).to match(/BEFORE_HOOK: FailMe/)

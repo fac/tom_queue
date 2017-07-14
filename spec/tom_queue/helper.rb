@@ -19,6 +19,9 @@ rescue Errno::ECONNREFUSED
   raise
 end
 
+WORKER_CLASS = ENV["NEUTER_DJ"] == "true" ? TomQueue::Worker : Delayed::Worker
+WORKER_CLASS.logger = LOGGER
+
 RSpec.configure do |r|
 
   r.before do
@@ -35,6 +38,8 @@ RSpec.configure do |r|
   # Make sure all tests see the same Bunny instance
   r.before do |test|
     TomQueue.bunny = TheBunny
+    TomQueue.config[:override_enqueue] = ENV["NEUTER_DJ"] == "true"
+    TomQueue.config[:override_worker] = ENV["NEUTER_DJ"] == "true"
   end
 
   r.around do |test|
@@ -46,6 +51,8 @@ RSpec.configure do |r|
     TomQueue.logger ||= Logger.new("/dev/null")
 
     TomQueue::DelayedJob.apply_hook!
+    TomQueue::Enqueue::Publish.class_variable_set(:@@tomqueue_manager, nil)
+    TomQueue::Worker::Pop.class_variable_set(:@@tomqueue_manager, nil)
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
   end
 

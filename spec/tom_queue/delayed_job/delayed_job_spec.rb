@@ -125,8 +125,8 @@ describe TomQueue, "once hooked" do
 
       describe "job priority" do
         before do
-          TomQueue::DelayedJob.priority_map[-10] = TomQueue::BULK_PRIORITY
-          TomQueue::DelayedJob.priority_map[10]  = TomQueue::HIGH_PRIORITY
+          TomQueue.priority_map[-10] = TomQueue::BULK_PRIORITY
+          TomQueue.priority_map[10]  = TomQueue::HIGH_PRIORITY
         end
 
         it "should map the priority of the job to the TomQueue priority" do

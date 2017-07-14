@@ -1,6 +1,7 @@
 require "mysql2"
 require "yaml"
 load 'delayed/tasks.rb'
+load 'tom_queue/tasks.rb'
 
 task :environment do
   require File.expand_path("../config/boot", __FILE__)

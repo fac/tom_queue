@@ -15,10 +15,8 @@
 # See http://rubydoc.info/gems/rspec-core/RSpec/Core/Configuration
 APP_ENV = "test"
 
-require "pry-byebug"
 require_relative "../config/boot"
 Dir.glob(File.expand_path("../support/*.rb", __FILE__)) { |file| require file }
-require "active_support"
 require "rest_client"
 require "rspec/wait"
 
@@ -33,10 +31,10 @@ JOB_PRIORITIES = [
   HIGH_PRIORITY     = -1
 ]
 
-TomQueue::DelayedJob.priority_map[LOWEST_PRIORITY] = TomQueue::BULK_PRIORITY
-TomQueue::DelayedJob.priority_map[LOW_PRIORITY]    = TomQueue::LOW_PRIORITY
-TomQueue::DelayedJob.priority_map[NORMAL_PRIORITY] = TomQueue::NORMAL_PRIORITY
-TomQueue::DelayedJob.priority_map[HIGH_PRIORITY]   = TomQueue::HIGH_PRIORITY
+TomQueue.priority_map[LOWEST_PRIORITY] = TomQueue::BULK_PRIORITY
+TomQueue.priority_map[LOW_PRIORITY]    = TomQueue::LOW_PRIORITY
+TomQueue.priority_map[NORMAL_PRIORITY] = TomQueue::NORMAL_PRIORITY
+TomQueue.priority_map[HIGH_PRIORITY]   = TomQueue::HIGH_PRIORITY
 
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|
@@ -87,13 +85,16 @@ RSpec.configure do |config|
 
     TomQueue.bunny = Bunny.new(AMQP_CONFIG)
     TomQueue.bunny.start
+    TomQueue.config[:override_enqueue] = ENV["NEUTER_DJ"] || false
+    TomQueue.config[:override_worker] = native_worker?
     TomQueue::DelayedJob.apply_hook!
   end
 
-  # Clear the RMQ queues before each spec
-  # config.before do
-  #   Delayed::Job.tomqueue_manager.queues.values.map(&:name).each do |name|
-  #     RestClient.delete("#{RMQ_API}/queues/#{AMQP_CONFIG[:vhost]}/#{name}/contents")
-  #   end
-  # end
+  config.before do
+    TomQueue.logger = Logger.new($stdout) if ENV['DEBUG']
+  end
+end
+
+def native_worker?
+  ENV["NEUTER_DJ"] || false
 end

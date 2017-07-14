@@ -1,5 +1,5 @@
 # This is a bit of a library-in-a-library, for the time being
-# 
+#
 # This module manages the interaction with AMQP, handling publishing of
 # work messages, scheduling of work off the AMQP queue, etc.
 #
@@ -9,10 +9,12 @@
 #
 module TomQueue
   require 'tom_queue/logging_helper'
-  
+
   require 'tom_queue/queue_manager'
   require 'tom_queue/work'
-  
+
+  require 'tom_queue/delayed_job/job/class_methods'
+
   require 'tom_queue/deferred_work_set'
   require 'tom_queue/deferred_work_manager'
 
@@ -20,13 +22,17 @@ module TomQueue
 
   require 'tom_queue/sorted_array'
 
+  require 'tom_queue/stack'
+  require 'tom_queue/enqueue'
+  require 'tom_queue/worker'
+
   # Public: Sets the bunny instance to use for new QueueManager objects
   def bunny=(new_bunny)
     @@bunny = new_bunny
   end
   # Public: Returns the current bunny instance
   #
-  # Returns whatever was passed to TomQueue.bunny = 
+  # Returns whatever was passed to TomQueue.bunny =
   def bunny
     defined?(@@bunny) && @@bunny
   end
@@ -40,11 +46,42 @@ module TomQueue
   end
   module_function :default_prefix=, :default_prefix
 
+  # Public: Allow a hash of config options to be passed to TomQueue
+  def config=(config)
+    @@config = config
+  end
+  def config
+    @@config ||= {}
+  end
+  module_function :config=, :config
+
+  # Map External priority values to the TomQueue priority levels
+  def priority_map
+    @@priority_map ||= Hash.new(TomQueue::NORMAL_PRIORITY)
+  end
+  module_function :priority_map
+
+  # Public: External Message handlers
+  #
+  def handlers=(new_handlers)
+    @@handlers = new_handlers
+  end
+  def handlers
+    @@handlers ||= []
+  end
+  module_function :handlers, :handlers=
+
+  def neuter_dj!
+    if TomQueue.config[:override_enqueue]
+      Delayed::Job.send(:extend, TomQueue::DelayedJob::ClassMethods)
+    end
+  end
+  module_function :neuter_dj!
 
   # Public: Set an object to receive notifications if an internal exception
   # is caught and handled.
   #
-  # IT should be an object that responds to #notify(exception) and should be 
+  # IT should be an object that responds to #notify(exception) and should be
   # thread safe as reported exceptions will be from background threads crashing.
   #
   class << self
