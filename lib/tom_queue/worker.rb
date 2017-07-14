@@ -51,6 +51,7 @@ module TomQueue
     attr_accessor :name_prefix
 
     def self.reset
+      @lifecycle             = nil
       self.default_log_level = DEFAULT_LOG_LEVEL
       self.max_attempts      = DEFAULT_MAX_ATTEMPTS
       self.max_run_time      = DEFAULT_MAX_RUN_TIME
