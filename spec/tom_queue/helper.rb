@@ -19,8 +19,19 @@ rescue Errno::ECONNREFUSED
   raise
 end
 
-WORKER_CLASS = ENV["NEUTER_DJ"] == "true" ? TomQueue::Worker : Delayed::Worker
-WORKER_CLASS.logger = LOGGER
+# Purely useful for test cases...
+class Story < ActiveRecord::Base
+  if ::ActiveRecord::VERSION::MAJOR < 4 && ActiveRecord::VERSION::MINOR < 2
+    set_primary_key :story_id
+  else
+    self.primary_key = :story_id
+  end
+  def tell; text; end
+  def whatever(n, _); tell*n; end
+  default_scope { where(:scoped => true) }
+
+  handle_asynchronously :whatever
+end
 
 RSpec.configure do |r|
 
@@ -38,8 +49,6 @@ RSpec.configure do |r|
   # Make sure all tests see the same Bunny instance
   r.before do |test|
     TomQueue.bunny = TheBunny
-    TomQueue.config[:override_enqueue] = ENV["NEUTER_DJ"] == "true"
-    TomQueue.config[:override_worker] = ENV["NEUTER_DJ"] == "true"
   end
 
   r.around do |test|
@@ -84,7 +93,7 @@ RSpec.configure do |r|
 end
 
 def unacked_message_count(priority)
-  queue_name = Delayed::Job.tomqueue_manager.queues[priority].name
+  queue_name = TomQueue::Enqueue::Publish.queue_manager.queues[priority].name
   response = RestClient.get("http://guest:guest@localhost:15672/api/queues/test/#{queue_name}", :accept => :json)
   JSON.parse(response)["messages_unacknowledged"]
 end

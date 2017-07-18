@@ -1,7 +1,7 @@
 require "active_support/core_ext/array/extract_options"
 
 module TomQueue
-  module Job
+  class Job
     class Preparer
       DEFAULT_PRIORITY = 0
       attr_reader :options, :args

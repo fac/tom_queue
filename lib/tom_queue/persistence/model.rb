@@ -1,10 +1,12 @@
-require "delayed_job_active_record"
+require 'active_record'
 
 module TomQueue
   module Persistence
     # TODO: Remove the inheritance once the link to DJ has been killed
-    class Model < ::Delayed::Backend::ActiveRecord::Job
+    class Model < ::ActiveRecord::Base
       attr_accessor :skip_publish
+
+      before_save :set_default_run_at
 
       ENQUEUE_ATTRIBUTES = %i{priority run_at queue payload_object}
 
@@ -25,12 +27,34 @@ module TomQueue
         Digest::MD5.hexdigest(digest_string)
       end
 
+      # Public: The AMQP payload for this job
+      #
+      # Returns a JSON string
       def payload
         JSON.dump({
           "delayed_job_id"         => id,
           "delayed_job_digest"     => digest,
           "delayed_job_updated_at" => updated_at.iso8601(0)
         })
+      end
+
+      def payload_object=(object)
+        @payload_object = object
+        self.handler = object.to_yaml
+      end
+
+      def payload_object
+        @payload_object ||= YAML.load_dj(handler)
+      rescue TypeError, LoadError, NameError, ArgumentError, SyntaxError, Psych::SyntaxError => e
+        raise DeserializationError, "Job failed to load: #{e.message}. Handler: #{handler.inspect}"
+      end
+
+      def hook(name, *args)
+        if payload_object.respond_to?(name)
+          method = payload_object.method(name)
+          method.arity == 0 ? method.call : method.call(self, *args)
+        end
+      rescue DeserializationError # rubocop:disable HandleExceptions
       end
 
       # Public: Is this job ready to run?
@@ -76,6 +100,63 @@ module TomQueue
           ensure
             hook :after
           end
+        end
+      end
+
+      def failed?
+        !!failed_at
+      end
+      alias_method :failed, :failed?
+
+      # Unlock this job (note: not saved to DB)
+      def unlock
+        self.locked_at    = nil
+        self.locked_by    = nil
+      end
+
+      def reschedule_at
+        if payload_object.respond_to?(:reschedule_at)
+          payload_object.reschedule_at(self.class.db_time_now, attempts)
+        else
+          self.class.db_time_now + (attempts**4) + 5
+        end
+      end
+
+      def max_attempts
+        payload_object.max_attempts if payload_object.respond_to?(:max_attempts)
+      end
+
+      def max_run_time
+        return unless payload_object.respond_to?(:max_run_time)
+        return unless (run_time = payload_object.max_run_time)
+
+        if run_time > Delayed::Worker.max_run_time
+          Delayed::Worker.max_run_time
+        else
+          run_time
+        end
+      end
+
+      def fail!
+        update_attributes(:failed_at => self.class.db_time_now)
+      end
+
+      private
+
+      def set_default_run_at
+        self.run_at ||= self.class.db_time_now
+      end
+
+      # Get the current time (GMT or local depending on DB)
+      # Note: This does not ping the DB to get the time, so all your clients
+      # must have syncronized clocks.
+      def self.db_time_now
+        if Time.zone
+          Time.zone.now
+        elsif ::ActiveRecord::Base.default_timezone == :utc
+          Time.now.utc
+        else
+          Time.now
         end
       end
     end

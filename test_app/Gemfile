@@ -7,14 +7,14 @@ gem "puma"
 gem "rake"
 gem "pry-byebug"
 gem "activesupport"
+gem "activerecord"
 gem "rest-client"
+gem "nokogiri", "1.6.8"
 
 gem "foreman"
 
 # Specify production versions of gems
 gem "mysql2", "0.3.21"
-gem "delayed_job", "4.0.6"
-gem "delayed_job_active_record", "4.1.0"
 
 gem "rspec"
 gem "rspec-wait"

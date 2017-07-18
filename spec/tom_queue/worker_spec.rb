@@ -21,6 +21,7 @@ describe TomQueue::Worker do
     end
 
     before do
+      TomQueue::Worker.reset
       WorkerTestPlugin.traces = []
     end
 
@@ -168,7 +169,7 @@ describe TomQueue::Worker do
     end
   end
 
-  describe "signals" do
+  describe "signals", timeout: 10 do
     let(:worker) { TomQueue::Worker.new }
 
     before do
@@ -185,6 +186,7 @@ describe TomQueue::Worker do
           sleep(1)
           Process.kill(signal, pid)
           Process.wait(pid)
+          sleep(1)
           status = $?
           expect(status).to be_a(Process::Status)
           expect(status).to be_exited

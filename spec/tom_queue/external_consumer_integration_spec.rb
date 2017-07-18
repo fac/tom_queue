@@ -21,7 +21,7 @@ describe "External consumers" do
     TomQueue.handlers << consumer_class
   end
 
-  subject { WORKER_CLASS.new.work_off(1) }
+  subject { Delayed::Worker.new.work_off(1) }
 
   it "should be possible to make a consumer using the TomQueue::ExternalConsumer mixin" do
     consumer_class
@@ -169,11 +169,11 @@ describe "External consumers" do
       end
     end
     consumer_class.producer.publish('message', :routing_key => "good.key")
-    WORKER_CLASS.new.work_off(1)
+    Delayed::Worker.new.work_off(1)
     consumer_class.producer.publish('message', :routing_key => "better.key")
-    WORKER_CLASS.new.work_off(1)
+    Delayed::Worker.new.work_off(1)
     consumer_class.producer.publish('message')
-    WORKER_CLASS.new.work_off(1)
+    Delayed::Worker.new.work_off(1)
     expect(trace).to include([:routing_key, "good.key"])
     expect(trace).to include([:routing_key, "better.key"])
     expect(trace).to include([:routing_key, ""])
@@ -195,14 +195,14 @@ describe "External consumers" do
 
 #   it "should successfully round-trip a message" do
 #     consumer_class.producer.publish("a message")
-#     WORKER_CLASS.new.work_off(1)
+#     Delayed::Worker.new.work_off(1)
 #     consumer_class.messages.should == ["a message"]
 #   end
 
 #   it "should republish a message if an exception is raised" do
 #     consumer_class.producer.publish("asplode")
 #     consumer_class.asplode_count = 1
-#     WORKER_CLASS.new.work_off(1)
+#     Delayed::Worker.new.work_off(1)
 #     consumer_class.messages.should == ["asplode"]
 #   end
 

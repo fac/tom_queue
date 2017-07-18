@@ -1,4 +1,4 @@
-require "tom_queue/delayed_job/external_messages"
+require "tom_queue/external_messages"
 
 module TomQueue
   module Enqueue

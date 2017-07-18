@@ -8,12 +8,13 @@
 # You probably want to start with TomQueue::QueueManager
 #
 module TomQueue
+  require 'tom_queue/delayed_job'
   require 'tom_queue/logging_helper'
 
   require 'tom_queue/queue_manager'
   require 'tom_queue/work'
 
-  require 'tom_queue/delayed_job/job/class_methods'
+  require 'tom_queue/job'
 
   require 'tom_queue/deferred_work_set'
   require 'tom_queue/deferred_work_manager'
@@ -25,6 +26,8 @@ module TomQueue
   require 'tom_queue/stack'
   require 'tom_queue/enqueue'
   require 'tom_queue/worker'
+
+  require 'tom_queue/delayed_job_shims'
 
   # Public: Sets the bunny instance to use for new QueueManager objects
   def bunny=(new_bunny)
@@ -71,13 +74,6 @@ module TomQueue
   end
   module_function :handlers, :handlers=
 
-  def neuter_dj!
-    if TomQueue.config[:override_enqueue]
-      Delayed::Job.send(:extend, TomQueue::DelayedJob::ClassMethods)
-    end
-  end
-  module_function :neuter_dj!
-
   # Public: Set an object to receive notifications if an internal exception
   # is caught and handled.
   #
@@ -89,5 +85,6 @@ module TomQueue
     attr_accessor :logger
   end
 
-
 end
+
+Delayed = TomQueue

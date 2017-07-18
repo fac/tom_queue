@@ -44,7 +44,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     Delayed::Worker.sleep_delay = 0
     Delayed::Worker.backend = TomQueue::DelayedJob::Job
     Delayed::Job.delete_all
-    Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
+    TomQueue::Enqueue::Publish.class_variable_set(:@@tomqueue_manager, nil)
 
     # Keep track of how many times the job is run
     @called = []
@@ -58,7 +58,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     Delayed::Job.enqueue(TestJobClass.new(job_name))
 
     sleep 0.25
-    Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count].should == 1
+    TomQueue::Enqueue::Publish.queue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count].should == 1
   end
 
   it "should integrate with Delayed::Worker" do
@@ -114,7 +114,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
 
     job.should be_failed
 
-    Delayed::Job.tomqueue_republish
+    TomQueue::Enqueue::Publish.new.call(job, {})
 
     # The job should get ignored for both runs
     Delayed::Worker.new.work_off(1)
@@ -130,12 +130,12 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     Delayed::Job.enqueue(TestJobClass.new(job_name))
 
     sleep 0.25
-    Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count].should == 1
+    TomQueue::Enqueue::Publish.queue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count].should == 1
     Delayed::Worker.new.work_off(1)
 
     sleep 2
     expect(unacked_message_count(TomQueue::NORMAL_PRIORITY)).to eq 0
-    Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count].should == 0
+    TomQueue::Enqueue::Publish.queue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count].should == 0
   end
 
   # it "should re-run the job once max_run_time is reached if, say, a worker crashes" do
@@ -150,7 +150,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
 
   #   # This will shutdown the various channels, which should result in the message being
   #   # returned to the broker.
-  #   Delayed::Job.tomqueue_manager.setup_amqp!
+  #   TomQueue::Enqueue::Publish.queue_manager.setup_amqp!
 
   #   # Make sure the job is still locked
   #   job.reload

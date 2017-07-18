@@ -85,16 +85,9 @@ RSpec.configure do |config|
 
     TomQueue.bunny = Bunny.new(AMQP_CONFIG)
     TomQueue.bunny.start
-    TomQueue.config[:override_enqueue] = ENV["NEUTER_DJ"] || false
-    TomQueue.config[:override_worker] = native_worker?
-    TomQueue::DelayedJob.apply_hook!
   end
 
   config.before do
     TomQueue.logger = Logger.new($stdout) if ENV['DEBUG']
   end
-end
-
-def native_worker?
-  ENV["NEUTER_DJ"] || false
 end

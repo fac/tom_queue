@@ -35,17 +35,11 @@ def with_workers(count, &block)
       TomQueue.bunny.start
       TomQueue.test_logger = Logger.new(worker_write_pipe)
 
-      if native_worker?
-        TomQueue::Worker.new.start
-      else
-        TomQueue::DelayedJob::Job.reset!
-        Delayed::Worker.new.start
-      end
+      Delayed::Worker.new.start
     end
   end
 
   child_pids << fork do
-    TomQueue::DelayedJob::Job.reset!
     TomQueue.bunny = Bunny.new(AMQP_CONFIG)
     TomQueue.bunny.start
     TomQueue::DeferredWorkManager.new(TomQueue.default_prefix).start

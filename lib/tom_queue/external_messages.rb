@@ -2,7 +2,6 @@ require 'active_support/concern'
 
 module TomQueue
   module DelayedJob
-
     # Internal: This is mixed into the Job class, in order to support the handling of
     #           externally sourced AMQP messages
     #

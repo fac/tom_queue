@@ -44,6 +44,9 @@ module TomQueue
                    :read_ahead, :plugins, :destroy_failed_jobs,
                    :default_log_level
 
+    # Attributes which are unused but remain for DJ compatibility
+    cattr_accessor :sleep_delay, :backend
+
     # Named queue into which jobs are enqueued by default
     cattr_accessor :default_queue_name
 
