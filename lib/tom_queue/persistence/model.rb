@@ -12,6 +12,10 @@ module TomQueue
 
       self.table_name = :delayed_jobs
 
+      def self.ready_to_run(worker_name, max_run_time)
+        where("(run_at <= ? AND (locked_at IS NULL OR locked_at < ?) OR locked_by = ?) AND failed_at IS NULL", db_time_now, db_time_now - max_run_time, worker_name)
+      end
+
       # Public: Calculate a hexdigest of the attributes
       #
       # This is used to detect if the received message is stale, as it's
