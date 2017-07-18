@@ -28,6 +28,7 @@ module TomQueue
   require 'tom_queue/worker'
 
   require 'tom_queue/delayed_job_shims'
+  require 'tom_queue/railtie' if defined?(Rails::Railtie)
 
   # Public: Sets the bunny instance to use for new QueueManager objects
   def bunny=(new_bunny)

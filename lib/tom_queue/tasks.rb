@@ -1,4 +1,4 @@
-namespace :tom_queue do
+namespace :jobs do
   desc 'Clear the delayed_job queue.'
   task :clear => :environment do
     TomQueue::Persistence::Model.delete_all
@@ -6,6 +6,7 @@ namespace :tom_queue do
 
   desc 'Start a delayed_job worker.'
   task :work => :environment_options do
+    TomQueue.logger = Logger.new(STDOUT)
     TomQueue::Worker.new(@worker_options).start
   end
 

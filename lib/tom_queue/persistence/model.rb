@@ -82,6 +82,15 @@ module TomQueue
         !!locked_by && !!locked_at && (locked_at + TomQueue::Worker.max_run_time) >= self.class.db_time_now
       end
 
+      ParseObjectFromYaml = %r{\!ruby/\w+\:([^\s]+)} # rubocop:disable ConstantName
+
+      def name
+        @name ||= payload_object.respond_to?(:display_name) ? payload_object.display_name : payload_object.class.name
+      rescue DeserializationError
+        ParseObjectFromYaml.match(handler)[1]
+      end
+
+
       attr_reader :error
       def error=(error)
         @error = error
