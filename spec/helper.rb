@@ -1,5 +1,6 @@
 require 'logger'
 require 'rspec'
+require "rspec/wait"
 require 'pry-byebug'
 require 'active_record'
 

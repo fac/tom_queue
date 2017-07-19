@@ -6,6 +6,24 @@ module TomQueue
       include LoggingHelper
       include TomQueue::DelayedJob::ExternalMessages
 
+      # Public: Array of messages for uncommitted ActiveRecord jobs awaiting publishing once the
+      # database is committed
+      #
+      # Returns Array
+      def self.uncommitted
+        @@uncommitted ||= []
+      end
+
+      # Public: Callback to be run after the jobs have been committed to push the messages to
+      # RabbitMQ
+      #
+      # Returns nothing
+      def self.after_commit
+        while args = uncommitted.shift
+          queue_manager.publish(*args)
+        end
+      end
+
       # Public: Push the work unit to the queue manager
       #
       # work - the work unit being enqueued
@@ -48,7 +66,11 @@ module TomQueue
 
         priority = TomQueue.priority_map.fetch(job.priority, TomQueue::NORMAL_PRIORITY)
 
-        self.class.queue_manager.publish(job.payload, run_at: run_at, priority: priority)
+        if ActiveRecord::Base.connection.transaction_open?
+          self.class.uncommitted << [job.payload, run_at: run_at, priority: priority]
+        else
+          self.class.queue_manager.publish(job.payload, run_at: run_at, priority: priority)
+        end
       end
     end
   end

@@ -7,6 +7,7 @@ module TomQueue
       attr_accessor :skip_publish
 
       before_save :set_default_run_at
+      after_commit -> { TomQueue::Enqueue::Publish.after_commit }
 
       ENQUEUE_ATTRIBUTES = %i{priority run_at queue payload_object}
 
@@ -155,6 +156,10 @@ module TomQueue
       end
 
       private
+
+      def publish
+        TomQueue::Enqueue::Publish.after_commit
+      end
 
       def set_default_run_at
         self.run_at ||= self.class.db_time_now

@@ -30,4 +30,22 @@ describe TomQueue::Enqueue::Publish do
       instance.call(job, {})
     end
   end
+
+  describe "with ActiveRecord transactions" do
+    it "should not publish until all transactions are complete" do
+      allow(TomQueue::Enqueue::Publish.queue_manager).to receive(:publish).and_return(nil)
+      publish_args = nil # define outwith the transaction...
+
+      ActiveRecord::Base.transaction do
+        job = TomQueue::Persistence::Model.create!(payload_object: TestJob.new)
+        expect { instance.call(job, {}) }.to change { TomQueue::Enqueue::Publish.uncommitted.length }.by(1)
+        expect(TomQueue::Enqueue::Publish.queue_manager).not_to have_received(:publish)
+        publish_args = TomQueue::Enqueue::Publish.uncommitted.first
+      end
+
+      wait(1.second).for { TomQueue::Enqueue::Publish.uncommitted.length }.to eq(0)
+      expect(publish_args).not_to be_nil
+      expect(TomQueue::Enqueue::Publish.queue_manager).to have_received(:publish).with(*publish_args)
+    end
+  end
 end
