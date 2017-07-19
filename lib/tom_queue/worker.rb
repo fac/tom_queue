@@ -179,6 +179,19 @@ module TomQueue
       @lifecycle
     end
 
+    def failed(job)
+      self.class.lifecycle.run_callbacks(:failure, self, job) do
+        begin
+          job.hook(:failure)
+        rescue => error
+          say "Error when running failure callback: #{error}", 'error'
+          say error.backtrace.join("\n"), 'error'
+        ensure
+          job.fail!
+        end
+      end
+    end
+
     protected
 
     def self.setup_lifecycle

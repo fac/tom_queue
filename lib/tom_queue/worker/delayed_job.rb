@@ -72,10 +72,7 @@ module TomQueue
           job.error = ex
 
           if job.attempts >= worker.max_attempts(job)
-            worker.class.lifecycle.run_callbacks(:failure, worker, job) do
-              job.failed_at = Time.now
-              job.hook(:failure)
-            end
+            worker.failed(job)
             raise TomQueue::PermanentError.new("Permanent Failure", options)
           else
             worker.class.lifecycle.run_callbacks(:error, worker, job) do
