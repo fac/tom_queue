@@ -32,6 +32,10 @@ describe TomQueue::Enqueue::Publish do
   end
 
   describe "with ActiveRecord transactions" do
+    before do
+      TomQueue::Enqueue::Publish.uncommitted.clear
+    end
+
     it "should not publish until all transactions are complete" do
       allow(TomQueue::Enqueue::Publish.queue_manager).to receive(:publish).and_return(nil)
       publish_args = nil # define outwith the transaction...
@@ -46,6 +50,21 @@ describe TomQueue::Enqueue::Publish do
       wait(1.second).for { TomQueue::Enqueue::Publish.uncommitted.length }.to eq(0)
       expect(publish_args).not_to be_nil
       expect(TomQueue::Enqueue::Publish.queue_manager).to have_received(:publish).with(*publish_args)
+    end
+
+    it "should clear the uncommitted messages without publishing after a rollback" do
+      expect(TomQueue::Enqueue::Publish.queue_manager).not_to receive(:publish)
+
+      begin
+        ActiveRecord::Base.transaction do
+          job = TomQueue::Persistence::Model.create!(payload_object: TestJob.new)
+          expect { instance.call(job, {}) }.to change { TomQueue::Enqueue::Publish.uncommitted.length }.by(1)
+          raise "Boom"
+        end
+      rescue
+      end
+
+      expect(TomQueue::Enqueue::Publish.uncommitted.length).to eq(0)
     end
   end
 end

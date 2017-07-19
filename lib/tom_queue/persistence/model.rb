@@ -8,6 +8,7 @@ module TomQueue
 
       before_save :set_default_run_at
       after_commit -> { TomQueue::Enqueue::Publish.after_commit }
+      after_rollback -> { TomQueue::Enqueue::Publish.after_rollback }
 
       ENQUEUE_ATTRIBUTES = %i{priority run_at queue payload_object}
 

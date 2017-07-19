@@ -24,6 +24,10 @@ module TomQueue
         end
       end
 
+      def self.after_rollback
+        @@uncommitted = []
+      end
+
       # Public: Push the work unit to the queue manager
       #
       # work - the work unit being enqueued
