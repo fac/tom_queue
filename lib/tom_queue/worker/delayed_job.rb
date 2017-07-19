@@ -60,8 +60,10 @@ module TomQueue
 
         begin
           chain.call(options).tap do
-            debug "[#{self.class.name}] Destroying #{job.id}"
-            job.destroy
+            if !job.failed? || (job.failed? && Worker.destroy_failed_jobs)
+              debug "[#{self.class.name}] Destroying #{job.id}"
+              job.destroy
+            end
           end
         rescue => ex
           worker = options[:worker]
