@@ -13,10 +13,13 @@ module TomQueue
       #
       # Returns the result of the chained call
       def call(options = {})
-        return unless work = self.class.pop(options[:worker])
+        unless options.key?(:work)
+          return unless work = self.class.pop(options[:worker])
+          options.merge!(work: work)
+        end
 
-        chain.call(options.merge(work: work)).tap do
-          work.ack!
+        chain.call(options).tap do
+          options[:work].ack!
         end
 
       rescue RetryableError

@@ -10,7 +10,7 @@ module TomQueue
       after_commit -> { TomQueue::Enqueue::Publish.after_commit }
       after_rollback -> { TomQueue::Enqueue::Publish.after_rollback }
 
-      ENQUEUE_ATTRIBUTES = %i{priority run_at queue payload_object}
+      ENQUEUE_ATTRIBUTES = %i{priority run_at queue payload_object attempts}
 
       self.table_name = :delayed_jobs
 

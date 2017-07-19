@@ -110,7 +110,7 @@ module TomQueue
 
             # Load the job, ensuring we have a write lock so other workers in the same position
             # block, avoiding race conditions
-            job = TomQueue::Persistence::Model.where(id: job_id).lock(true).first
+            job = options[:job] || TomQueue::Persistence::Model.where(id: job_id).lock(true).first
 
             options.merge!(job: job)
 
