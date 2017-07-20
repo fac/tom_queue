@@ -1,14 +1,16 @@
 TomQueue
 =========
 
-TomQueue is a backend for [Delayed::Job](https://github.com/collectiveidea/delayed_job) gem. TomQueue hooks onto [delayed_job_active_record](https://github.com/collectiveidea/delayed_job_active_record) backend and replaces the mechanism by which Delayed::Job workers acquire jobs. By default Delayed::Job workers poll the database for new jobs. TomQueue replaces "polling" logic with subscription to [RabbitMQ](http://rabbitmq.com) queue. Delayed::Job workers receive a new job as soon as it gets published to the queue.
+TomQueue is a replacement for the [Delayed::Job](https://github.com/collectiveidea/delayed_job) gem, which sends
 
 Why?
 ----
 
-At FreeAgent, we have always used Delayed::Job to manage asynchronous work and find it still fits our needs well. That said, when it is backed by MySQL, we've found that it performs particularly poorly when the work queued gets large (i.e. 10k+). In fact, the larger the queue of work gets, the *slower* the query to pull the next job! The more Delayed:::Job workers that are running the bigger problem it becomes.
+At FreeAgent, we have historically used Delayed::Job to manage asynchronous work, however we've found that MySQL performs particularly poorly when the work queued gets large (i.e. 10k+). In fact, the larger the queue of work gets, the *slower* the query to pull the next job! The more Delayed:::Job workers that are running the bigger problem it becomes.
 
-Considering alternatives (such as [Resque](http://resquework.org)) we decided that we'd like to retain database as the "source of truth". We also would still like to use Delayed::Job logic for handling failed jobs, managing locking etc. All we need is a more suitable queue-server. This is where TomQueue comes in.
+We decided that we'd like to retain database as the "source of truth", and all our existing jobs use Delayed::Job logic for handling failed jobs, managing locking etc. All we needed was a more suitable queue-server. This is where TomQueue comes in.
+
+In order to keep the changes to the existing codebase as minimal as possible, we've aliased the TomQueue namespace (`Delayed = TomQueue`).
 
 Great, how do I use it?
 -----------------------
@@ -22,25 +24,25 @@ Once you have this, open your projects `Gemfile` and add the entry:
 Then, the next step is to add the generic TomQueue configuration - we stuff this into a Rails initializer:
 
 ``` ruby
-require 'tom_queue/delayed_job'
+require 'tom_queue'
 
-TomQueue::DelayedJob.priority_map[1] = TomQueue::BULK_PRIORITY
-TomQueue::DelayedJob.priority_map[2] = TomQueue::LOW_PRIORITY
-TomQueue::DelayedJob.priority_map[4] = TomQueue::NORMAL_PRIORITY
-TomQueue::DelayedJob.priority_map[3] = TomQueue::HIGH_PRIORITY
+TomQueue.priority_map[1] = TomQueue::BULK_PRIORITY
+TomQueue.priority_map[2] = TomQueue::LOW_PRIORITY
+TomQueue.priority_map[4] = TomQueue::NORMAL_PRIORITY
+TomQueue.priority_map[3] = TomQueue::HIGH_PRIORITY
 
 # Make sure internal exceptions in TomQueue make it to Hoptoad (or Honeybadger or whatever)!
 TomQueue.exception_reporter = ErrorService
 TomQueue.logger = Rails.logger
 ```
 
-The priority map maps Delayed Job's numerical priority values to discrete priority levels, of BULK, LOW, NORMAL and HIGH, since we can't support arbitrary priorities. Any un-mapped values are presumed to be NORMAL. See below for further discussion on how job-priority works.
+The priority map maps TomQueue's numerical priority values to discrete priority levels, of BULK, LOW, NORMAL and HIGH, since we can't support arbitrary priorities. Any un-mapped values are presumed to be NORMAL. See below for further discussion on how job-priority works.
 
 The `logger` is a bog-standard `Logger` object that, when set, receives warnings and errors from the TomQueue internals, useful for figuring out what is going on and when things go wrong. The `exception_reporter`, if set, should respond to `notify(exception)` and will receive any exceptions caught during the job lifecycle. If this isn't set, exceptions will just be logged.
 
 Now you need to configure TomQueue in your Rails environments and wire in the AMQP broker configuration for them. In, for example, `config/environments/production.rb` add the lines:
 
-```ruby    
+```ruby
 AMQP_CONFIG = {
   :host     => 'localhost',
   :port     => 5672,
@@ -55,54 +57,44 @@ AMQP_CONFIG = {
 TomQueue.bunny = Bunny.new(AMQP_CONFIG)
 TomQueue.bunny.start
 TomQueue.default_prefix = "tomqueue-production"
-
-TomQueue::DelayedJob.apply_hook!
 ```
 
-Replacing `AMQP_CONFIG` with the necessary Bunny configuration for your environment. The `default_prefix` is prefixed onto all AMQP exchanges and queues created by tom-queue, which can be a handy name-space. If you omit the `apply_hook!` call, DelayedJob behaviour will not be changed, a handy back-out path if things don't quite go to plan :)
+Replacing `AMQP_CONFIG` with the necessary Bunny configuration for your environment. The `default_prefix` is prefixed onto all AMQP exchanges and queues created by tom-queue, which can be a handy name-space.
 
 Ok, so what happens now?
 ------------------------
 
-Hopefully, DelayedJob should work as-is, but notifications for job events should be pushed via the AMQP broker, relieving the database server of the queue responsibility. It's worth pointing out that the "true" job state still resides in the DB, messages via the broker purely instruct the worker to consider a particular job.
-
-It does add a couple of methods to the `DelayedJob` class and instances, which allow you to re-populate the AMQP broker with any jobs that reside in the DB. This is good if your broker drops offline for some reason, and misses some notifications.
-
 ```ruby
-job = Delayed::Job.first
-job.tomqueue_publish
+class MyJob
+  def process
+    # Do Something
+  end
+end
+
+Delayed::Job.enqueue(MyJob.new)
 ```
 
-This will send a notification for a given job via the broker.
+Job classes work in the same way as Delayed Job - they _must_ respond to `process`, and can optionally have an `enqueue` method which will be called in `TomQueue::Enqueue`, and `before`, `after`, `success`, `error`, and `failure` methods which will be called by the `TomQueue::Worker`.
 
-```ruby
-Delayed::Job.tomqueue_republish
-```
-
-Will send a message for *all* jobs in the DB, useful to fill a fresh AMQP broker if it's missing messages or you have, for example, failed-over to a new broker.
+Enqueueing a delayed job style piece of work will persist it to the database in a `TomQueue::Persistence::Model` (identical to the original `Delayed::Backend:ActiveRecord::Job` class). Once this is committed it publishes a message to AMQP with the job id and checksum to be picked up by any worker process.
 
 So, how does this thing work?
 -----------------------------
 
-When we call `apply_hook!` in initializer it modifies Delayed::Job config so that it uses `TomQueue::DelayedJob::Job` class as a backend. This class defines an `after_save` hook for when the job is saved to the database. After job is persisted it gets published to the [RabbitMQ exchange](http://rubybunny.info/articles/exchanges.html).
+TomQueue has two stacks - `TomQueue::Enqueue::Stack` for pushing work into the database and onto AMQP, and `TomQueue::Worker::Stack`. Each of these stacks has multiple layers, each responsible for a discrete part of the process, in much the same way as Rack middleware.
 
-TomQueue uses [Bunny](http://rubybunny.info) gem for interacting with RabbitMQ broker.
+TomQueue::Enqueue::Stack
+* DelayedJob is responsible for persisting DJ style work to the database if necessary, and passing it on to....
+* Publish which takes the work and publishes the notification to AMQP.
 
-After the job was scheduled it ends up in two places: the database and RabbitMQ queue. There're 5 possible queues:
+TomQueue::Worker::Stack
+* ErrorHandling wraps the stack and rescues any exceptions which might be thrown when executing a job
+* Pop retrieves the next piece of work from AMQP and passes it down the stack, acking or nacking the work depending on the result
+* DelayedJob acquires and locks the database record for the work, passes it down the stack, then updates the record status (passthru if it is not a DJ compatible work unit)
+* Timeout wraps the job execution in a timeout block
+* Invoke executes the job
 
-- bulk priority;
-- low priority;
-- normal priority;
-- high priority;
-- deferred queue (more on that later);
-
-You can explicitly set a priority for a job.
-
-While code in `TomQueue::DelayedJob::Job#tomqueue_publish` runs within the app, Delayed::Job workers repeatedly run `TomQueue::DelayedJob::Job#reserve` method. This method implements the main process of acquiring a job from the RabbitMQ queue.
-
-In a nutshell it checks if there's a job available in all 4 priority queues (in order from high to bulk). If there's a job to run, it gets a message from the queue, gets job id from the message and then **retrieves the job from the DB** by id.
-
-If there're no jobs, worker waits until one comes.
+Each of these stacks interacts with AMQP via a QueueManager, which in turn leans on Bunny.
 
 ### Deferred jobs
 
@@ -121,13 +113,13 @@ If you look at the deferred queue in the web interface when this "deferred proce
 What about when I'm developing?
 -------------------------------
 
-Since Delayed Job itself hasn't really changed all that much, you can still use good old vanilla `delayed_job_active_record` and, for the most part, it should behave the same as with TomQueue, albeit less scalable with bigger queue sizes. Just omit the call to `TomQueue::DelayedJob.apply_hook!` in your development environment.
+/shrug Needs work.
 
 You can also, of course, run a development AMQP broker and wire it up as in production to try it all out.
 
 Cool. Is it safe to use?
 ------------------------
 
-Sure! We use it in production at FreeAgent pushing hundreds of thousands of jobs a day. That said, you do so at your own risk, and I'd advise understanding how it behaves before relying on it!
+Probably...
 
-Do let us know if you find any bugs or improve it (or just manage to get it to work!!) open an issue or pull-request here or alternatively ping me a mail at thomas -at- freeagent -dot- com 
+Do let us know if you find any bugs or improve it (or just manage to get it to work!!) open an issue or pull-request here or alternatively ping me a mail at thomas -at- freeagent -dot- com
