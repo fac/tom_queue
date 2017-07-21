@@ -2,7 +2,6 @@ require 'active_support/concern'
 
 module TomQueue
   module DelayedJob
-
     # Internal: This is mixed into the Job class, in order to support the handling of
     #           externally sourced AMQP messages
     #
@@ -19,8 +18,8 @@ module TomQueue
         def resolve_external_handler(work)
 
           # Look for a matching source exchange!
-          klass = TomQueue::DelayedJob.handlers.find { |klass| klass.claim_work?(work) }
-          
+          klass = TomQueue.handlers.find { |klass| klass.claim_work?(work) }
+
           if klass
             debug { "Resolved external handler #{klass} for message. Calling the init block." }
 
@@ -45,7 +44,7 @@ module TomQueue
         # queue_manager - TomQueue::QueueManager to configure against
         #
         def setup_external_handler(queue_manager)
-          TomQueue::DelayedJob.handlers.each do |klass|
+          TomQueue.handlers.each do |klass|
             klass.setup_binding(queue_manager)
           end
         end

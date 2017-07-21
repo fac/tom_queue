@@ -1,16 +1,17 @@
 require 'logger'
 require 'rspec'
+require "rspec/wait"
+require 'pry-byebug'
+require 'active_record'
 
 begin
   require 'protected_attributes'
 rescue LoadError
 end
-require 'delayed_job_active_record'
-require 'delayed/backend/shared_spec'
+# require 'delayed/backend/shared_spec'
 
-Delayed::Worker.logger = Logger.new('/tmp/dj.log')
+LOGGER = Logger.new('/tmp/dj.log')
 ENV['RAILS_ENV'] = 'test'
-
 
 db_adapter, gemfile = ENV["ADAPTER"], ENV["BUNDLE_GEMFILE"]
 db_adapter ||= gemfile && gemfile[%r(gemfiles/(.*?)/)] && $1
@@ -19,7 +20,7 @@ db_adapter ||= 'mysql'
 begin
   config = YAML.load(File.read('spec/database.yml'))
   ActiveRecord::Base.establish_connection config[db_adapter]
-  ActiveRecord::Base.logger = Delayed::Worker.logger
+  ActiveRecord::Base.logger = LOGGER
   ActiveRecord::Base.raise_in_transactional_callbacks = true
   ActiveRecord::Migration.verbose = false
 
@@ -49,20 +50,6 @@ rescue Mysql2::Error
     $stderr.puts "\033[1;31mException when connecting to MySQL, is it running?\033[0m\n\n"
   end
   raise
-end
-
-# Purely useful for test cases...
-class Story < ActiveRecord::Base
-  if ::ActiveRecord::VERSION::MAJOR < 4 && ActiveRecord::VERSION::MINOR < 2
-    set_primary_key :story_id
-  else
-    self.primary_key = :story_id
-  end
-  def tell; text; end
-  def whatever(n, _); tell*n; end
-  default_scope { where(:scoped => true) }
-
-  handle_asynchronously :whatever
 end
 
 # Add this directory so the ActiveSupport autoloading works

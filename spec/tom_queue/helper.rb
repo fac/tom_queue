@@ -19,6 +19,20 @@ rescue Errno::ECONNREFUSED
   raise
 end
 
+# Purely useful for test cases...
+class Story < ActiveRecord::Base
+  if ::ActiveRecord::VERSION::MAJOR < 4 && ActiveRecord::VERSION::MINOR < 2
+    set_primary_key :story_id
+  else
+    self.primary_key = :story_id
+  end
+  def tell; text; end
+  def whatever(n, _); tell*n; end
+  default_scope { where(:scoped => true) }
+
+  handle_asynchronously :whatever
+end
+
 RSpec.configure do |r|
 
   r.before do
@@ -46,6 +60,8 @@ RSpec.configure do |r|
     TomQueue.logger ||= Logger.new("/dev/null")
 
     TomQueue::DelayedJob.apply_hook!
+    TomQueue::Enqueue::Publish.class_variable_set(:@@tomqueue_manager, nil)
+    TomQueue::Worker::Pop.class_variable_set(:@@tomqueue_manager, nil)
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
   end
 
@@ -77,7 +93,7 @@ RSpec.configure do |r|
 end
 
 def unacked_message_count(priority)
-  queue_name = Delayed::Job.tomqueue_manager.queues[priority].name
+  queue_name = TomQueue::Enqueue::Publish.queue_manager.queues[priority].name
   response = RestClient.get("http://guest:guest@localhost:15672/api/queues/test/#{queue_name}", :accept => :json)
   JSON.parse(response)["messages_unacknowledged"]
 end

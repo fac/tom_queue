@@ -147,6 +147,7 @@ module TomQueue
     # Raises an ArgumentError unless the work is a string
     # Returns nil
     def publish(work, opts={})
+      debug "[publish] #{work}"
       priority = opts.fetch('priority', opts.fetch(:priority, NORMAL_PRIORITY))
       run_at = opts.fetch('run_at', opts.fetch(:run_at, Time.now))
 

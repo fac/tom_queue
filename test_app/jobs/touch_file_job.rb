@@ -2,7 +2,7 @@ require "fileutils"
 
 TouchFileJob = Struct.new(:name) do
   def perform
-    logger = Delayed::Worker.logger
+    logger = TomQueue.logger
     logger.info "#{Time.new.strftime("%b %d %Y %H:%M:%S")}: [JOB] Touching File #{name}"
 
     runtime = Benchmark.realtime do

@@ -1,7 +1,6 @@
 require_relative "./config/boot.rb"
 require "sinatra"
-require "delayed_job"
-require "delayed_job_active_record"
+require "tom_queue"
 
 get "/" do
   redirect "/jobs"
