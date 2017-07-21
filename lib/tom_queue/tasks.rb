@@ -4,6 +4,11 @@ namespace :jobs do
     TomQueue::Persistence::Model.delete_all
   end
 
+  desc 'Republish jobs from the database to AMQP'
+  task :republish => :environment do
+    TomQueue::Persistence::Model.republish_all
+  end
+
   desc 'Start a delayed_job worker.'
   task :work => :environment_options do
     TomQueue.logger = Logger.new(STDOUT)

@@ -10,6 +10,8 @@ module TomQueue
       after_commit -> { TomQueue::Enqueue::Publish.after_commit }
       after_rollback -> { TomQueue::Enqueue::Publish.after_rollback }
 
+      scope :non_failed, -> { where(failed_at: nil) }
+
       ENQUEUE_ATTRIBUTES = %i{priority run_at queue payload_object attempts}
 
       self.table_name = :delayed_jobs
@@ -42,6 +44,20 @@ module TomQueue
           "delayed_job_digest"     => digest,
           "delayed_job_updated_at" => updated_at.iso8601(0)
         })
+      end
+
+      # Public: Find all jobs in the database and push them to AMQP
+      #
+      # Returns nothing
+      def self.republish_all
+        find_each(&:republish)
+      end
+
+      # Public: push this job to AMQP
+      #
+      # Returns nothing
+      def republish
+        TomQueue.enqueue(self)
       end
 
       def payload_object=(object)
@@ -157,10 +173,6 @@ module TomQueue
       end
 
       private
-
-      def publish
-        TomQueue::Enqueue::Publish.after_commit
-      end
 
       def set_default_run_at
         self.run_at ||= self.class.db_time_now
