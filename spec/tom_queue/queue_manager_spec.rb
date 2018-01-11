@@ -40,7 +40,7 @@ describe TomQueue::QueueManager do
 
   describe "AMQP configuration" do
 
-    TomQueue::PRIORITIES.each do |priority|
+    TomQueue.priorities.each do |priority|
       it "should create a queue for '#{priority}' priority" do
         expect(manager.queue(priority).name).to eq "#{manager.prefix}.balance.#{priority}"
         # Declare the queue, if the parameters don't match the brokers existing channel, then bunny will throw an
@@ -101,8 +101,8 @@ describe TomQueue::QueueManager do
 
     describe "message priorities" do
       it "should have an array of priorities, in the correct order" do
-        expect(TomQueue::PRIORITIES).to be_a(Array)
-        expect(TomQueue::PRIORITIES).to eq [
+        expect(TomQueue.priorities).to be_a(Array)
+        expect(TomQueue.priorities).to eq [
           TomQueue::HIGH_PRIORITY,
           TomQueue::NORMAL_PRIORITY,
           TomQueue::LOW_PRIORITY,
@@ -131,7 +131,7 @@ describe TomQueue::QueueManager do
       end
     end
 
-    TomQueue::PRIORITIES.each do |priority|
+    TomQueue.priorities.each do |priority|
       it "should publish #{priority} priority messages to the single exchange, with routing key set to '#{priority}'" do
         manager.publish("foo", :priority => priority)
         manager.pop.ack!.response.tap do |resp|

@@ -1,45 +1,6 @@
 require 'bunny'
 module TomQueue
 
-
-  # Public: Priority values for QueueManager#publish
-  #
-  # Rather than an arbitrary numeric scale, we use distinct
-  # priority values, one should be selected depending on the
-  # type and use-case of the work.
-  #
-  # The scheduler simply trumps lower-priority jobs with higher
-  # priority jobs. So ensure you don't saturate the worker with many
-  # or lengthy high priority jobs as you'll negatively impact normal
-  # and bulk jobs.
-  #
-  # HIGH_PRIORITY - use where the job is relatively short and the
-  #    user is waiting on completion. For example sending a password
-  #    reset email.
-  #
-  # NORMAL_PRIORITY - use for longer-interactive tasks (rebuilding ledgers?)
-  #
-  # BULK_PRIORITY - typically when you want to schedule lots of work to be done
-  #   at some point in the future - background emailing, cron-triggered
-  #   syncs, etc.
-  #
-  HIGH_PRIORITY = "high"
-  NORMAL_PRIORITY = "normal"
-  LOW_PRIORITY = "low"
-  BULK_PRIORITY = "bulk"
-
-  # Internal: A list of all the known priority values
-  #
-  # This array is where the priority ordering comes from, so get the
-  # order right!
-  PRIORITIES = [
-    HIGH_PRIORITY, 
-    NORMAL_PRIORITY,
-    LOW_PRIORITY,
-    BULK_PRIORITY
-  ]
-  DEFAULT_PRIORITY = LOW_PRIORITY
-
   # Public: This is your interface to pushing work onto and
   #   pulling work off the work queue. Instantiate one of these
   #   and, if you're planning on operating as a consumer, then call
@@ -73,7 +34,6 @@ module TomQueue
       end
     end
 
-
     include LoggingHelper
 
     # Public: Return the string used as a prefix for all queues and exchanges
@@ -89,6 +49,7 @@ module TomQueue
     #
     # Returns an array of the QueuePriority instances in priority order
     attr_reader :priorities
+
     # Internal: Return the queue object for a given priority level
     def queue(priority)
       priorities.find { |p| p.name == priority }.queue
@@ -158,7 +119,7 @@ module TomQueue
       @channel.open
       @channel.basic_qos(1, true)
 
-      @priorities = PRIORITIES.map do |name|
+      @priorities = TomQueue.priorities.map do |name|
         QueuePriority.new(name)
       end
 
@@ -185,7 +146,7 @@ module TomQueue
       run_at = opts.fetch('run_at', opts.fetch(:run_at, Time.now))
 
       raise ArgumentError, 'work must be a string' unless work.is_a?(String)
-      raise ArgumentError, 'unknown priority level' unless PRIORITIES.include?(priority)
+      raise ArgumentError, 'unknown priority level' unless @priorities.find { |p| p.name == priority }
       raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.nil? or run_at.is_a?(Time)
 
       @publisher_mutex.synchronize do
@@ -256,7 +217,7 @@ module TomQueue
 
       # Synchronously poll the head of all the queues in priority order
       response = nil
-      @priorities.find do |queue|
+      @priorities.select { |priority| TomQueue.queue_consumer_filter.call(priority) }.find do |queue|
         debug "[pop] Polling queue '#{queue}'..."
         response = queue.peek
       end
@@ -276,7 +237,7 @@ module TomQueue
 
       # Setup a subscription to all the queues. The channel pre-fetch
       # will ensure we get exactly one message delivered
-      consumers = @priorities.map do |queue|
+      consumers = @priorities.select { |priority| TomQueue.queue_consumer_filter.call(priority) }.map do |queue|
         queue.wait do |*args|
           @mutex.synchronize do
             consumer_thread_value = args
