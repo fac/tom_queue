@@ -32,7 +32,12 @@ module TomQueue
   #
   # This array is where the priority ordering comes from, so get the
   # order right!
-  PRIORITIES = [HIGH_PRIORITY, NORMAL_PRIORITY, LOW_PRIORITY, BULK_PRIORITY].freeze
+  PRIORITIES = [
+    HIGH_PRIORITY, 
+    NORMAL_PRIORITY,
+    LOW_PRIORITY,
+    BULK_PRIORITY
+  ]
   DEFAULT_PRIORITY = LOW_PRIORITY
 
   # Public: This is your interface to pushing work onto and
@@ -41,6 +46,33 @@ module TomQueue
   #   become_consumer!
   #
   class QueueManager
+
+    class QueuePriority
+
+      attr_reader :name, :queue
+      def initialize(name)
+        @name = name
+      end
+
+      def setup(prefix, exchange, channel)
+        @channel = channel
+        @queue = channel.queue("#{prefix}.balance.#{@name}", :durable => true)
+        @queue.bind(exchange, :routing_key => @name)
+      end
+      def peek
+        # Perform a basic get. Calling Queue#get gets into a mess wrt the subscribe
+        # below. Don't do it.
+        response = @channel.basic_get(@queue.name, :manual_ack => true)
+        response unless response.compact.empty?
+      end
+      def wait(&block)
+        @queue.subscribe(:manual_ack => true, &block)
+      end
+      def to_s
+        "<Priorty Queue routing_key='#{@name}'>"
+      end
+    end
+
 
     include LoggingHelper
 
@@ -55,8 +87,12 @@ module TomQueue
     # Internal, this is an implementation detail. Accessor is mainly for
     # convenient testing
     #
-    # Returns a hash of { "priority" => <Bunny::Queue>, ... }
-    attr_reader :queues
+    # Returns an array of the QueuePriority instances in priority order
+    attr_reader :priorities
+    # Internal: Return the queue object for a given priority level
+    def queue(priority)
+      priorities.find { |p| p.name == priority }.queue
+    end
 
     # Internal: The exchange to which work is published
     #
@@ -122,18 +158,16 @@ module TomQueue
       @channel.open
       @channel.basic_qos(1, true)
 
-      @queues = {}
+      @priorities = PRIORITIES.map do |name|
+        QueuePriority.new(name)
+      end
 
       # @exchange is used for both publishing and subscription so it's declared on the @channel
       @exchange = @channel.topic("#{@prefix}.work", :durable => true, :auto_delete => false)
       # @deferred_exchange is used only for publishing so declare it on the @publisher_channel
       @deferred_exchange = @publisher_channel.fanout("#{@prefix}.work.deferred", :durable => true, :auto_delete => false)
 
-      PRIORITIES.each do |priority|
-        @queues[priority] = @channel.queue("#{@prefix}.balance.#{priority}", :durable => true)
-        @queues[priority].bind(@exchange, :routing_key => priority)
-      end
-
+      @priorities.each { |p| p.setup(@prefix, @exchange, @channel) }
       nil
     end
 
@@ -220,20 +254,14 @@ module TomQueue
     def sync_poll_queues
       debug "[pop] Synchronously popping message"
 
-      response, headers, payload = nil
-
       # Synchronously poll the head of all the queues in priority order
-      PRIORITIES.find do |priority|
-        debug "[pop] Popping '#{@queues[priority].name}'..."
-        # Perform a basic get. Calling Queue#get gets into a mess wrt the subscribe
-        # below. Don't do it.
-        response, headers, payload = @channel.basic_get(@queues[priority].name, :manual_ack => true)
-
-        # Array#find will break out of the loop if we return a non-nil value.
-        payload
+      response = nil
+      @priorities.find do |queue|
+        debug "[pop] Polling queue '#{queue}'..."
+        response = queue.peek
       end
 
-      payload && Work.new(self, response, headers, payload)
+      response && Work.new(self, *response)
     end
 
     # Internal: Setup a consumer and block, waiting for the first message to arrive
@@ -248,8 +276,8 @@ module TomQueue
 
       # Setup a subscription to all the queues. The channel pre-fetch
       # will ensure we get exactly one message delivered
-      consumers = PRIORITIES.map do |priority|
-        @queues[priority].subscribe(:manual_ack => true) do |*args|
+      consumers = @priorities.map do |queue|
+        queue.wait do |*args|
           @mutex.synchronize do
             consumer_thread_value = args
             @condvar.signal
