@@ -42,9 +42,11 @@ describe TomQueue::QueueManager do
 
     TomQueue::PRIORITIES.each do |priority|
       it "should create a queue for '#{priority}' priority" do
-        expect(manager.queue(priority).name).to eq "#{manager.prefix}.balance.#{priority}"
+        expect(manager.queues[priority].name).to eq "#{manager.prefix}.balance.#{priority}"
         # Declare the queue, if the parameters don't match the brokers existing channel, then bunny will throw an
         # exception.
+        # First we call with :passive => true so RMQ will return a NOT_FOUND error if it doesn't actually exist.
+        channel.queue("#{manager.prefix}.balance.#{priority}", :passive => true)
         channel.queue("#{manager.prefix}.balance.#{priority}", :durable => true, :auto_delete => false, :exclusive => false)
       end
     end
@@ -52,7 +54,9 @@ describe TomQueue::QueueManager do
     it "should create a single durable topic exchange" do
       expect(manager.exchange.name).to eq "#{manager.prefix}.work"
       # Now we declare it again on the broker, which will raise an exception if the parameters don't match
-      channel.topic("#{manager.prefix}.work", :durable => true, :auto_delete => false)
+      # :passive causes an error if the exchange doesn't already exist
+      channel.topic("#{manager.prefix}.work", :passive => true)
+      channel.topic("#{manager.prefix}.work",  :durable => true, :auto_delete => false)
     end
 
   end
