@@ -40,19 +40,19 @@ describe TomQueue::QueueManager do
 
   describe "AMQP configuration" do
 
-    TomQueue.priorities.each do |priority|
+    TomQueue::QueueManager.priorities.each do |priority|
       it "should create a queue for '#{priority}' priority" do
         expect(manager.queue(priority).name).to eq "#{manager.prefix}.balance.#{priority}"
         # Declare the queue, if the parameters don't match the brokers existing channel, then bunny will throw an
         # exception.
-        channel.queue("#{manager.prefix}.balance.#{priority}", :durable => true, :auto_delete => false, :exclusive => false)
+        channel.queue("#{manager.prefix}.balance.#{priority}", :durable => true, :auto_delete => false, :exclusive => false, :passive => true)
       end
     end
 
     it "should create a single durable topic exchange" do
       expect(manager.exchange.name).to eq "#{manager.prefix}.work"
       # Now we declare it again on the broker, which will raise an exception if the parameters don't match
-      channel.topic("#{manager.prefix}.work", :durable => true, :auto_delete => false)
+      channel.topic("#{manager.prefix}.work", :durable => true, :auto_delete => false, :passive => true)
     end
 
   end
@@ -101,8 +101,8 @@ describe TomQueue::QueueManager do
 
     describe "message priorities" do
       it "should have an array of priorities, in the correct order" do
-        expect(TomQueue.priorities).to be_a(Array)
-        expect(TomQueue.priorities).to eq [
+        expect(TomQueue::QueueManager.priorities).to be_a(Array)
+        expect(TomQueue::QueueManager.priorities).to eq [
           TomQueue::HIGH_PRIORITY,
           TomQueue::NORMAL_PRIORITY,
           TomQueue::LOW_PRIORITY,
@@ -131,7 +131,7 @@ describe TomQueue::QueueManager do
       end
     end
 
-    TomQueue.priorities.each do |priority|
+    TomQueue::QueueManager.priorities.each do |priority|
       it "should publish #{priority} priority messages to the single exchange, with routing key set to '#{priority}'" do
         manager.publish("foo", :priority => priority)
         manager.pop.ack!.response.tap do |resp|
@@ -197,6 +197,121 @@ describe TomQueue::QueueManager do
       expect(manager.pop.ack!.payload).to eq "foo"
       expect(manager.pop.ack!.payload).to eq "bar"
     end
+  end
+
+  describe "custom priorities" do
+    before do
+      TomQueue::QueueManager.priorities = ['foo', 'bar', 'baz']
+    end
+
+    it "should provide an accessor to return the Bunny Queue object for a given priority" do
+      expect(manager.queue('foo')).to be_a(Bunny::Queue)
+      expect(manager.queue('foo').name).to eq("#{manager.prefix}.balance.foo")
+      expect(manager.queue('bar')).to be_a(Bunny::Queue)
+      expect(manager.queue('bar').name).to eq("#{manager.prefix}.balance.bar")
+    end
+
+    describe "if the priorities change after the manager is created" do
+      before do
+        manager 
+        TomQueue::QueueManager.priorities = ['p1', 'p2']
+      end
+
+      it "should not have queues for the new priorities" do
+        expect(manager.queue('p1')).to be_nil
+        expect(manager.queue('p2')).to be_nil
+      end
+
+      it "should reject messages for the new priorities" do
+        expect { manager.publish("foo", :priority => 'p1') }.to raise_exception(/unknown priority level/)
+      end
+
+      it "should not have created queues for the new priorities" do
+        channel.queue("#{manager.prefix}.balance.foo", :passive => true)
+        expect { channel.queue("#{manager.prefix}.balance.p1", :passive => true) }.to raise_exception(Bunny::NotFound)
+      end
+    end
+
+    it "should create queues for each of the priorities" do
+      manager
+      # Declare the queue, if the parameters don't match the brokers existing channel, then bunny will throw an
+      # exception. (we use :passive so the declaration doesn't actually go an create it!)
+      channel.queue("#{manager.prefix}.balance.foo", :durable => true, :auto_delete => false, :exclusive => false, :passive => true)
+      channel.queue("#{manager.prefix}.balance.bar", :durable => true, :auto_delete => false, :exclusive => false, :passive => true)
+    end
+
+    it "should process jobs in the priority order specified" do
+      manager.publish("foo1message", :priority => 'foo')
+      manager.publish("barmessage", :priority => 'bar')
+      manager.publish("foo2message", :priority => 'foo')
+
+      expect(manager.pop.ack!.payload).to eq "foo1message"
+      expect(manager.pop.ack!.payload).to eq "foo2message"
+      expect(manager.pop.ack!.payload).to eq "barmessage"
+    end
+
+    it "should wait for messages from the queues if none are ready to go" do
+      thread = Thread.new do
+        sleep 0.01 until manager.queue('foo').consumer_count == 1
+        sleep 0.01 until manager.queue('bar').consumer_count == 1
+        manager.publish("foo", :priority => 'foo')
+
+        sleep 0.01 until manager.queue('foo').consumer_count == 1
+        sleep 0.01 until manager.queue('bar').consumer_count == 1
+        manager.publish("bar", :priority => 'bar')
+      end
+      expect(manager.pop.ack!.payload).to eq "foo"
+      expect(manager.pop.ack!.payload).to eq "bar"
+      thread.join
+    end
+  end
+
+  describe "priority_consumer_filter" do
+    before do
+      # Ok, let's filter out the low priority consumer
+      TomQueue::QueueManager.priority_consumer_filter = lambda { |p| p.name != TomQueue::LOW_PRIORITY }
+    end
+
+    it "should create the queues even if it is filtered out (so we don't potentially drop work)" do
+      channel.queue("#{manager.prefix}.balance.#{TomQueue::LOW_PRIORITY}", :durable => true, :auto_delete => false, :exclusive => false, :passive => true)
+      expect(manager.queue(TomQueue::LOW_PRIORITY)).to_not be_nil
+    end
+
+    it "should not setup a consumer on the filtered queues" do
+      thread = Thread.new do
+        sleep 0.01 until manager.queue(TomQueue::HIGH_PRIORITY).consumer_count == 1
+        consumer_count = manager.queue(TomQueue::LOW_PRIORITY).consumer_count
+        manager.publish("boop", :priority => TomQueue::HIGH_PRIORITY)
+        consumer_count
+      end
+      manager.pop.ack!
+      thread.join
+      expect(thread.value).to eq(0)
+    end
+
+    it "should not wait for messages from filtered priorities" do
+      thread = Thread.new do
+        sleep 0.01 until manager.queue(TomQueue::HIGH_PRIORITY).consumer_count == 1
+        manager.publish("low", :priority => TomQueue::LOW_PRIORITY)
+
+        sleep 0.01 until manager.queue(TomQueue::HIGH_PRIORITY).consumer_count == 1
+        manager.publish("high", :priority => TomQueue::HIGH_PRIORITY)
+      end
+      expect(manager.pop.ack!.payload).to eq "high"
+      thread.join
+    end
+
+    it "should not pop messages from filtered priorities" do
+      manager.publish("low", :priority => TomQueue::LOW_PRIORITY)
+      manager.publish("bulk", :priority => TomQueue::BULK_PRIORITY)
+      expect(manager.pop.ack!.payload).to eq("bulk")
+    end
+  end
+
+  it "should return nil work after poll_interval elapses, waiting for a message" do
+    TomQueue::QueueManager.poll_interval = 0.1
+    expect(Benchmark.realtime { manager.pop }).to be < 0.2
+    expect(manager.pop).to be_nil
   end
 
 end

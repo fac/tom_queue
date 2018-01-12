@@ -8,6 +8,33 @@
 # You probably want to start with TomQueue::QueueManager
 #
 module TomQueue
+
+  # Public: Priority values for QueueManager#publish
+  #
+  # Rather than an arbitrary numeric scale, we use distinct
+  # priority values, one should be selected depending on the
+  # type and use-case of the work.
+  #
+  # The scheduler simply trumps lower-priority jobs with higher
+  # priority jobs. So ensure you don't saturate the worker with many
+  # or lengthy high priority jobs as you'll negatively impact normal
+  # and bulk jobs.
+  #
+  # HIGH_PRIORITY - use where the job is relatively short and the
+  #    user is waiting on completion. For example sending a password
+  #    reset email.
+  #
+  # NORMAL_PRIORITY - use for longer-interactive tasks (rebuilding ledgers?)
+  #
+  # BULK_PRIORITY - typically when you want to schedule lots of work to be done
+  #   at some point in the future - background emailing, cron-triggered
+  #   syncs, etc.
+  #
+  HIGH_PRIORITY = "high"
+  NORMAL_PRIORITY = "normal"
+  LOW_PRIORITY = "low"
+  BULK_PRIORITY = "bulk"
+  
   require 'tom_queue/logging_helper'
   
   require 'tom_queue/queue_manager'
@@ -50,60 +77,6 @@ module TomQueue
   class << self
     attr_accessor :exception_reporter
     attr_accessor :logger
-  end
-
-
-  # Public: Priority values for QueueManager#publish
-  #
-  # Rather than an arbitrary numeric scale, we use distinct
-  # priority values, one should be selected depending on the
-  # type and use-case of the work.
-  #
-  # The scheduler simply trumps lower-priority jobs with higher
-  # priority jobs. So ensure you don't saturate the worker with many
-  # or lengthy high priority jobs as you'll negatively impact normal
-  # and bulk jobs.
-  #
-  # HIGH_PRIORITY - use where the job is relatively short and the
-  #    user is waiting on completion. For example sending a password
-  #    reset email.
-  #
-  # NORMAL_PRIORITY - use for longer-interactive tasks (rebuilding ledgers?)
-  #
-  # BULK_PRIORITY - typically when you want to schedule lots of work to be done
-  #   at some point in the future - background emailing, cron-triggered
-  #   syncs, etc.
-  #
-  HIGH_PRIORITY = "high"
-  NORMAL_PRIORITY = "normal"
-  LOW_PRIORITY = "low"
-  BULK_PRIORITY = "bulk"
-
-  # Internal: A list of all the known priority values
-  #
-  # This array is where the priority ordering comes from, so get the
-  # order right!
-  @@priorities = [
-    HIGH_PRIORITY, 
-    NORMAL_PRIORITY,
-    LOW_PRIORITY,
-    BULK_PRIORITY
-  ]
-  @@default_priority = LOW_PRIORITY
-
-  def self.priorities=(new_priorities)
-    @@priorities = new_priorities
-  end
-  def self.priorities
-    @@priorities
-  end
-
-  @@queue_consumer_filter = lambda { |q| true }
-  def self.queue_consumer_filter=(new_proc)
-    @@queue_consumer_filter = new_proc
-  end
-  def self.queue_consumer_filter
-    @@queue_consumer_filter
   end
 
 end

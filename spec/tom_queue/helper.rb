@@ -22,6 +22,18 @@ end
 RSpec.configure do |r|
 
   r.before do
+    # Some tests mess around with these, so let's reset each time
+    TomQueue::QueueManager.poll_interval = 10.0
+    TomQueue::QueueManager.priority_consumer_filter = lambda { |p| true }
+    TomQueue::QueueManager.priorities = [
+      TomQueue::HIGH_PRIORITY, 
+      TomQueue::NORMAL_PRIORITY,
+      TomQueue::LOW_PRIORITY,
+      TomQueue::BULK_PRIORITY
+    ]
+  end
+
+  r.before do
     TomQueue.exception_reporter = Class.new do
       def notify(exception)
         puts "Exception reported: #{exception.inspect}"

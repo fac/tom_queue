@@ -8,6 +8,59 @@ module TomQueue
   #
   class QueueManager
 
+
+    # Internal: A list of all the known priority values
+    #
+    # This array is where the priority ordering comes from, so get the
+    # order right!
+    @@priorities = [
+      TomQueue::HIGH_PRIORITY, 
+      TomQueue::NORMAL_PRIORITY,
+      TomQueue::LOW_PRIORITY,
+      TomQueue::BULK_PRIORITY
+    ]
+
+    # Public: Allows the set of priorities to be managed externally. This must be
+    # specified before a QueueManger ojbects are instantiated.
+    #
+    # It is an Array of strings, being the priority names.
+    def self.priorities=(new_priorities)
+      @@priorities = new_priorities
+    end
+    def self.priorities
+      @@priorities
+    end
+
+    # Internal: This specifies how long the QueueManager should block before returning nil
+    # This is done to allow changes in the priority filters to take effect within a reasonable
+    # amount of time without complicated behaviour.
+    #
+    # Measured in seconds.
+    @@poll_interval = 10.0
+    def self.poll_interval=(new_interval)
+      @@poll_interval = new_interval
+    end
+    def self.poll_interval
+      @@poll_interval
+    end
+
+    # Public: An object that responds to #call(<QueuePriority instance>), returning a
+    # boolean indicating if the current process should consume messages from the
+    # given priority queue.
+    #
+    # Can be used by the parent process to only listen on certain queues on certain
+    # systems. By default, it just returns true.
+    #
+    # This proc will be called frequently, so it should return quickly.
+    #
+    @@priority_consumer_filter = lambda { |q| true }
+    def self.priority_consumer_filter=(new_proc)
+      @@priority_consumer_filter = new_proc
+    end
+    def self.priority_consumer_filter
+      @@priority_consumer_filter
+    end
+
     class QueuePriority
 
       attr_reader :name, :queue
@@ -36,6 +89,8 @@ module TomQueue
 
     include LoggingHelper
 
+
+
     # Public: Return the string used as a prefix for all queues and exchanges
     attr_reader :prefix
 
@@ -52,7 +107,8 @@ module TomQueue
 
     # Internal: Return the queue object for a given priority level
     def queue(priority)
-      priorities.find { |p| p.name == priority }.queue
+      priority = priorities.find { |p| p.name == priority }
+      priority.queue if priority
     end
 
     # Internal: The exchange to which work is published
@@ -119,7 +175,7 @@ module TomQueue
       @channel.open
       @channel.basic_qos(1, true)
 
-      @priorities = TomQueue.priorities.map do |name|
+      @priorities = TomQueue::QueueManager.priorities.map do |name|
         QueuePriority.new(name)
       end
 
@@ -217,7 +273,7 @@ module TomQueue
 
       # Synchronously poll the head of all the queues in priority order
       response = nil
-      @priorities.select { |priority| TomQueue.queue_consumer_filter.call(priority) }.find do |queue|
+      enabled_priorities.find do |queue|
         debug "[pop] Polling queue '#{queue}'..."
         response = queue.peek
       end
@@ -225,22 +281,29 @@ module TomQueue
       response && Work.new(self, *response)
     end
 
+    # Internal: The list of QueuePriority objects that this consumer should consume from
+    # 
+    # We establish this by simply asking the priority_consumer_filter hook that our parent
+    # app might override.
+    #
+    def enabled_priorities
+      @priorities.select { |priority| TomQueue::QueueManager.priority_consumer_filter.call(priority) }
+    end
+
     # Internal: Setup a consumer and block, waiting for the first message to arrive
     # on any of the priority queues.
     #
     # Returns: TomQueue::Work instance
     def wait_for_message
-
-      debug "[wait_for_message] setting up consumer, waiting for next message"
-
-      consumer_thread_value = nil
+      debug "[wait_for_message] setting up consumer, waiting for next message for priorities #{enabled_priorities.map {|q| q.name}.join(",")}"
 
       # Setup a subscription to all the queues. The channel pre-fetch
       # will ensure we get exactly one message delivered
-      consumers = @priorities.select { |priority| TomQueue.queue_consumer_filter.call(priority) }.map do |queue|
+      @consumer_thread_value = nil
+      @consumers = enabled_priorities.map do |queue|
         queue.wait do |*args|
           @mutex.synchronize do
-            consumer_thread_value = args
+            @consumer_thread_value = args
             @condvar.signal
           end
         end
@@ -249,18 +312,18 @@ module TomQueue
       # Back on the calling thread, block on the callback above and, when
       # it's signalled, pull the arguments over to this thread inside the mutex
       response, header, payload = @mutex.synchronize do
-        @condvar.wait(@mutex, 10.0) until consumer_thread_value
-        consumer_thread_value
+        @condvar.wait(@mutex, TomQueue::QueueManager.poll_interval)
+        @consumer_thread_value
       end
 
       debug "[wait_for_message] Shutting down consumers"
 
       # Now, cancel the consumers - the prefetch level on the channel will
       # ensure we only got the message we're about to return.
-      consumers.each { |c| c.cancel }
+      @consumers && @consumers.each { |c| c.cancel }
 
       # Return the message we got passed.
-      TomQueue::Work.new(self, response, header, payload)
+      response && TomQueue::Work.new(self, response, header, payload)
     end
   end
 end
