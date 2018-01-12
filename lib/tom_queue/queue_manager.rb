@@ -13,7 +13,7 @@ module TomQueue
     #
     # This array is where the priority ordering comes from, so get the
     # order right!
-    @@priorities = [
+    @priorities = [
       TomQueue::HIGH_PRIORITY, 
       TomQueue::NORMAL_PRIORITY,
       TomQueue::LOW_PRIORITY,
@@ -22,26 +22,20 @@ module TomQueue
 
     # Public: Allows the set of priorities to be managed externally. This must be
     # specified before a QueueManger ojbects are instantiated.
-    #
+    # 
     # It is an Array of strings, being the priority names.
-    def self.priorities=(new_priorities)
-      @@priorities = new_priorities
-    end
-    def self.priorities
-      @@priorities
+    class << self
+      attr_accessor :priorities
     end
 
     # Internal: This specifies how long the QueueManager should block before returning nil
     # This is done to allow changes in the priority filters to take effect within a reasonable
     # amount of time without complicated behaviour.
-    #
+    # 
     # Measured in seconds.
-    @@poll_interval = 10.0
-    def self.poll_interval=(new_interval)
-      @@poll_interval = new_interval
-    end
-    def self.poll_interval
-      @@poll_interval
+    @poll_interval = 10.0
+    class << self
+      attr_accessor :poll_interval
     end
 
     # Public: An object that responds to #call(<QueuePriority instance>), returning a
@@ -53,17 +47,15 @@ module TomQueue
     #
     # This proc will be called frequently, so it should return quickly.
     #
-    @@priority_consumer_filter = lambda { |q| true }
-    def self.priority_consumer_filter=(new_proc)
-      @@priority_consumer_filter = new_proc
-    end
-    def self.priority_consumer_filter
-      @@priority_consumer_filter
+    @priority_consumer_filter = lambda { |_queue| true }
+    class << self
+      attr_accessor :priority_consumer_filter
     end
 
     class QueuePriority
 
       attr_reader :name, :queue
+
       def initialize(name)
         @name = name
       end
@@ -73,15 +65,18 @@ module TomQueue
         @queue = channel.queue("#{prefix}.balance.#{@name}", :durable => true)
         @queue.bind(exchange, :routing_key => @name)
       end
+
       def peek
         # Perform a basic get. Calling Queue#get gets into a mess wrt the subscribe
         # below. Don't do it.
         response = @channel.basic_get(@queue.name, :manual_ack => true)
         response unless response.compact.empty?
       end
+
       def wait(&block)
         @queue.subscribe(:manual_ack => true, &block)
       end
+
       def to_s
         "<Priorty Queue routing_key='#{@name}'>"
       end
@@ -295,7 +290,7 @@ module TomQueue
     #
     # Returns: TomQueue::Work instance
     def wait_for_message
-      debug "[wait_for_message] setting up consumer, waiting for next message for priorities #{enabled_priorities.map {|q| q.name}.join(",")}"
+      debug "[wait_for_message] setting up consumer, waiting for next message for priorities #{ enabled_priorities.map(&:name).join(", ") }"
 
       # Setup a subscription to all the queues. The channel pre-fetch
       # will ensure we get exactly one message delivered
