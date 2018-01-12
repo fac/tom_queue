@@ -22,20 +22,20 @@ describe TomQueue::DeferredWorkManager do
     it "should notify something if process crashes" do
       TomQueue.exception_reporter = double("ExceptionReporter", :notify => nil)
       subject.out_manager.publish("work", :run_at => Time.now + 5)
-      subject.deferred_set.should_receive(:pop).and_raise(RuntimeError, "Yaks Everywhere!")
-      TomQueue.exception_reporter.should_receive(:notify) do |exception|
-        exception.should be_a(RuntimeError)
-        exception.message.should == "Yaks Everywhere!"
+      allow(subject.deferred_set).to receive(:pop).and_raise(RuntimeError, "Yaks Everywhere!")
+      expect(TomQueue.exception_reporter).to receive(:notify) do |exception|
+        expect(exception).to be_a(RuntimeError)
+        expect(exception.message).to eq("Yaks Everywhere!")
       end
       subject.start
     end
 
     it "should notify something if consumer thread crashes and re-queue message once" do
       TomQueue.exception_reporter = double("ExceptionReporter", :notify => nil)
-      subject.deferred_set.should_receive(:schedule).twice.and_raise(RuntimeError, "Yaks Everywhere!")
-      TomQueue.exception_reporter.should_receive(:notify) do |exception|
-        exception.should be_a(RuntimeError)
-        exception.message.should == "Yaks Everywhere!"
+      allow(subject.deferred_set).to receive(:schedule).twice.and_raise(RuntimeError, "Yaks Everywhere!")
+      expect(TomQueue.exception_reporter).to receive(:notify) do |exception|
+        expect(exception).to be_a(RuntimeError)
+        expect(exception.message).to eq("Yaks Everywhere!")
       end
 
       subject.out_manager.publish("work", :run_at => Time.now + 5)

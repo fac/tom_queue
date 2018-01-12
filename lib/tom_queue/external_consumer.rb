@@ -154,7 +154,7 @@ module TomQueue
 
         # make sure the exchange is declared
         manager.channel.exchange(name, :type => type, :auto_delete => auto_delete, :durable => durable)
-        manager.queues[priority].bind(name, :routing_key => routing_key)
+        manager.queue(priority).bind(name, :routing_key => routing_key)
       end
     end
 
