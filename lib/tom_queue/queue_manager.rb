@@ -14,7 +14,7 @@ module TomQueue
     # This array is where the priority ordering comes from, so get the
     # order right!
     @priorities = [
-      TomQueue::HIGH_PRIORITY, 
+      TomQueue::HIGH_PRIORITY,
       TomQueue::NORMAL_PRIORITY,
       TomQueue::LOW_PRIORITY,
       TomQueue::BULK_PRIORITY
@@ -22,7 +22,7 @@ module TomQueue
 
     # Public: Allows the set of priorities to be managed externally. This must be
     # specified before a QueueManger ojbects are instantiated.
-    # 
+    #
     # It is an Array of strings, being the priority names.
     class << self
       attr_accessor :priorities
@@ -31,8 +31,8 @@ module TomQueue
     # Internal: This specifies how long the QueueManager should block before returning nil
     # This is done to allow changes in the priority filters to take effect within a reasonable
     # amount of time without complicated behaviour.
-    # 
-    # Measured in seconds.
+    #
+    # Measured in seconds.
     @poll_interval = 10.0
     class << self
       attr_accessor :poll_interval
