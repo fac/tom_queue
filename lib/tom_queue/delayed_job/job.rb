@@ -181,7 +181,7 @@ module TomQueue
       # Returns a string
       BROKEN_DIGEST_CLASSES = [DateTime, Time, ActiveSupport::TimeWithZone]
       def tomqueue_digest
-        digest_string = self.attributes.map { |k,v| BROKEN_DIGEST_CLASSES.include?(v.class) ? [k,v.to_i] : [k,v.to_s] }.to_s
+        digest_string = self.attributes.sort_by { |k,_| k }.map { |k,v| BROKEN_DIGEST_CLASSES.include?(v.class) ? [k,v.to_i] : [k,v.to_s] }.to_s
         Digest::MD5.hexdigest(digest_string)
       end
 
@@ -220,8 +220,7 @@ module TomQueue
 
             # Load the job, ensuring we have a write lock so other workers in the same position
             # block, avoiding race conditions
-            job = Delayed::Job.where(id: job_id).lock(true).first
-
+            job = Delayed::Job.lock(true).find_by_id(job_id)
             if job.nil?
               job = nil
 
