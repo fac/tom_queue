@@ -76,8 +76,8 @@ RSpec.configure do |r|
   end
 end
 
-def unacked_message_count(priority)
-  queue_name = Delayed::Job.tomqueue_manager.priorities.find { |p| p.name == priority }.queue.name
+def unacked_message_count(queue)
+  queue_name = Delayed::Job.tomqueue_manager.queues[queue].name
   response = {}
   attempts = 0
   # Occasionally, the API response doesn't contain the message_unacknowledged key, so if this happens

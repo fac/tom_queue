@@ -11,7 +11,6 @@ require 'delayed/backend/shared_spec'
 Delayed::Worker.logger = Logger.new('/tmp/dj.log')
 ENV['RAILS_ENV'] = 'test'
 
-
 db_adapter, gemfile = ENV["ADAPTER"], ENV["BUNDLE_GEMFILE"]
 db_adapter ||= gemfile && gemfile[%r(gemfiles/(.*?)/)] && $1
 db_adapter ||= 'mysql'
@@ -20,7 +19,9 @@ begin
   config = YAML.load(File.read('spec/database.yml'))
   ActiveRecord::Base.establish_connection config[db_adapter]
   ActiveRecord::Base.logger = Delayed::Worker.logger
-  ActiveRecord::Base.raise_in_transactional_callbacks = true
+  if ActiveRecord::VERSION::MAJOR < 5
+    ActiveRecord::Base.raise_in_transactional_callbacks = true
+  end
   ActiveRecord::Migration.verbose = false
 
   ActiveRecord::Schema.define do

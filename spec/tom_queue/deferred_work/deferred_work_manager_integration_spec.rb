@@ -35,7 +35,7 @@ describe "DeferredWorkManager", "#stop" do
     _, @status = Process.waitpid2(pid)
   end
 
-  it "handles SIGTERM send by god properly" do
+  xit "handles SIGTERM send by god properly" do
     expect(@status.exitstatus).to eq 0
   end
 
