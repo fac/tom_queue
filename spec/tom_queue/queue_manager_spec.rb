@@ -152,7 +152,7 @@ describe TomQueue::QueueManager do
     describe "when publishing a deferred message" do
       it "should not publish to the normal AMQP queue" do
         manager.publish("work", :run_at => Time.now + 1)
-        expect(manager.priorities.map { |p| p.queue }.find { |q| channel.basic_get(q.name).first }).to be_nil
+        expect(manager.queues.find { |name,q| channel.basic_get(q.name).first }).to be_nil
       end
 
       it "should call #publish_deferred" do
@@ -171,14 +171,14 @@ describe TomQueue::QueueManager do
     end
 
     it "should not have setup a consumer before the first call" do
-      manager.priorities.map { |p| p.queue }.each do |queue|
+      manager.queues.each do |name, queue|
         expect(queue.status[:consumer_count]).to eq 0
       end
     end
 
     it "should not leave any running consumers for immediate messages" do
       manager.pop.ack!
-      manager.priorities.map { |p| p.queue }.each do |queue|
+      manager.queues.each do |name, queue|
         expect(queue.status[:consumer_count]).to eq 0
       end
     end
@@ -188,7 +188,7 @@ describe TomQueue::QueueManager do
       manager.pop.ack!
       Thread.new { sleep 0.1; manager.publish("baz") }
       manager.pop.ack!
-      manager.priorities.map { |p| p.queue }.each do |queue|
+      manager.queues.each do |name, queue|
         expect(queue.status[:consumer_count]).to eq 0
       end
     end
