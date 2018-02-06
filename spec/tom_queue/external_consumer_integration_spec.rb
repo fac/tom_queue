@@ -51,19 +51,19 @@ describe "External consumers" do
     end
 
     it "should call the init and perform methods the consumer" do
-      trace.map { |a| a[0] }.should == [:init, :perform]
+      expect(trace.map { |a| a[0] }).to eq [:init, :perform]
     end
 
     it "should call the init method with the payload and headers" do
       trace.first.tap do |method, payload, headers|
-        method.should == :init
-        payload.should == 'message'
-        headers.should be_a(Hash)
+        expect(method).to eq :init
+        expect(payload).to eq 'message'
+        expect(headers).to be_a(Hash)
       end
     end
 
     it "should have serialized the class so ivars from init are available during the perform call" do
-      trace.last.should == [:perform, 'message']
+      expect(trace.last).to eq [:perform, 'message']
     end
   end
 
@@ -88,14 +88,14 @@ describe "External consumers" do
 
     it "should call the block attached to the bind_exchange call" do
       subject
-      trace.first.first.should == :bind_block
+      expect(trace.first.first).to eq :bind_block
     end
 
     it "should pass the TomQueue::Work object to the block" do
       subject
       trace.first.last.tap do |work|
-        work.should be_a(TomQueue::Work)
-        work.payload.should == 'message'
+        expect(work).to be_a(TomQueue::Work)
+        expect(work.payload).to eq 'message'
       end
     end
 
@@ -124,17 +124,17 @@ describe "External consumers" do
 
       it "should call the bind block, which calls the init and defers the perform call" do
         subject
-        trace.map { |a| a[0] }.should == [:bind_block, :init, :job_performed]
+        expect(trace.map { |a| a[0] }).to eq [:bind_block, :init, :job_performed]
       end
 
       it "should be init'd directly with the custom arguments" do
         subject
-        trace[1].last.should == 'custom-arg'
+        expect(trace[1].last).to eq 'custom-arg'
       end
 
       it "should perform the Delayed::Job" do
         subject
-        trace.last.should == [:job_performed]
+        expect(trace.last).to eq [:job_performed]
       end
 
     end
@@ -149,7 +149,7 @@ describe "External consumers" do
     end
     consumer_class.producer.publish('message')
     subject
-    trace.last[1].response.routing_key.should eq "my.key"
+    expect(trace.last[1].response.routing_key).to eq "my.key"
   end
 
   it "overrides the configured routing key through to the exchange on publication" do
@@ -160,7 +160,7 @@ describe "External consumers" do
     end
     consumer_class.producer.publish('message', :routing_key => "better.key")
     subject
-    trace.last[1].response.routing_key.should eq "better.key"
+    expect(trace.last[1].response.routing_key).to eq "better.key"
   end
 
   it "matches any routing key by default on message publication" do
@@ -175,9 +175,9 @@ describe "External consumers" do
     Delayed::Worker.new.work_off(2)
     consumer_class.producer.publish('message')
     Delayed::Worker.new.work_off(2)
-    trace.should include [:routing_key, "good.key"]
-    trace.should include [:routing_key, "better.key"]
-    trace.should include [:routing_key, ""]
+    expect(trace).to include [:routing_key, "good.key"]
+    expect(trace).to include [:routing_key, "better.key"]
+    expect(trace).to include [:routing_key, ""]
   end
 
 

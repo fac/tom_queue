@@ -10,7 +10,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
 
   it "should pop a previously published message" do
     manager.publish('some work')
-    manager.pop.payload.should == 'some work'
+    expect(manager.pop.payload).to eq 'some work'
   end
 
   it "should block on #pop until work is published" do
@@ -21,20 +21,20 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       manager.publish('some work')
     end
 
-    consumer.pop.payload.should == 'some work'
+    expect(consumer.pop.payload).to eq 'some work'
   end
 
   it "should work between objects (hello, rabbitmq)" do
     manager.publish "work"
-    consumer.pop.payload.should == "work"
+    expect(consumer.pop.payload).to eq "work"
   end
 
   it "should load-balance work between multiple consumers" do
     manager.publish "foo"
     manager.publish "bar"
 
-    consumer.pop.payload.should == "foo"
-    consumer2.pop.payload.should == "bar"
+    expect(consumer.pop.payload).to eq "foo"
+    expect(consumer2.pop.payload).to eq "bar"
   end
 
   it "should work for more than one message!" do
@@ -50,7 +50,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       output << a.ack!.payload
       output << b.ack!.payload
     end
-    output.should == input
+    expect(output).to eq input
   end
 
   it "should not drop messages when two different priorities arrive" do
@@ -61,7 +61,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     out << consumer.pop.ack!.payload
     out << consumer.pop.ack!.payload
     out << consumer.pop.ack!.payload
-    out.sort.should == ["1", "2", "3"]
+    expect(out.sort).to eq ["1", "2", "3"]
   end
 
   it "should handle priority queueing, maintaining per-priority FIFO ordering" do
@@ -70,19 +70,19 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     manager.publish("3", :priority => TomQueue::HIGH_PRIORITY)
 
     # 1,2,3 in the queue - 3 wins as it's highest priority
-    consumer.pop.ack!.payload.should == "3"
+    expect(consumer.pop.ack!.payload).to eq "3"
 
     manager.publish("4", :priority => TomQueue::NORMAL_PRIORITY)
 
     # 1,2,4 in the queue - 2 wins as it's highest (NORMAL) and first in
-    consumer.pop.ack!.payload.should == "2"
+    expect(consumer.pop.ack!.payload).to eq "2"
 
     manager.publish("5", :priority => TomQueue::BULK_PRIORITY)
 
     # 1,4,5 in the queue - we'd expect 4 (highest), 1 (first bulk), 5 (second bulk)
-    consumer.pop.ack!.payload.should == "4"
-    consumer.pop.ack!.payload.should == "1"
-    consumer.pop.ack!.payload.should == "5"
+    expect(consumer.pop.ack!.payload).to eq "4"
+    expect(consumer.pop.ack!.payload).to eq "1"
+    expect(consumer.pop.ack!.payload).to eq "5"
   end
 
   it "should handle priority queueing across two consumers" do
@@ -107,7 +107,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     order << consumer2.pop.ack!.payload
     order << consumer.pop.ack!.payload
 
-    order.should == ["2","3","4","1","5"]
+    expect(order).to eq ["2","3","4","1","5"]
   end
 
   it "should immediately run a high priority task, when there are lots of bulks" do
@@ -115,21 +115,21 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       manager.publish("stuff #{i}", :priority => TomQueue::BULK_PRIORITY)
     end
 
-    consumer.pop.ack!.payload.should == "stuff 0"
-    consumer2.pop.ack!.payload.should == "stuff 1"
-    consumer.pop.payload.should == "stuff 2"
+    expect(consumer.pop.ack!.payload).to eq "stuff 0"
+    expect(consumer2.pop.ack!.payload).to eq "stuff 1"
+    expect(consumer.pop.payload).to eq "stuff 2"
 
     manager.publish("HIGH1", :priority => TomQueue::HIGH_PRIORITY)
     manager.publish("NORMAL1", :priority => TomQueue::NORMAL_PRIORITY)
     manager.publish("HIGH2", :priority => TomQueue::HIGH_PRIORITY)
     manager.publish("NORMAL2", :priority => TomQueue::NORMAL_PRIORITY)
 
-    consumer.pop.ack!.payload.should == "HIGH1"
-    consumer.pop.ack!.payload.should == "HIGH2"
-    consumer2.pop.ack!.payload.should == "NORMAL1"
-    consumer.pop.ack!.payload.should == "NORMAL2"
+    expect(consumer.pop.ack!.payload).to eq "HIGH1"
+    expect(consumer.pop.ack!.payload).to eq "HIGH2"
+    expect(consumer2.pop.ack!.payload).to eq "NORMAL1"
+    expect(consumer.pop.ack!.payload).to eq "NORMAL2"
 
-    consumer2.pop.ack!.payload.should == "stuff 3"
+    expect(consumer2.pop.ack!.payload).to eq "stuff 3"
   end
 
   it "should allow a message to be deferred for future execution", deferred_work_manager: true do
@@ -137,7 +137,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     manager.publish("future-work", :run_at => execution_time )
 
     consumer.pop.ack!
-    Time.now.to_f.should > execution_time.to_f
+    expect(Time.now.to_f).to be > execution_time.to_f
   end
 
   describe "slow tests", :timeout => 100 do
@@ -215,7 +215,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       sink_order = consumers.map { |c| c.work }.flatten.sort.map { |a| a.payload }
 
       # HACK: ignore the ordering as it is flaky, given all the threading going on.
-      Set.new(source_order).should == Set.new(sink_order)
+      expect(Set.new(source_order)).to eq Set.new(sink_order)
     end
 
     it "should be able to drain the queue, block and resume when new work arrives" do
@@ -257,7 +257,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       sink_order = consumers.map { |c| c.work }.flatten.sort.map { |a| a.payload }
 
       # HACK: ignore the ordering as it is flaky, given all the threading going on.
-      Set.new(sink_order).should == Set.new(source_order)
+      expect(Set.new(sink_order)).to eq Set.new(source_order)
     end
 
     it "should work with lots of deferred work on the queue, and still schedule all messages", deferred_work_manager: true do
@@ -286,11 +286,11 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       consumers.each do |c|
         total_size += c.work.size
         c.work.each do |work|
-          work.received_at.should < (work.run_at + 1.0)
+          expect(work.received_at).to be < (work.run_at + 1.0)
         end
       end
 
-      total_size.should == 200
+      expect(total_size).to eq 200
     end
   end
 

@@ -35,7 +35,7 @@ describe "DeferredWorkManager", "#stop" do
     _, @status = Process.waitpid2(pid)
   end
 
-  it "handles SIGTERM send by god properly" do
+  xit "handles SIGTERM send by god properly" do
     expect(@status.exitstatus).to eq 0
   end
 
@@ -54,7 +54,7 @@ describe "DeferredWorkManager integration scenarios"  do
       @manager = TomQueue::DeferredWorkManager.new(@prefix)
       TomQueue.exception_reporter = double("ExceptionReporter", :notify => nil)
       @manager.out_manager.publish("work", :run_at => Time.now + 5)
-      @manager.deferred_set.should_receive(:pop).and_raise(RuntimeError, "Yaks Everywhere!")
+      allow(@manager.deferred_set).to receive(:pop).and_raise(RuntimeError, "Yaks Everywhere!")
       @manager.start
     end
 
@@ -63,7 +63,7 @@ describe "DeferredWorkManager integration scenarios"  do
     # we would expect the message to be on the queue again, so this
     # should "just work"
     ch = TomQueue.bunny.create_channel
-    ch.queue("#{@prefix}.work.deferred", durable: true).pop.last.should == "work"
+    expect(ch.queue("#{@prefix}.work.deferred", durable: true).pop.last).to eq("work")
   end
 
   describe "if the AMQP consumer thread crashes", timeout: 4 do
@@ -116,8 +116,8 @@ describe "DeferredWorkManager integration scenarios"  do
       crash!
       @queue_manager.publish("bar", :run_at => Time.now + 2)
 
-      @queue_manager.pop.ack!.payload.should == "foo"
-      @queue_manager.pop.ack!.payload.should == "bar"
+      expect(@queue_manager.pop.ack!.payload).to eq("foo")
+      expect(@queue_manager.pop.ack!.payload).to eq("bar")
     end
 
     it "should re-queue the message once" do

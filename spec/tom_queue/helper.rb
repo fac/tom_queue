@@ -76,8 +76,18 @@ RSpec.configure do |r|
   end
 end
 
-def unacked_message_count(priority)
-  queue_name = Delayed::Job.tomqueue_manager.queues[priority].name
-  response = RestClient.get("http://guest:guest@localhost:15672/api/queues/test/#{queue_name}", :accept => :json)
-  JSON.parse(response)["messages_unacknowledged"]
+def unacked_message_count(queue)
+  queue_name = Delayed::Job.tomqueue_manager.queues[queue].name
+  response = {}
+  attempts = 0
+  # Occasionally, the API response doesn't contain the message_unacknowledged key, so if this happens
+  # we keep trying until it appears.
+  until response.keys.include?('messages_unacknowledged')
+    sleep(2 ** attempts / 10.0) if attempts > 0
+    raise "Failed to retrieve messages_unacknowledged from RabbitMQ for queue #{queue_name}" if attempts >= 6
+    attempts += 1
+    response = JSON.parse(RestClient.get("http://guest:guest@localhost:15672/api/queues/test/#{queue_name}", :accept => :json))
+  end
+
+  response["messages_unacknowledged"]
 end

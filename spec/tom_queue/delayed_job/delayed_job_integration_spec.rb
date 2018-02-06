@@ -31,7 +31,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     end
 
     def reschedule_at(time, attempts)
-      time + 0.5
+      time + 2.0
     end
 
   end
@@ -56,33 +56,33 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     Delayed::Job.enqueue(TestJobClass.new(job_name))
 
     sleep 0.25
-    Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count].should == 1
+    expect(Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count]).to eq(1)
   end
 
   it "should integrate with Delayed::Worker" do
     Delayed::Job.enqueue(TestJobClass.new(job_name))
 
-    Delayed::Worker.new.work_off(1).should == [1, 0] # 1 success, 0 failed
-    @called.first.should == job_name
+    expect(Delayed::Worker.new.work_off(1)).to eq([1, 0]) # 1 success, 0 failed
+    expect(@called.first).to eq(job_name)
   end
 
   it "should still back-off jobs", deferred_work_manager: true do
     Delayed::Job.enqueue(TestJobClass.new(job_name))
     TestJobClass.flunk_count = 1
 
-    Benchmark.realtime {
-      Delayed::Worker.new.work_off(1).should == [0, 1]
-      Delayed::Worker.new.work_off(1).should == [1, 0]
-    }.should > 0.5
+    expect(Benchmark.realtime {
+      expect(Delayed::Worker.new.work_off(1)).to eq([0, 1])
+      expect(Delayed::Worker.new.work_off(1)).to eq([1, 0])
+    }).to be > 0.5
   end
 
   it "should support run_at", deferred_work_manager: true do
-    Benchmark.realtime {
+    expect(Benchmark.realtime {
       Delayed::Job.enqueue(TestJobClass.new("job1"), :run_at => Time.now + 5)
       Delayed::Job.enqueue(TestJobClass.new("job2"), :run_at => Time.now + 1)
-      Delayed::Worker.new.work_off(2).should == [2, 0]
-    }.should > 0.1
-    @called.should == ["job2", "job1"]
+      expect(Delayed::Worker.new.work_off(2)).to eq([2, 0])
+    }).to be > 0.1
+    expect(@called).to eq(["job2", "job1"])
   end
 
   it "should support job priorities" do
@@ -94,7 +94,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     Delayed::Job.enqueue(TestJobClass.new("low3"), :priority => 0)
     Delayed::Job.enqueue(TestJobClass.new("low4"), :priority => 0)
     Delayed::Worker.new.work_off(5)
-    @called.should == ["high", "low1", "low2", "low3", "low4"]
+    expect(@called).to eq(["high", "low1", "low2", "low3", "low4"])
   end
 
   it "should not run a failed job" do
@@ -110,7 +110,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     job.last_error = "Some error"
     job.save
 
-    job.should be_failed
+    expect(job).to be_failed
 
     Delayed::Job.tomqueue_republish
 
@@ -119,21 +119,21 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     Delayed::Worker.new.work_off(1)
 
     # And, since it never got run, it should still exist!
-    Delayed::Job.find_by_id(job.id).should_not be_nil
+    expect(Delayed::Job.find_by_id(job.id)).to_not be_nil
     # And it should have been noisy, too.
-    File.read(logfile.path).should =~ /Received notification for failed job #{job.id}/
+    expect(File.read(logfile.path)).to be =~ /Received notification for failed job #{job.id}/
   end
 
   it "should remove the job from the queue after it has run" do
     Delayed::Job.enqueue(TestJobClass.new(job_name))
 
     sleep 0.25
-    Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count].should == 1
+    expect(Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count]).to eq(1)
     Delayed::Worker.new.work_off(1)
 
     sleep 2
     expect(unacked_message_count(TomQueue::NORMAL_PRIORITY)).to eq 0
-    Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count].should == 0
+    expect(Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count]).to eq(0)
   end
 
   # it "should re-run the job once max_run_time is reached if, say, a worker crashes" do
