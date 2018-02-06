@@ -31,7 +31,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     end
 
     def reschedule_at(time, attempts)
-      time + 0.5
+      time + 2.0
     end
 
   end
