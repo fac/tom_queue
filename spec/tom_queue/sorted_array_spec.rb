@@ -3,7 +3,7 @@ require 'tom_queue/helper'
 describe Range, 'tomqueue_binary_search' do
 
   it "should return nil for an empty range" do
-    (0...0).tomqueue_binary_search.should be_nil
+    expect((0...0).tomqueue_binary_search).to be_nil
   end
 
   describe "for a single item range" do
@@ -13,19 +13,19 @@ describe Range, 'tomqueue_binary_search' do
       range.tomqueue_binary_search do |index|
         @index = index
       end
-      @index.should == 5
+      expect(@index).to eq 5
     end
 
     it "should return 0 if the yield returned -1" do
-      range.tomqueue_binary_search { |index| -1 }.should == 5
+      expect(range.tomqueue_binary_search { |index| -1 }).to eq 5
     end
 
     it "should return 1 if the yield returned +1" do
-      range.tomqueue_binary_search { |index| +1 }.should == 6
+      expect(range.tomqueue_binary_search { |index| +1 }).to eq 6
     end
 
     it "should return 0 if the yield returned 0" do
-      range.tomqueue_binary_search { |index| 0 }.should == 5
+      expect(range.tomqueue_binary_search { |index| 0 }).to eq 5
     end
   end
 
@@ -37,14 +37,14 @@ describe Range, 'tomqueue_binary_search' do
         @index = index
         0
       end
-      @index.should == 7
+      expect(@index).to eq 7
     end
 
     it "should return the lower number if the block returns -1" do
-      range.tomqueue_binary_search { |i| -1 }.should == 7
+      expect(range.tomqueue_binary_search { |i| -1 }).to eq 7
     end
     it "should return the lower number if the block returns 0" do
-      range.tomqueue_binary_search { |i| 0 }.should == 7
+      expect(range.tomqueue_binary_search { |i| 0 }).to eq 7
     end
 
     it "should yield the second number if the block returns +1" do
@@ -56,7 +56,7 @@ describe Range, 'tomqueue_binary_search' do
           0
         end
       end
-      @yielded.should be_truthy
+      expect(@yielded).to be_truthy
     end
   end
 
@@ -68,23 +68,23 @@ describe Range, 'tomqueue_binary_search' do
         @index = index
         0
       end
-      @index.should == 8
+      expect(@index).to eq 8
     end
 
     it "should return the mid-point if the block returns 0" do
-      range.tomqueue_binary_search { |index| 0 }.should == 8
+      expect(range.tomqueue_binary_search { |index| 0 }).to eq 8
     end
 
     it "should recurse to the right on +1" do
       @yielded = []
-      range.tomqueue_binary_search { |index| @yielded << index; 1 }.should == 10
-      @yielded.should == [8,9]
+      expect(range.tomqueue_binary_search { |index| @yielded << index; 1 }).to eq 10
+      expect(@yielded).to eq [8,9]
     end
 
     it "should recurse to the left on -1" do
       @yielded = []
-      range.tomqueue_binary_search { |index| @yielded << index; -1 }.should == 7
-      @yielded.should == [8,7]
+      expect(range.tomqueue_binary_search { |index| @yielded << index; -1 }).to eq 7
+      expect(@yielded).to eq [8,7]
     end
 
   end
@@ -99,11 +99,11 @@ describe Range, 'tomqueue_binary_search' do
     end
 
     it "should get the correct result" do
-      @result.should == value
+      expect(@result).to eq value
     end
 
     it "should yield the correct values" do
-      @yielded.should == [49, 24, 36, 42, 45, 43]
+      expect(@yielded).to eq [49, 24, 36, 42, 45, 43]
     end
   end
 
@@ -117,11 +117,11 @@ describe Range, 'tomqueue_binary_search' do
     end
 
     it "should get the correct result" do
-      @result.should == value
+      expect(@result).to eq value
     end
 
     it "should yield the correct values" do
-      @yielded.should == [1,2,3]
+      expect(@yielded).to eq [1,2,3]
     end
   end
 
@@ -140,7 +140,7 @@ describe TomQueue::SortedArray do
     array << 2
     array << 1
     array << 3
-    array.should == [1,2,3,4,5]
+    expect(array).to eq [1,2,3,4,5]
   end
 
   it "should work for all permutations of insertion" do
@@ -150,11 +150,11 @@ describe TomQueue::SortedArray do
       permutation.each do |i|
         array << i
       end
-      array.should == numbers
+      expect(array).to eq numbers
     end
   end
 
   it "should return itself when inserting" do
-    (array << 3).should == array
+    expect(array << 3).to eq array
   end
 end

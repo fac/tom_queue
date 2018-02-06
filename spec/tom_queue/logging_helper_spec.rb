@@ -18,42 +18,42 @@ describe TomQueue::LoggingHelper do
 
     it "should emit a debug message passed as an argument" do
       debug "Simple to compute"
-      output.should =~ /^D.+Simple to compute$/
+      expect(output).to be =~ /^D.+Simple to compute$/
     end
 
     it "should emit an info message passed as an argument" do
       info "Simple to compute"
-      output.should =~ /^I.+Simple to compute$/
+      expect(output).to be =~ /^I.+Simple to compute$/
     end
 
     it "should emit a warning message passed as an argument" do
       warn "Simple to compute"
-      output.should =~ /^W.+Simple to compute$/
+      expect(output).to be =~ /^W.+Simple to compute$/
     end
 
     it "should emit an error message passed as an argument" do
       error "Simple to compute"
-      output.should =~ /^E.+Simple to compute$/
+      expect(output).to be =~ /^E.+Simple to compute$/
     end
 
     it "should emit a debug message returned from the block" do
       debug { "Expensive to compute" }
-      output.should =~ /^D.+Expensive to compute$/
+      expect(output).to be =~ /^D.+Expensive to compute$/
     end
 
     it "should emit a info message returned from the block" do
       info { "Expensive to compute" }
-      output.should =~ /^I.+Expensive to compute$/
+      expect(output).to be =~ /^I.+Expensive to compute$/
     end
 
     it "should emit a warn message returned from the block" do
       warn { "Expensive to compute" }
-      output.should =~ /^W.+Expensive to compute$/
+      expect(output).to be =~ /^W.+Expensive to compute$/
     end
 
     it "should emit a error message returned from the block" do
       error { "Expensive to compute" }
-      output.should =~ /^E.+Expensive to compute$/
+      expect(output).to be =~ /^E.+Expensive to compute$/
     end
   end
 
@@ -65,7 +65,7 @@ describe TomQueue::LoggingHelper do
     it "should not yield the debug block" do
       @called = false
       debug { @called = true }
-      @called.should be_falsy
+      expect(@called).to be_falsy
     end
   end
 
@@ -77,12 +77,12 @@ describe TomQueue::LoggingHelper do
     it "should not yield the debug block" do
       @called = false
       debug { @called = true }
-      @called.should be_falsy
+      expect(@called).to be_falsy
     end
     it "should not yield the info block" do
       @called = false
       info { @called = true }
-      @called.should be_falsy
+      expect(@called).to be_falsy
     end
   end
 
@@ -94,17 +94,17 @@ describe TomQueue::LoggingHelper do
     it "should not yield the debug block" do
       @called = false
       debug { @called = true }
-      @called.should be_falsy
+      expect(@called).to be_falsy
     end
     it "should not yield the info block" do
       @called = false
       info { @called = true }
-      @called.should be_falsy
+      expect(@called).to be_falsy
     end
     it "should not yield the warn block" do
       @called = false
       warn { @called = true }
-      @called.should be_falsy
+      expect(@called).to be_falsy
     end
   end
 
@@ -115,22 +115,22 @@ describe TomQueue::LoggingHelper do
     it "should not yield the debug block" do
       @called = false
       debug { @called = true }
-      @called.should be_falsy
+      expect(@called).to be_falsy
     end
     it "should not yield the info block" do
       @called = false
       info { @called = true }
-      @called.should be_falsy
+      expect(@called).to be_falsy
     end
     it "should not yield the warn block" do
       @called = false
       warn { @called = true }
-      @called.should be_falsy
+      expect(@called).to be_falsy
     end
     it "should not yield the error block" do
       @called = false
       error { @called = true }
-      @called.should be_falsy
+      expect(@called).to be_falsy
     end
     it "should drop debug messages silently" do
       debug "Message"
