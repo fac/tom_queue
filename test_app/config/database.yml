@@ -2,13 +2,13 @@ development:
   adapter: mysql2
   username: root
   database: tomqueue_dev
-  host: localhost
+  host: 127.0.0.1
   strict: false
 
 test:
   adapter: mysql2
   username: root
   database: tomqueue_test
-  host: localhost
+  host: 127.0.0.1
   strict: false
   pool: 10
