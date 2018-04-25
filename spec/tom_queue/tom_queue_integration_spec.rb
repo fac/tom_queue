@@ -206,6 +206,8 @@ describe TomQueue::QueueManager, "simple publish / pop" do
         manager.publish(work)
       end
 
+      sleep 0.1 until manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count] == 0
+
       # Now publish a bunch of messages to cause the threads to exit the loop
       consumers.each { |c| c.signal_shutdown }
       consumers.each { |c| c.thread.join }
