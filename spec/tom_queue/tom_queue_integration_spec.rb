@@ -140,6 +140,12 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     Time.now.to_f.should > execution_time.to_f
   end
 
+  it "should reopen closed channels" do
+    manager.channel.close
+    manager.publish('some work')
+    manager.pop.payload.should == 'some work'
+  end
+
   describe "slow tests", :timeout => 100 do
 
     class QueueConsumerThread
