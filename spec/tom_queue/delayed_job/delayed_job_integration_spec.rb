@@ -131,7 +131,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count].should == 1
     Delayed::Worker.new.work_off(1)
 
-    sleep 3
+    sleep 4
     expect(unacked_message_count(TomQueue::NORMAL_PRIORITY)).to eq 0
     Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].status[:message_count].should == 0
   end

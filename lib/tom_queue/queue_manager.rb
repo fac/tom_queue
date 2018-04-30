@@ -108,7 +108,7 @@ module TomQueue
     #
     # Retunrs nil
     def setup_amqp!
-      debug "[setup_amqp!] (re) openining channels"
+      debug "[setup_amqp!] (re) opening channels"
       # Test convenience
       @publisher_channel && @publisher_channel.close
       @channel && @channel.close
@@ -155,6 +155,8 @@ module TomQueue
       raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.nil? or run_at.is_a?(Time)
 
       @publisher_mutex.synchronize do
+        ensure_channel_open
+
         if run_at > Time.now
           publish_deferred work, run_at, priority
         else
@@ -166,6 +168,7 @@ module TomQueue
 
     def publish_immediate(work, run_at, priority)
       debug "[publish] Pushing work onto exchange '#{@exchange.name}' with routing key '#{priority}'"
+
       @exchange.publish(work, {
           :routing_key => priority,
           :headers => {
@@ -272,6 +275,10 @@ module TomQueue
 
       # Return the message we got passed.
       TomQueue::Work.new(self, response, header, payload)
+    end
+
+    def ensure_channel_open
+      channel.open if channel.closed?
     end
   end
 end

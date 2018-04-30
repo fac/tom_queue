@@ -32,9 +32,11 @@ describe TomQueue::QueueManager do
     end
 
     it "should stick to the same bunny object, even if TomQueue.bunny changes" do
+      old_bunny = TomQueue.bunny
       manager
       TomQueue.bunny = "A FAKE RABBIT"
       manager.bunny.should be_a(Bunny::Session)
+      TomQueue.bunny = old_bunny
     end
   end
 
