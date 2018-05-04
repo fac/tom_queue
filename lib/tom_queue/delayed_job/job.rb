@@ -65,6 +65,8 @@ module TomQueue
       include TomQueue::LoggingHelper
       include TomQueue::DelayedJob::ExternalMessages
 
+      class_attribute :tomqueue_manager
+
       # Public: This provides a shared queue manager object, instantiated on
       # the first call
       #
