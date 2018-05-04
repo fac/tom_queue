@@ -96,7 +96,7 @@ module TomQueue
 
       # Internal: set up an exchange for publishing messages to
       def exchange
-        @exchange ||= Delayed::Job.tomqueue_manager.channel.exchange(@name,
+        Delayed::Job.tomqueue_manager.channel.exchange(@name,
           :type => @type,
           :auto_delete => @auto_delete,
           :durable => @durable
@@ -160,5 +160,3 @@ module TomQueue
 
   end
 end
-
-
