@@ -47,6 +47,15 @@ describe TomQueue, "once hooked" do
     end
   end
 
+  describe "Delayed::Job.reset_tomqueue_manager" do
+    it "should create a new manager" do
+      manager = Delayed::Job.tomqueue_manager
+      Delayed::Job.reset_tomqueue_manager
+      expect(Delayed::Job.tomqueue_manager).not_to eq manager
+    end
+  end
+
+
   describe "Delayed::Job#tomqueue_digest" do
 
     it "should return a different value when the object is saved" do

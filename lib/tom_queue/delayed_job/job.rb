@@ -65,8 +65,6 @@ module TomQueue
       include TomQueue::LoggingHelper
       include TomQueue::DelayedJob::ExternalMessages
 
-      class_attribute :tomqueue_manager
-
       # Public: This provides a shared queue manager object, instantiated on
       # the first call
       #
@@ -75,6 +73,10 @@ module TomQueue
         @@tomqueue_manager ||= TomQueue::QueueManager.new.tap do |manager|
           setup_external_handler(manager)
         end
+      end
+
+      def self.reset_tomqueue_manager
+        @@tomqueue_manager = nil
       end
 
       # Public: This calls #tomqueue_publish on all jobs currently
