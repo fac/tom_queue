@@ -37,6 +37,7 @@ RSpec.configure do |r|
 
   r.around do |test|
     TomQueue.default_prefix = "test-#{Time.now.to_f}"
+    TomQueue.publisher = TomQueue::Publisher.new
     TheBunny.start
     TomQueue.bunny = TheBunny
     test.call

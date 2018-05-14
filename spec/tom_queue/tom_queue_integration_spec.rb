@@ -140,10 +140,58 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     Time.now.to_f.should > execution_time.to_f
   end
 
-  it "should reopen closed channels" do
-    manager.channel.close
-    manager.publish('some work')
-    manager.pop.payload.should == 'some work'
+  it "uses the supplied publisher for immediate publication" do
+    TomQueue.publisher = MyPublisher.new
+    run_at = Time.now
+
+    manager.publish("future-work", run_at: run_at)
+
+    expect(TomQueue.publisher.publish_args).to eq [[
+      TomQueue.bunny,
+      {
+        exchange_type: :topic,
+        exchange_name: "#{manager.prefix}.work",
+        exchange_options: { durable: true, auto_delete: false},
+        message_payload: "future-work",
+        message_options: {
+          routing_key: "normal",
+          headers: { job_priority: "normal", run_at: run_at.iso8601(4) }
+        }
+      }
+    ]]
+  end
+
+  it "uses the supplied publisher for future publication" do
+    TomQueue.publisher = MyPublisher.new
+    run_at = Time.now + 0.2
+
+    manager.publish("future-work", run_at: run_at )
+
+    expect(TomQueue.publisher.publish_args).to eq [[
+      TomQueue.bunny,
+      {
+        exchange_type: :fanout,
+        exchange_name: "#{manager.prefix}.work.deferred",
+        exchange_options: { durable: true, auto_delete: false},
+        message_payload: "future-work",
+        message_options: {
+          mandatory: true,
+          headers: { job_priority: "normal", run_at: run_at.to_f }
+        }
+      }
+    ]]
+  end
+
+  class MyPublisher
+    attr_reader :publish_args
+
+    def initialize
+      @publish_args = []
+    end
+
+    def publish(*args)
+      @publish_args << args
+    end
   end
 
   describe "slow tests", :timeout => 100 do

@@ -312,8 +312,10 @@ describe TomQueue, "once hooked" do
     it "should call #tomqueue_publish on all DB records" do
       10.times { Delayed::Job.create! }
 
-      Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].purge
       queue = Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY]
+      sleep 0.25
+      queue.message_count.should == 10
+      queue.purge
       queue.message_count.should == 0
 
       Delayed::Job.tomqueue_republish
@@ -325,6 +327,7 @@ describe TomQueue, "once hooked" do
       first_ids = 10.times.collect { Delayed::Job.create!.id }
       second_ids = 7.times.collect { Delayed::Job.create!.id }
 
+      sleep 0.25
       Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY].purge
       queue = Delayed::Job.tomqueue_manager.queues[TomQueue::NORMAL_PRIORITY]
       queue.message_count.should == 0

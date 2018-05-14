@@ -124,10 +124,7 @@ module TomQueue
 
       @queues = {}
 
-      # @exchange is used for both publishing and subscription so it's declared on the @channel
       @exchange = @channel.topic("#{@prefix}.work", :durable => true, :auto_delete => false)
-      # @deferred_exchange is used only for publishing so declare it on the @publisher_channel
-      @deferred_exchange = @publisher_channel.fanout("#{@prefix}.work.deferred", :durable => true, :auto_delete => false)
 
       PRIORITIES.each do |priority|
         @queues[priority] = @channel.queue("#{@prefix}.balance.#{priority}", :durable => true)
@@ -169,19 +166,33 @@ module TomQueue
     def publish_immediate(work, run_at, priority)
       debug "[publish] Pushing work onto exchange '#{@exchange.name}' with routing key '#{priority}'"
 
-      @exchange.publish(work, {
-          :routing_key => priority,
-          :headers => {
-            :job_priority => priority,
-            :run_at       => run_at.iso8601(4)
-          }
-        })
+      TomQueue.publisher.publish(
+        @bunny,
+        exchange_type: :topic,
+        exchange_name: "#{@prefix}.work",
+        exchange_options: { durable:true, auto_delete:false },
+        message_payload: work,
+        message_options: {
+          routing_key: priority,
+          headers: { job_priority: priority, run_at: run_at.iso8601(4) }
+        }
+      )
     end
 
     def publish_deferred(work, run_at, priority)
       debug "[publish] Handing work to deferred work manager to be run in #{run_at - Time.now}"
 
-      @deferred_exchange.publish(work, mandatory: true, headers: {priority: priority, run_at: run_at.to_f})
+      TomQueue.publisher.publish(
+        @bunny,
+        exchange_type: :fanout,
+        exchange_name: "#{@prefix}.work.deferred",
+        exchange_options: { durable:true, auto_delete:false },
+        message_payload: work,
+        message_options: {
+          mandatory: true,
+          headers: { job_priority: priority, run_at: run_at.to_f }
+        }
+      )
     end
 
     # Public: Acknowledge some work
