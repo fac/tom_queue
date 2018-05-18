@@ -13,7 +13,6 @@ begin
   RestClient.put("http://guest:guest@localhost:15672/api/permissions/test/guest", '{"configure":".*","write":".*","read":".*"}', :content_type => :json, :accept => :json)
   TEST_AMQP_CONFIG = {:host => 'localhost', :vhost => 'test', :user => 'guest', :password => 'guest'}
   TheBunny = Bunny.new(TEST_AMQP_CONFIG)
-  TheBunny.start
 rescue Errno::ECONNREFUSED
   $stderr.puts "\033[1;31mFailed to connect to RabbitMQ, is it running?\033[0m\n\n"
   raise
@@ -34,12 +33,15 @@ RSpec.configure do |r|
 
   # Make sure all tests see the same Bunny instance
   r.before do |test|
-    TomQueue.bunny = TheBunny
   end
 
   r.around do |test|
     TomQueue.default_prefix = "test-#{Time.now.to_f}"
+    TomQueue.publisher = TomQueue::Publisher.new
+    TheBunny.start
+    TomQueue.bunny = TheBunny
     test.call
+    TheBunny.stop
   end
 
   r.before do

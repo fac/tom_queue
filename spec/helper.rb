@@ -18,7 +18,12 @@ db_adapter ||= 'mysql'
 
 begin
   config = YAML.load(File.read('spec/database.yml'))
-  ActiveRecord::Base.establish_connection config[db_adapter]
+  db_config = config[db_adapter]
+  ActiveRecord::Base.establish_connection(db_config.slice(*%w{adapter host username password}))
+  ActiveRecord::Base.connection.drop_database(db_config["database"]) rescue nil
+  ActiveRecord::Base.connection.create_database(db_config["database"])
+  ActiveRecord::Base.establish_connection(db_config)
+
   ActiveRecord::Base.logger = Delayed::Worker.logger
   ActiveRecord::Migration.verbose = false
 

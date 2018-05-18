@@ -6,10 +6,10 @@ describe TomQueue::QueueManager do
   let(:channel) { TomQueue.bunny.create_channel }
 
   describe "basic creation" do
-  
+
     it "should be a thing" do
-      defined?(TomQueue::QueueManager).should be_true
-    end  
+      defined?(TomQueue::QueueManager).should be_truthy
+    end
 
     it "should be created with a name-prefix" do
       manager.prefix.should =~ /^test-[\d.]+$/
@@ -32,9 +32,11 @@ describe TomQueue::QueueManager do
     end
 
     it "should stick to the same bunny object, even if TomQueue.bunny changes" do
+      old_bunny = TomQueue.bunny
       manager
       TomQueue.bunny = "A FAKE RABBIT"
       manager.bunny.should be_a(Bunny::Session)
+      TomQueue.bunny = old_bunny
     end
   end
 
@@ -81,7 +83,7 @@ describe TomQueue::QueueManager do
       end
 
       it "should throw an ArgumentError exception if :run_at isn't a Time object" do
-        lambda { 
+        lambda {
           manager.publish("future", :run_at => "around 10pm ?")
         }.should raise_exception(ArgumentError, /must be a Time object/)
       end

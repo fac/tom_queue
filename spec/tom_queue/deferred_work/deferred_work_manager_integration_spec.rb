@@ -29,7 +29,7 @@ describe "DeferredWorkManager", "#stop" do
   end
 
   before(:each) do
-    sleep 0.2
+    sleep 0.5
 
     Process.kill("SIGTERM", pid)
     _, @status = Process.waitpid2(pid)

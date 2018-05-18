@@ -65,7 +65,7 @@ describe TomQueue::LoggingHelper do
     it "should not yield the debug block" do
       @called = false
       debug { @called = true }
-      @called.should be_false
+      @called.should be_falsy
     end
   end
 
@@ -77,12 +77,12 @@ describe TomQueue::LoggingHelper do
     it "should not yield the debug block" do
       @called = false
       debug { @called = true }
-      @called.should be_false
+      @called.should be_falsy
     end
     it "should not yield the info block" do
       @called = false
       info { @called = true }
-      @called.should be_false
+      @called.should be_falsy
     end
   end
 
@@ -94,17 +94,17 @@ describe TomQueue::LoggingHelper do
     it "should not yield the debug block" do
       @called = false
       debug { @called = true }
-      @called.should be_false
+      @called.should be_falsy
     end
     it "should not yield the info block" do
       @called = false
       info { @called = true }
-      @called.should be_false
+      @called.should be_falsy
     end
     it "should not yield the warn block" do
       @called = false
       warn { @called = true }
-      @called.should be_false
+      @called.should be_falsy
     end
   end
 
@@ -115,22 +115,22 @@ describe TomQueue::LoggingHelper do
     it "should not yield the debug block" do
       @called = false
       debug { @called = true }
-      @called.should be_false
+      @called.should be_falsy
     end
     it "should not yield the info block" do
       @called = false
       info { @called = true }
-      @called.should be_false
+      @called.should be_falsy
     end
     it "should not yield the warn block" do
       @called = false
       warn { @called = true }
-      @called.should be_false
+      @called.should be_falsy
     end
     it "should not yield the error block" do
       @called = false
       error { @called = true }
-      @called.should be_false
+      @called.should be_falsy
     end
     it "should drop debug messages silently" do
       debug "Message"
@@ -146,7 +146,7 @@ describe TomQueue::LoggingHelper do
     end
   end
 
-  
+
 
 end
 

@@ -75,6 +75,10 @@ module TomQueue
         end
       end
 
+      def self.reset_tomqueue_manager
+        @@tomqueue_manager = nil
+      end
+
       # Public: This calls #tomqueue_publish on all jobs currently
       # in the delayed_job table. This will probably end up with
       # duplicate messages, but the worker should do the right thing
