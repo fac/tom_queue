@@ -185,7 +185,10 @@ module TomQueue
       # Returns a string
       BROKEN_DIGEST_CLASSES = [DateTime, Time, ActiveSupport::TimeWithZone]
       def tomqueue_digest
-        digest_string = self.attributes.map { |k,v| BROKEN_DIGEST_CLASSES.include?(v.class) ? [k,v.to_i] : [k,v.to_s] }.to_s
+        digest_string = self.attributes.
+          sort { |a, b| a[0] <=> b[0] }. # sort by key to ensure consistent digests
+          map { |k,v| BROKEN_DIGEST_CLASSES.include?(v.class) ? [k,v.to_i] : [k,v.to_s] }.
+          to_s
         Digest::MD5.hexdigest(digest_string)
       end
 
@@ -237,22 +240,21 @@ module TomQueue
               job = false
 
             elsif job.locked_at || job.locked_by || (!block_given? || yield(job) == true)
+              if job.run_at > self.db_time_now + 5
+                warn "[tomqueue] Received early notification for job #{job.id} - expected at #{job.run_at}"
 
-                if job.run_at > self.db_time_now + 5
-                  warn "[tomqueue] Received early notification for job #{job.id} - expected at #{job.run_at}"
+                job.tomqueue_publish(job.run_at)
 
-                  job.tomqueue_publish(job.run_at)
+                job = nil
+              else
+                job.skip_publish = true
 
-                  job = nil
-                else
-                  job.skip_publish = true
+                job.locked_by = worker.name
+                job.locked_at = self.db_time_now
+                job.save!
 
-                  job.locked_by = worker.name
-                  job.locked_at = self.db_time_now
-                  job.save!
-
-                  job.skip_publish = nil
-                end
+                job.skip_publish = nil
+              end
             else
               job = nil
             end

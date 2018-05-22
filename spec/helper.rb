@@ -25,7 +25,6 @@ begin
   ActiveRecord::Base.establish_connection(db_config)
 
   ActiveRecord::Base.logger = Delayed::Worker.logger
-  ActiveRecord::Base.raise_in_transactional_callbacks = true
   ActiveRecord::Migration.verbose = false
 
   ActiveRecord::Schema.define do

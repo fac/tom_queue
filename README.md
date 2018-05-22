@@ -130,4 +130,13 @@ Cool. Is it safe to use?
 
 Sure! We use it in production at FreeAgent pushing hundreds of thousands of jobs a day. That said, you do so at your own risk, and I'd advise understanding how it behaves before relying on it!
 
-Do let us know if you find any bugs or improve it (or just manage to get it to work!!) open an issue or pull-request here or alternatively ping me a mail at thomas -at- freeagent -dot- com 
+Do let us know if you find any bugs or improve it (or just manage to get it to work!!) open an issue or pull-request here or alternatively ping me a mail at thomas -at- freeagent -dot- com
+
+### Development
+
+#### Running specs
+
+```
+bundle exec appraisal install
+bundle exec appraisal rspec spec
+```
