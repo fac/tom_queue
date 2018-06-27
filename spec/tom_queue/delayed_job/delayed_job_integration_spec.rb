@@ -31,7 +31,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     end
 
     def reschedule_at(time, attempts)
-      time + 0.5
+      time + 2
     end
 
   end
@@ -73,7 +73,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
     Benchmark.realtime {
       Delayed::Worker.new.work_off(1).should == [0, 1]
       Delayed::Worker.new.work_off(1).should == [1, 0]
-    }.should > 0.5
+    }.should > 1.0
   end
 
   it "should support run_at", deferred_work_manager: true do
