@@ -3,7 +3,7 @@
 require_relative "lib/tom_queue/version"
 
 Gem::Specification.new do |spec|
-  spec.add_dependency   'activerecord', '>= 4.1', '< 5.2'
+  spec.add_dependency   'activerecord', '>= 4.1', '< 5.3'
   spec.add_dependency   'delayed_job_active_record'
   spec.add_dependency   'bunny', "~> 2.2"
   spec.authors        = ["Thomas Haggett"]
