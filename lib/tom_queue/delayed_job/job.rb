@@ -63,16 +63,13 @@ module TomQueue
     class Job < ::Delayed::Backend::ActiveRecord::Job
 
       include TomQueue::LoggingHelper
-      include TomQueue::DelayedJob::ExternalMessages
 
       # Public: This provides a shared queue manager object, instantiated on
       # the first call
       #
       # Returns a TomQueue::QueueManager instance
       def self.tomqueue_manager
-        @@tomqueue_manager ||= TomQueue::QueueManager.new.tap do |manager|
-          setup_external_handler(manager)
-        end
+        @@tomqueue_manager ||= TomQueue::QueueManager.new
       end
 
       def self.reset_tomqueue_manager
@@ -288,52 +285,38 @@ module TomQueue
 
           nil
         else
+          decoded_payload = JSON.load(work.payload)
+          job_id = decoded_payload['delayed_job_id']
+          digest = decoded_payload['delayed_job_digest']
 
-          passthrough = resolve_external_handler(work)
-          if passthrough == true
-            work.ack!
+          debug "[reserve] Popped notification for #{job_id}"
+          locked_job = self.acquire_locked_job(job_id, worker) do |job|
+            digest.nil? || job.tomqueue_digest == digest
+          end
 
-            nil
-          elsif passthrough == false
+          if locked_job
+            info "[reserve] Acquired DB lock for job #{job_id}"
 
-            decoded_payload = JSON.load(work.payload)
-            job_id = decoded_payload['delayed_job_id']
-            digest = decoded_payload['delayed_job_digest']
-
-            debug "[reserve] Popped notification for #{job_id}"
-            locked_job = self.acquire_locked_job(job_id, worker) do |job|
-              digest.nil? || job.tomqueue_digest == digest
-            end
-
-            if locked_job
-              info "[reserve] Acquired DB lock for job #{job_id}"
-
-              locked_job.tomqueue_work = work
-            else
-              work.ack!
-
-              if locked_job == false
-                # In this situation, we re-publish a message to run in max_run_time
-                # since the likely scenario is a woker has crashed and the original message
-                # was re-delivered.
-                #
-                # We schedule another AMQP message to arrive when the job's lock will have expired.
-                Delayed::Job.find_by_id(job_id).tap do |job|
-                  debug { "[reserve] Notified about locked job #{job.id}, will schedule follow up at #{job.locked_at + max_run_time + 1}" }
-                  job && job.tomqueue_publish(job.locked_at + max_run_time + 1)
-                end
-
-                locked_job = nil
-              end
-            end
-
-            locked_job
-
+            locked_job.tomqueue_work = work
           else
             work.ack!
 
-            passthrough
+            if locked_job == false
+              # In this situation, we re-publish a message to run in max_run_time
+              # since the likely scenario is a woker has crashed and the original message
+              # was re-delivered.
+              #
+              # We schedule another AMQP message to arrive when the job's lock will have expired.
+              Delayed::Job.find_by_id(job_id).tap do |job|
+                debug { "[reserve] Notified about locked job #{job.id}, will schedule follow up at #{job.locked_at + max_run_time + 1}" }
+                job && job.tomqueue_publish(job.locked_at + max_run_time + 1)
+              end
+
+              locked_job = nil
+            end
           end
+
+          locked_job
         end
 
       rescue JSON::ParserError => e
