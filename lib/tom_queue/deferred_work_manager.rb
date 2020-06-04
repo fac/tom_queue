@@ -32,6 +32,7 @@ module TomQueue
       setup_amqp
       @deferred_set = DeferredWorkSet.new
       @out_manager = QueueManager.new(prefix)
+      @out_manager.start_consumers!
     end
 
 

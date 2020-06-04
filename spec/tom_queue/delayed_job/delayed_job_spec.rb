@@ -299,7 +299,10 @@ describe TomQueue, "once hooked" do
   end
 
   describe "Delayed::Job.tomqueue_republish method" do
-    before { Delayed::Job.delete_all }
+    before do
+      Delayed::Job.delete_all
+      Delayed::Job.tomqueue_manager.start_consumers!
+    end
 
     it "should exist" do
       Delayed::Job.respond_to?(:tomqueue_republish).should be_truthy
