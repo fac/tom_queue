@@ -84,7 +84,6 @@ module TomQueue
     # Returns an instance, duh!
     def initialize(prefix = nil, ident=nil)
       @ident = ident
-      @bunny = TomQueue.bunny
       @prefix = prefix || TomQueue.default_prefix || raise(ArgumentError, 'prefix is required')
 
       # We create our on work pool so we don't continually create and
@@ -97,7 +96,11 @@ module TomQueue
       @mutex = Mutex.new
       @condvar = ConditionVariable.new
 
+      # Publishing is going to come in from the host app so create a dedicated channel and mutex
+      @publisher_mutex = Mutex.new
+
       # Call the initial setup_amqp! to create the channels, exchanges and queues
+      @amqp_setup = false
       setup_amqp!
     end
 
@@ -109,16 +112,13 @@ module TomQueue
     # Retunrs nil
     def setup_amqp!
       debug "[setup_amqp!] (re) opening channels"
+
+      return unless TomQueue.bunny
+
       # Test convenience
-      @publisher_channel && @publisher_channel.close
       @channel && @channel.close
 
-      # Publishing is going to come in from the host app so create a dedicated channel and mutex
-      @publisher_channel = Bunny::Channel.new(@bunny, nil, @work_pool)
-      @publisher_channel.open
-      @publisher_mutex = Mutex.new
-
-      @channel = Bunny::Channel.new(@bunny, nil, @work_pool)
+      @channel = Bunny::Channel.new(TomQueue.bunny, nil, @work_pool)
       @channel.open
       @channel.basic_qos(1, true)
 
@@ -131,6 +131,7 @@ module TomQueue
         @queues[priority].bind(@exchange, :routing_key => priority)
       end
 
+      @amqp_setup = true
       nil
     end
 
@@ -152,8 +153,6 @@ module TomQueue
       raise ArgumentError, ':run_at must be a Time object if specified' unless run_at.nil? or run_at.is_a?(Time)
 
       @publisher_mutex.synchronize do
-        ensure_channel_open
-
         if run_at > Time.now
           publish_deferred work, run_at, priority
         else
@@ -164,10 +163,8 @@ module TomQueue
     end
 
     def publish_immediate(work, run_at, priority)
-      debug "[publish] Pushing work onto exchange '#{@exchange.name}' with routing key '#{priority}'"
-
       TomQueue.publisher.publish(
-        @bunny,
+        TomQueue.bunny,
         exchange_type: :topic,
         exchange_name: "#{@prefix}.work",
         exchange_options: { durable:true, auto_delete:false },
@@ -183,7 +180,7 @@ module TomQueue
       debug "[publish] Handing work to deferred work manager to be run in #{run_at - Time.now}"
 
       TomQueue.publisher.publish(
-        @bunny,
+        TomQueue.bunny,
         exchange_type: :fanout,
         exchange_name: "#{@prefix}.work.deferred",
         exchange_options: { durable:true, auto_delete:false },
@@ -233,6 +230,8 @@ module TomQueue
     #          nil if no work is queued.
     def sync_poll_queues
       debug "[pop] Synchronously popping message"
+
+      setup_amqp unless @amqp_setup
 
       response, headers, payload = nil
 
@@ -286,10 +285,6 @@ module TomQueue
 
       # Return the message we got passed.
       TomQueue::Work.new(self, response, header, payload)
-    end
-
-    def ensure_channel_open
-      channel.open if channel.closed?
     end
   end
 end

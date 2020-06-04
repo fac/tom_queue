@@ -26,18 +26,6 @@ describe TomQueue::QueueManager do
         TomQueue::QueueManager.new
       }.should raise_exception(ArgumentError, /prefix is required/)
     end
-
-    it "should use the TomQueue.bunny object" do
-      manager.bunny.should == TomQueue.bunny
-    end
-
-    it "should stick to the same bunny object, even if TomQueue.bunny changes" do
-      old_bunny = TomQueue.bunny
-      manager
-      TomQueue.bunny = "A FAKE RABBIT"
-      manager.bunny.should be_a(Bunny::Session)
-      TomQueue.bunny = old_bunny
-    end
   end
 
   describe "AMQP configuration" do
