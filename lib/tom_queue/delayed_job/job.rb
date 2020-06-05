@@ -274,6 +274,8 @@ module TomQueue
       # Returns Delayed::Job instance for the next job to process.
       def self.reserve(worker, max_run_time = Delayed::Worker.max_run_time)
 
+        tomqueue_manager.ensure_consumers_started!
+
         # Grab a job from the QueueManager - will block here, ensure we can be interrupted!
         Delayed::Worker.raise_signal_exceptions, old_value = true, Delayed::Worker.raise_signal_exceptions
         work = self.tomqueue_manager.pop

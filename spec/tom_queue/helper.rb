@@ -83,3 +83,10 @@ def unacked_message_count(priority)
   response = RestClient.get("http://guest:guest@localhost:15672/api/queues/test/#{queue_name}", :accept => :json)
   JSON.parse(response)["messages_unacknowledged"]
 end
+
+def queue_exists?(queue_name)
+  response = RestClient.get("http://guest:guest@localhost:15672/api/queues/test/#{queue_name}", :accept => :json)
+  true
+rescue RestClient::NotFound
+  false
+end

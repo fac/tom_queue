@@ -2,7 +2,7 @@ require 'tom_queue/helper'
 
 describe TomQueue::QueueManager do
 
-  let(:manager) { TomQueue::QueueManager.new("test-#{Time.now.to_f}") }
+  let(:manager) { TomQueue::QueueManager.new("test-#{Time.now.to_f}").tap(&:start_consumers!) }
   let(:channel) { TomQueue.bunny.create_channel }
 
   describe "basic creation" do
@@ -25,18 +25,6 @@ describe TomQueue::QueueManager do
       lambda {
         TomQueue::QueueManager.new
       }.should raise_exception(ArgumentError, /prefix is required/)
-    end
-
-    it "should use the TomQueue.bunny object" do
-      manager.bunny.should == TomQueue.bunny
-    end
-
-    it "should stick to the same bunny object, even if TomQueue.bunny changes" do
-      old_bunny = TomQueue.bunny
-      manager
-      TomQueue.bunny = "A FAKE RABBIT"
-      manager.bunny.should be_a(Bunny::Session)
-      TomQueue.bunny = old_bunny
     end
   end
 
@@ -201,4 +189,30 @@ describe TomQueue::QueueManager do
     end
   end
 
+  context "with a queue manager without consumers started" do
+    let(:manager) { TomQueue::QueueManager.new("test-#{Time.now.to_f}") }
+
+    it "should raise an exception when popping" do
+      lambda { manager.pop }.should raise_exception(StandardError, "Cannot pop messages, consumers not started")
+    end
+
+    it "should not create any queues" do
+      manager.publish("foo")
+
+      TomQueue::PRIORITIES.each do |priority|
+        queue_name = "#{manager.prefix}.balance.#{priority}"
+        queue_exists?(queue_name).should == false
+      end
+    end
+
+    it "should publish messages" do
+      exchange = channel.topic("#{manager.prefix}.work", durable: true, auto_delete: false)
+      queue = channel.queue("#{manager.prefix}.balance.#{TomQueue::NORMAL_PRIORITY}", durable: true, auto_delete: false, exclusive: false)
+      queue.bind(exchange, routing_key: TomQueue::NORMAL_PRIORITY)
+
+      manager.publish("foo")
+      sleep 0.1
+      queue.pop[2].should == "foo"
+    end
+  end
 end

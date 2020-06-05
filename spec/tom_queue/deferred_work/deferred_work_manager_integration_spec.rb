@@ -105,6 +105,7 @@ describe "DeferredWorkManager integration scenarios"  do
         @manager.start
       end
       @queue_manager = TomQueue::QueueManager.new(@prefix)
+      @queue_manager.start_consumers!
     end
 
     let(:crash!) do

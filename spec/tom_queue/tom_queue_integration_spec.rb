@@ -4,9 +4,9 @@ require 'tom_queue/helper'
 
 describe TomQueue::QueueManager, "simple publish / pop" do
 
-  let(:manager) { TomQueue::QueueManager.new(TomQueue.default_prefix, 'manager') }
-  let(:consumer) { TomQueue::QueueManager.new(manager.prefix, 'consumer1') }
-  let(:consumer2) { TomQueue::QueueManager.new(manager.prefix, 'consumer2') }
+  let(:manager) { TomQueue::QueueManager.new(TomQueue.default_prefix).tap(&:start_consumers!) }
+  let(:consumer) { TomQueue::QueueManager.new(manager.prefix).tap(&:start_consumers!) }
+  let(:consumer2) { TomQueue::QueueManager.new(manager.prefix).tap(&:start_consumers!) }
 
   it "should pop a previously published message" do
     manager.publish('some work')
@@ -249,7 +249,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       # Run both consumers, in parallel threads, so in some cases,
       # there should be a thread waiting for work
       consumers = 16.times.collect do |i|
-        consumer = TomQueue::QueueManager.new(manager.prefix, "thread-#{i}")
+        consumer = TomQueue::QueueManager.new(manager.prefix).tap(&:start_consumers!)
         QueueConsumerThread.new(consumer) { |work| sleep rand(0.5) }.start!
       end
 
@@ -280,7 +280,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       # Run both consumers, in parallel threads, so in some cases,
       # there should be a thread waiting for work
       consumers = 10.times.collect do |i|
-        consumer = TomQueue::QueueManager.new(manager.prefix, "thread-#{i}")
+        consumer = TomQueue::QueueManager.new(manager.prefix).tap(&:start_consumers!)
         QueueConsumerThread.new(consumer) { |work| sleep rand(0.5) }.start!
       end
 
@@ -321,7 +321,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
     it "should work with lots of deferred work on the queue, and still schedule all messages", deferred_work_manager: true do
       # sit in a loop to pop it all off again
       consumers = 5.times.collect do |i|
-        consumer = TomQueue::QueueManager.new(manager.prefix, "thread-#{i}")
+        consumer = TomQueue::QueueManager.new(manager.prefix).tap(&:start_consumers!)
         QueueConsumerThread.new(consumer).start!
       end
 

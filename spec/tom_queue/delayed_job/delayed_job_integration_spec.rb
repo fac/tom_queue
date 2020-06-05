@@ -50,6 +50,7 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
 
     # Reset the flunk count
     TestJobClass.flunk_count = 0
+    Delayed::Job.tomqueue_manager.start_consumers!
   end
 
   it "should actually be using the queue" do

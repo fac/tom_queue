@@ -56,7 +56,7 @@ RSpec.configure do |config|
     # Drop and recreate the database
     ActiveRecord::Base.establish_connection(db_config.slice(*%w{adapter host username password}))
     ActiveRecord::Base.connection.drop_database(db_config["database"]) rescue nil
-    ActiveRecord::Base.connection.create_database(db_config["database"])
+    ActiveRecord::Base.connection.create_database(db_config["database"], charset: "utf8mb4")
     ActiveRecord::Base.establish_connection(db_config)
 
     # Set up the schema

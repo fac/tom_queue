@@ -17,16 +17,5 @@ module TomQueue
       Delayed::Worker.backend = TomQueue::DelayedJob::Job
     end
     module_function :apply_hook!
-
-    # Public: External Message handlers
-    #
-    def handlers=(new_handlers)
-      @@handlers = new_handlers
-    end
-    def handlers
-      @@handlers ||= []
-    end
-    module_function :handlers, :handlers=
-
   end
 end
