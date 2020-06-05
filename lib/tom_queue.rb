@@ -17,8 +17,6 @@ module TomQueue
   require "tom_queue/deferred_work_set"
   require "tom_queue/deferred_work_manager"
 
-  require "tom_queue/external_consumer"
-
   require "tom_queue/sorted_array"
 
   mattr_accessor :bunny, :publisher, :default_prefix
