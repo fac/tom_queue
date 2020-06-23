@@ -18,8 +18,24 @@ rescue Errno::ECONNREFUSED
   raise
 end
 
-RSpec.configure do |r|
 
+module SlowExpectation
+  def within(timeout)
+    start_time = Time.now
+    yield
+  rescue RSpec::Expectations::ExpectationNotMetError
+    sleep 0.5
+    if Time.now > start_time + timeout
+      raise
+    else
+      retry
+    end
+  end
+end
+
+
+RSpec.configure do |r|
+  r.include(SlowExpectation)
   r.before do
     TomQueue.exception_reporter = Class.new do
       def notify(exception)
