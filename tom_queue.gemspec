@@ -9,6 +9,7 @@ Gem::Specification.new do |spec|
   spec.authors        = ["Thomas Haggett"]
   spec.description    = 'AMQP hook for Delayed Job, backed by ActiveRecord'
   spec.email          = ['thomas+gemfiles@freeagent.com']
+  spec.executables   = ["tqd"]
   spec.files          = %w(tom_queue.gemspec)
   spec.files         += Dir.glob("lib/**/*.rb")
   spec.files         += Dir.glob("spec/**/*")

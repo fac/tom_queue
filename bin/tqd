@@ -1,0 +1,78 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'optparse'
+
+env_path = File.expand_path("config/environment.rb")
+if File.exist?(env_path)
+  require env_path
+else
+  $stderr.puts "Couldn't find config/environment.rb, application not loaded"
+end
+require 'tom_queue/worker'
+
+@worker_options = {
+  :min_priority => ENV['MIN_PRIORITY'],
+  :max_priority => ENV['MAX_PRIORITY'],
+  :queues => (ENV['QUEUES'] || ENV['QUEUE'] || '').split(','),
+  :quiet => ENV['QUIET'],
+  :foreground => false,
+  :pid_file => false,
+  :log_file => "/dev/null"
+}
+
+@worker_options[:sleep_delay] = ENV['SLEEP_DELAY'].to_i if ENV['SLEEP_DELAY']
+@worker_options[:read_ahead] = ENV['READ_AHEAD'].to_i if ENV['READ_AHEAD']
+
+OptionParser.new do |opts|
+  opts.on("-f", "--foreground", "Run in the foreground (don't daemonize)") do
+    @worker_options[:foreground] = true
+  end
+  opts.on("-l file", "--log file", "Log process output to file") do |v|
+    v = File.expand_path(v)
+    $stderr.puts "Logging output to #{v}"
+    @worker_options[:log_file] = v
+  end
+  opts.on("-p file", "--pid file", "Write PID to file") do |v|
+    v = File.expand_path(v)
+    $stderr.puts "Writing PID to #{v}"
+    @worker_options[:pid_file] = v
+  end
+end.parse!
+
+worker = TomQueue::Worker.new(@worker_options)
+
+pid_file = @worker_options[:pid_file]
+
+# before fork
+Rails.application.config.before_fork.each do |b|
+  b.call
+end
+
+pwd = Dir.pwd
+
+$stderr.reopen(@worker_options[:log_file])
+$stdout.reopen(@worker_options[:log_file])
+
+exit if fork
+Process.setsid
+exit if fork
+
+Dir.chdir(pwd)
+
+Rails.application.config.after_fork.each do |b|
+  b.call
+end
+
+if pid_file
+
+  open(pid_file,"w") { |f| f.write(Process.pid) }
+  File.chmod(0644, pid_file)
+
+  at_exit do
+    File.delete(pid_file) if pid_file && File.exists?(pid_file)
+  end
+end
+
+worker.start
+
