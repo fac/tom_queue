@@ -178,7 +178,7 @@ module TomQueue
         message_payload: work,
         message_options: {
           routing_key: priority,
-          headers: { job_priority: priority, run_at: run_at.iso8601(4) }
+          headers: { priority: priority, run_at: run_at.iso8601(4) }
         }
       )
     end
@@ -194,7 +194,7 @@ module TomQueue
         message_payload: work,
         message_options: {
           mandatory: true,
-          headers: { job_priority: priority, run_at: run_at.to_f }
+          headers: { priority: priority, run_at: run_at.to_f }
         }
       )
     end

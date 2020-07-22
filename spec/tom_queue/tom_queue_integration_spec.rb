@@ -155,7 +155,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
         message_payload: "future-work",
         message_options: {
           routing_key: "normal",
-          headers: { job_priority: "normal", run_at: run_at.iso8601(4) }
+          headers: { priority: "normal", run_at: run_at.iso8601(4) }
         }
       }
     ]]
@@ -176,7 +176,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
         message_payload: "future-work",
         message_options: {
           mandatory: true,
-          headers: { job_priority: "normal", run_at: run_at.to_f }
+          headers: { priority: "normal", run_at: run_at.to_f }
         }
       }
     ]]

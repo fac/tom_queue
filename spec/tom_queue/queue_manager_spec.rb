@@ -110,14 +110,14 @@ describe TomQueue::QueueManager do
         }.should raise_exception(ArgumentError, /unknown priority level/)
       end
 
-      it "should write the priority in the message header as 'job_priority'" do
+      it "should write the priority in the message header as 'priority'" do
         manager.publish("foobar", :priority => TomQueue::BULK_PRIORITY)
-        manager.pop.ack!.headers[:headers]['job_priority'].should == TomQueue::BULK_PRIORITY
+        manager.pop.ack!.headers[:headers]['priority'].should == TomQueue::BULK_PRIORITY
       end
 
       it "should default to normal priority" do
         manager.publish("foobar")
-        manager.pop.ack!.headers[:headers]['job_priority'].should == TomQueue::NORMAL_PRIORITY
+        manager.pop.ack!.headers[:headers]['priority'].should == TomQueue::NORMAL_PRIORITY
       end
     end
 
