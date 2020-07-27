@@ -284,9 +284,6 @@ describe TomQueue::QueueManager, "simple publish / pop" do
         QueueConsumerThread.new(consumer) { |work| sleep rand(0.5) }.start!
       end
 
-      # This sleep gives the workers enough time to block on the first call to pop
-      sleep 0.1 until manager.queues[TomQueue::NORMAL_PRIORITY].status[:consumer_count] == consumers.size
-
       # Now publish some work
       50.times do |i|
         work = "work #{i}"
@@ -344,7 +341,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       consumers.each do |c|
         total_size += c.work.size
         c.work.each do |work|
-          work.received_at.should < (work.run_at + 1.0)
+          work.received_at.should < (work.run_at + 2)
         end
       end
 

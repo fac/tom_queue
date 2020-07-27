@@ -67,9 +67,9 @@ RSpec.configure do |r|
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
   end
 
-  # All tests should take < 2 seconds !!
+  # All tests should take < 3 seconds !!
   r.around do |test|
-    timeout = self.class.metadata[:timeout] || 2
+    timeout = self.class.metadata[:timeout] || 3
     if timeout == false
       test.call
     else

@@ -90,11 +90,6 @@ module TomQueue
       # the channels, so stays running, and is shared by all channels.
       @work_pool = PersistentWorkPool.new(4)
 
-      # These are used when we block waiting for new messages, we declare here
-      # so we're not constantly blowing them away and re-creating.
-      @mutex = Mutex.new
-      @condvar = ConditionVariable.new
-
       # Publishing is going to come in from the host app so create a dedicated channel and mutex
       @publisher_mutex = Mutex.new
 
@@ -227,70 +222,31 @@ module TomQueue
     # Returns QueueManager::Work instance
     def pop(opts={})
       raise "Cannot pop messages, consumers not started" unless @consumers_started
-      work = sync_poll_queues
-      work ||= wait_for_message
-      work
+      sync_poll_queues
     end
 
     # Internal: Synchronously poll priority queues in order
     #
-    # Returns: highest priority TomQueue::Work instance; or
-    #          nil if no work is queued.
+    # Returns: highest priority TomQueue::Work instance
     def sync_poll_queues
       debug "[pop] Synchronously popping message"
 
       response, headers, payload = nil
 
-      # Synchronously poll the head of all the queues in priority order
-      PRIORITIES.find do |priority|
-        debug "[pop] Popping '#{@queues[priority].name}'..."
-        # Perform a basic get. Calling Queue#get gets into a mess wrt the subscribe
-        # below. Don't do it.
-        response, headers, payload = @channel.basic_get(@queues[priority].name, :manual_ack => true)
+      until payload
+        # Synchronously poll the head of all the queues in priority order
+        PRIORITIES.find do |priority|
+          debug "[pop] Popping '#{@queues[priority].name}'..."
+          response, headers, payload = @channel.basic_get(@queues[priority].name, :manual_ack => true)
 
-        # Array#find will break out of the loop if we return a non-nil value.
-        payload
+          # Array#find will break out of the loop if we return a non-nil value.
+          payload
+        end
+
+        sleep 1 unless payload
       end
 
       payload && Work.new(self, response, headers, payload)
-    end
-
-    # Internal: Setup a consumer and block, waiting for the first message to arrive
-    # on any of the priority queues.
-    #
-    # Returns: TomQueue::Work instance
-    def wait_for_message
-
-      debug "[wait_for_message] setting up consumer, waiting for next message"
-
-      consumer_thread_value = nil
-
-      # Setup a subscription to all the queues. The channel pre-fetch
-      # will ensure we get exactly one message delivered
-      consumers = PRIORITIES.map do |priority|
-        @queues[priority].subscribe(:manual_ack => true) do |*args|
-          @mutex.synchronize do
-            consumer_thread_value = args
-            @condvar.signal
-          end
-        end
-      end
-
-      # Back on the calling thread, block on the callback above and, when
-      # it's signalled, pull the arguments over to this thread inside the mutex
-      response, header, payload = @mutex.synchronize do
-        @condvar.wait(@mutex, 10.0) until consumer_thread_value
-        consumer_thread_value
-      end
-
-      debug "[wait_for_message] Shutting down consumers"
-
-      # Now, cancel the consumers - the prefetch level on the channel will
-      # ensure we only got the message we're about to return.
-      consumers.each { |c| c.cancel }
-
-      # Return the message we got passed.
-      TomQueue::Work.new(self, response, header, payload)
     end
   end
 end

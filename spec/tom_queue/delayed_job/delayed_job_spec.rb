@@ -60,7 +60,7 @@ describe TomQueue, "once hooked" do
 
     it "should return a different value when the object is saved" do
       first_digest = job.tomqueue_digest
-      job.update_attributes(:run_at => Time.now + 10.seconds)
+      job.update!(:run_at => Time.now + 10.seconds)
       job.tomqueue_digest.should_not == first_digest
     end
 
@@ -231,7 +231,7 @@ describe TomQueue, "once hooked" do
 
     it "should not publish a message if the job has a non-nil failed_at" do
       job.should_not_receive(:tomqueue_publish)
-      job.update_attributes(:failed_at => Time.now)
+      job.update!(:failed_at => Time.now)
     end
 
     it "should be called after create when there is no explicit transaction" do
