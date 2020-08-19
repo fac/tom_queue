@@ -260,20 +260,26 @@ module TomQueue
     #
     # Returns: TomQueue::Work instance
     def wait_for_message
-
-      debug "[wait_for_message] setting up consumer, waiting for next message"
-
+      consumers = []
       consumer_thread_value = nil
 
-      # Setup a subscription to all the queues. The channel pre-fetch
-      # will ensure we get exactly one message delivered
-      consumers = PRIORITIES.map do |priority|
-        @queues[priority].subscribe(:manual_ack => true) do |*args|
-          @mutex.synchronize do
-            consumer_thread_value = args
-            @condvar.signal
+      begin
+        debug "[wait_for_message] setting up consumer, waiting for next message"
+
+        # Setup a subscription to all the queues. The channel pre-fetch
+        # will ensure we get exactly one message delivered
+        PRIORITIES.each do |priority|
+          consumers << @queues[priority].subscribe(:manual_ack => true) do |*args|
+            @mutex.synchronize do
+              consumer_thread_value = args
+              @condvar.signal
+            end
           end
         end
+      rescue Exception => e
+        consumers.each(&:cancel)
+        @channel.nack(consumer_thread_value[0].delivery_tag, false, true) if consumer_thread_value
+        raise
       end
 
       # Back on the calling thread, block on the callback above and, when
@@ -287,7 +293,7 @@ module TomQueue
 
       # Now, cancel the consumers - the prefetch level on the channel will
       # ensure we only got the message we're about to return.
-      consumers.each { |c| c.cancel }
+      consumers.each(&:cancel)
 
       # Return the message we got passed.
       TomQueue::Work.new(self, response, header, payload)

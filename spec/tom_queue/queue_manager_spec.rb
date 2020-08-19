@@ -179,6 +179,36 @@ describe TomQueue::QueueManager do
       end
     end
 
+    it "should not leave any running consumers after a subscribe timeout" do
+      manager.pop.ack!
+      manager.pop.ack!
+
+      expect(manager.queues[TomQueue::LOW_PRIORITY]).to receive(:subscribe).and_raise(Timeout::Error)
+      Thread.new { sleep 0.1; manager.publish("baz") }
+      expect { manager.pop.ack! }.to raise_exception(Timeout::Error)
+      manager.queues.values.each do |queue|
+        queue.status[:consumer_count].should == 0
+      end
+    end
+
+    it "should nack any messages caught before a subscribe timeout" do
+      manager.pop.ack!
+      manager.pop.ack!
+
+      # Introduce a wait when subscribing to the low priority queue, which will give the normal priority
+      # consumer time to catch the message
+      expect(manager.queues[TomQueue::LOW_PRIORITY])
+        .to receive(:subscribe).and_wrap_original { |m, *args| sleep 0.2; m.call(*args) }
+      expect(manager.queues[TomQueue::BULK_PRIORITY]).to receive(:subscribe).and_raise(Timeout::Error).once
+      expect(manager.channel).to receive(:nack).and_call_original
+
+      Thread.new { sleep 0.1; manager.publish("baz") }
+      expect { manager.pop.ack! }.to raise_exception(Timeout::Error)
+      manager.queues.values.each do |queue|
+        queue.status[:consumer_count].should == 0
+      end
+    end
+
     it "should return a QueueManager::Work instance" do
       manager.pop.ack!.should be_a(TomQueue::Work)
     end
