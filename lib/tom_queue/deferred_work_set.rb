@@ -105,7 +105,7 @@ module TomQueue
 
     # Public: Add some work to the set
     #
-    # This is "threa-safe" in that it can be (and is intended to
+    # This is "thread-safe" in that it can be (and is intended to
     # be) called from threads other than the one calling pop without
     # any additional synchronization.
     #
