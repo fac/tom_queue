@@ -91,30 +91,32 @@ describe TomQueue::WorkerSupervisor do
       forked_supervisor.term
     end
 
-    # TODO: See how we can expect a message twice
-    xit "restarts a process if it dies" do
+    it "restarts a process if it dies" do
       worker_message = ChildProcessMessage.new
 
       supervisor.supervise(as: "worker") do
-        worker_message.set "executing process 1"
+        worker_message.set "executing process 1,"
         exit(1)
       end
 
+      supervisor.loop_throttle = 0.1
       forked_supervisor.start
-      expect(worker_message.wait).to eq "executing process 1"
+      sleep 1
+      expect(worker_message.wait.split(",").size).to be_between(3,11)
       forked_supervisor.term
     end
 
-    # TODO: See how we can expect a message once
-    xit "does not try to start a process again if it is not dead" do
-      worker_message = ChildProcessMessage.new#("executing process 1")
+    it "does not try to start a process again if it is not dead" do
+      worker_message = ChildProcessMessage.new
 
       supervisor.supervise(as: "worker") do
         worker_message.set "executing process 1"
         sleep 1 while true
       end
 
+      supervisor.loop_throttle = 0.1
       forked_supervisor.start
+      sleep 1
       expect(worker_message.wait).to eq "executing process 1"
       forked_supervisor.term
     end
