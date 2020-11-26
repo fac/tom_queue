@@ -1,4 +1,3 @@
-
 class ChildProcessMessage
   include RSpec::Matchers
 
@@ -24,7 +23,7 @@ class ChildProcessMessage
   ensure
     @read.close
   end
-  
+
   def write_in_child_process
     @read.close
     @write.write @message
@@ -79,3 +78,15 @@ class TestForkedProcess
   end
 
 end
+
+Thread.abort_on_exception = true
+class TestChildProcess
+  @@rd, @@wr = IO.pipe
+  def self.run
+    @@wr.close
+
+    Thread.new { loop { exit(1) if @@rd.read.empty? } }
+    yield if block_given?
+  end
+end
+
