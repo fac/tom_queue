@@ -4,6 +4,21 @@ require 'rest_client'
 require 'tom_queue'
 require 'tom_queue/delayed_job'
 
+require_relative '../support/forked_process_helpers'
+
+#
+# Temporary note:
+#
+# Needs RabbitMQ running with management interface enabled, to get it booted in a docker container:
+#
+#  docker pull rabbitmq:3-management
+#  docker run -d -p 5672:5672 -p 15672:15672 --name rmq-server rabbitmq:3-management
+#
+# To shutdown:
+#
+#  docker kill rmq-server
+#
+
 begin
   begin
     RestClient.delete("http://guest:guest@localhost:15672/api/vhosts/test")

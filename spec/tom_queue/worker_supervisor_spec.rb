@@ -1,8 +1,15 @@
+require 'tom_queue/helper'
 require "pry"
 require 'tom_queue/worker_supervisor'
 
 describe TomQueue::WorkerSupervisor do
   let(:supervisor) { described_class.new }
+
+  let(:forked_supervisor) do
+    TestForkedProcess.new do      
+      supervisor.run
+    end
+  end
 
   describe "#supervise" do
     it "creates a process with the right name" do
@@ -139,48 +146,117 @@ describe TomQueue::WorkerSupervisor do
       worker_message.expect_message_was_written(times: 1)
     end
 
-    context "signal handling" do
-      it "propagates termination signals to child processes" do
-        signal_message = ChildProcessMessage.new("trapped TERM signal")
-        child_process = -> do
-          Signal.trap("SIGTERM") do
-            signal_message.write_in_child_process
-            raise SignalException, "SIGTERM"
-          end
-          loop do
-          end
-        end
-
-        supervisor.supervise(as: "worker", &child_process)
-
-        supervisor_process = fork do
-          supervisor.run
-        end
-        sleep 2
-
-        Process.kill("SIGTERM", supervisor_process)
-        signal_message.expect_message_was_written
+    Thread.abort_on_exception = true
+    class TestChildProcess
+      @@rd, @@wr = IO.pipe
+      def self.run
+        @@wr.close
+        
+        Thread.new { loop { exit(1) if @@rd.read.empty? } }
+        yield if block_given?
       end
     end
 
-    class ChildProcessMessage
-      include RSpec::Matchers
+    context "signal handling", focus: true do
+      let(:signals) { Hash.new { |h,k| h[k] = ChildProcessMessage.new }}
 
-      def initialize(message)
-        @message = message
-        @read, @write = IO.pipe
+      before do
+        supervisor.after_fork = -> { TestChildProcess.run }
       end
 
-      def write_in_child_process
-        @read.close
-        @write.write @message
-        @write.close
+      it "propagates termination signals to child processes" do
+        signals[:child_ready]
+        signals[:exception]
+
+        supervisor.supervise(as: "worker") do
+          Signal.trap("SIGTERM") do
+            signals[:exception].set("SIGTERM in child")
+            raise SignalException, "SIGTERM"
+          end
+          signals[:child_ready].set("ready")
+          sleep 1 while true
+        end
+
+        forked_supervisor.start
+        
+        expect(signals[:child_ready].wait).to eq("ready")
+        forked_supervisor.term
+        expect(signals[:exception].wait).to eq("SIGTERM in child")
       end
 
-      def expect_message_was_written(times: 1)
-        @write.close
-        expect(@read.gets).to eq @message*times
-        @read.close
+      it "should SIGKILL the process if it refuses to quit after graceful_timeout" do
+        signals[:child_ready]
+        signals[:exception]
+        supervisor.graceful_timeout = 0.2
+        supervisor.supervise(as: "worker") do
+          Signal.trap("SIGTERM") do
+            signals[:exception].set("SIGTERM in child")
+          end
+          signals[:child_ready].set("ready")
+          sleep 1 while true
+        end
+
+        forked_supervisor.start
+        
+        expect(signals[:child_ready].wait).to eq("ready")
+        forked_supervisor.term
+
+        expect(signals[:exception].wait).to eq("SIGTERM in child")
+        forked_supervisor.join
+      end
+
+      it "should reset the default signal handlers on child startup" do
+        signals[:child_ready]
+        signals[:exception]
+        
+        supervisor.supervise(as: "worker") do
+          # Some signals aren't trappable, so we'll ignore those!
+          handlers = (Signal.list.keys - ["ILL", "FPE", "KILL", "BUS", "SEGV", "STOP", "VTALRM"]).map do |name|
+            Signal.trap(name, "DEFAULT")
+          end
+          signals[:child_ready].set(handlers.uniq.compact.join(","))
+          sleep 1 while true
+        end
+
+        forked_supervisor.start
+        expect(signals[:child_ready].wait).to eq("DEFAULT,SYSTEM_DEFAULT")
+        forked_supervisor.term
+      end
+
+      it "doesn't blow up if the process already died" do
+        signals[:child_ready]
+        signals[:exception]
+
+        supervisor.supervise(as: "worker") do
+          Signal.trap("SIGTERM") do
+            signals[:exception].set("SIGTERM in child")
+          end
+          signals[:child_ready].set("ready")
+          sleep 1 while true
+        end
+
+        module ShimProcess
+          attr_accessor :wonky_kill
+          def kill(signal, pid)
+            if wonky_kill && ["TERM", "SIGTERM"].include?(signal)
+              puts "SIGKILL'ing process before a term"
+              super("SIGKILL", pid)
+              Process.waitpid(pid)
+            end
+            super
+          end
+        end
+        class << Process
+          prepend(ShimProcess)
+        end
+
+        Process.wonky_kill = true
+        forked_supervisor.start
+        Process.wonky_kill = false
+
+        expect(signals[:child_ready].wait).to eq("ready")
+        forked_supervisor.term
+        expect(forked_supervisor.join.exitstatus).to eq(0)
       end
     end
   end

@@ -1,3 +1,4 @@
+require 'timeout'
 module TomQueue
   class WorkerSupervisor
 
@@ -7,6 +8,7 @@ module TomQueue
       @processes = {}
       @before_fork = -> { }
       @after_fork = -> { }
+      @graceful_timeout = 5
     end
 
     def supervise(as:, count: 1, &block)
@@ -15,8 +17,14 @@ module TomQueue
       end
     end
 
+    attr_accessor :graceful_timeout
+
     def run
-      @stop = false
+      @queue = Queue.new
+
+      Signal.trap("TERM") { @queue << "TERM" }
+      Signal.trap("CHLD") { @queue << "CHLD" }
+
       process_ids = {}
       before_fork.call
       loop do
@@ -25,18 +33,48 @@ module TomQueue
         processes_to_start.each do |name|
           $stdout.puts "Starting '#{name}'..."
           process_id = fork_process(name)
-          setup_signal_handling_for_process(process_id)
           process_ids[process_id] = name
         end
 
-        stopped_process_id, status = wait_for_child_process_to_exit
-
-        if stopped_process_name = process_ids.delete(stopped_process_id)
-          $stderr.puts "#{stopped_process_name} terminated (#{stopped_process_id}) with status #{status.exitstatus}"
+        event = @queue.pop
+        puts "Got signal event #{event}"
+        case event
+        when "CHLD"
+          stopped_process_id, status = wait_for_child_process_to_exit
+          if stopped_process_name = process_ids.delete(stopped_process_id)
+            $stderr.puts "#{stopped_process_name} terminated (#{stopped_process_id}) with status #{status.exitstatus}"
+          end
+        when "TERM"
+          puts "Shutdown!"
+          break
         end
 
         throttle_loop
-        break if @stop
+      end
+
+      puts "cleanly shutting down supervisor process!"
+      process_ids.keys.each do |pid|
+        begin
+          Process.kill("TERM", pid)
+        rescue Errno::ESRCH
+          $stderr.puts "Process already terminated"  
+        end
+      end
+      puts "Waiting #{@graceful_timeout} for processes to exit"
+      process_ids.keys.each do |pid|
+        begin
+          Timeout.timeout(@graceful_timeout) do
+            reaped_pid = Process.waitpid(pid)
+            puts "Process #{reaped_pid} reaped"
+            next
+          end
+        rescue Errno::ECHILD
+          puts "Process doesn't exist - ignoring"
+        rescue Timeout::Error
+          puts "PRocess didn't quit - SIGKILL'ing"
+          Process.kill("KILL", pid)
+          Process.waitpid(pid)
+        end
       end
     end
 
@@ -44,21 +82,11 @@ module TomQueue
 
     attr_accessor :stop
 
-    def setup_signal_handling_for_process(process_id)
-      Signal.trap("SIGTERM") do
-        $stdout.puts "trapped signal SIGTERM"
-        begin
-          Process.kill("SIGTERM", process_id)
-        rescue Errno::ESRCH
-          # Child PID already dead
-          $stderr.puts "Tried to kill child process with id #{process_id}, but it was already dead"
-        end
-        raise SignalException, "SIGTERM"
-      end
-    end
-
     def fork_process(name)
       fork do
+        Signal.trap("TERM", "DEFAULT")
+        Signal.trap("INT", "DEFAULT")
+        Signal.trap("CHLD", "DEFAULT")
         execute_child_process(processes[name])
       end
     end
