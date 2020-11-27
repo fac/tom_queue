@@ -2,6 +2,7 @@ require 'timeout'
 module TomQueue
   class WorkerSupervisor
 
+
     attr_accessor :after_fork, :before_fork, :graceful_timeout, :processes, :loop_throttle
     attr_reader :currently_running_processes
 
@@ -82,11 +83,13 @@ module TomQueue
     #   "working..."
     #
     def run
+      log "Startup in pid #{$$}"
+
       setup_child_linking
       setup_parent_process_signal_handling
       self.stop_loop = false
       self.currently_running_processes = {}
-
+      
       before_fork.call
 
       until stop_loop do
@@ -97,7 +100,7 @@ module TomQueue
         # wait for signal event (e.g. SIGTERM/SIGCHLD)
         handle_signal_event
 
-        throttle_loop
+        throttle_loop unless stop_loop
       end
 
       shut_down_child_processes
@@ -106,13 +109,29 @@ module TomQueue
 
     private
 
-    attr_accessor :signal_queue, :currently_running_processes, :stop_loop
+    class LoopSpinner
+      def initialize
+        @rd, @wr = IO.pipe
+      end
+
+      def << message
+        raise ArgumentError, "Expected message to be 4 bytes long" unless message.bytesize == 4
+        @wr.write(message)
+      end
+
+      def pop
+        @rd.read(4)
+      end
+    end
+
+    attr_accessor :spinner, :currently_running_processes, :stop_loop
 
     def setup_parent_process_signal_handling
-      @signal_queue = Queue.new
+      @spinner = LoopSpinner.new
 
-      Signal.trap("TERM") { @signal_queue << "TERM" }
-      Signal.trap("CHLD") { @signal_queue << "CHLD" }
+      Signal.trap("TERM") { @spinner << "TERM" }
+      Signal.trap("CHLD") { @spinner << "CHLD" }
+      Signal.trap("INT")  { @spinner << "INT " }
     end
 
     def processes_to_start
@@ -134,6 +153,7 @@ module TomQueue
     def setup_child_linking
       @link_rd, @link_wr = IO.pipe
     end
+
     def link_child_to_parent
       @link_wr.close
       Thread.new do 
@@ -151,14 +171,16 @@ module TomQueue
     end
 
     def handle_signal_event
-      signal = signal_queue.pop
-      case signal
+      event = spinner.pop
+      case event
       when "CHLD"
         # a child process terminated. Let's remove it from the running processes array so it's started again
         while reap_child_process; end
-      when "TERM"
+      when "TERM", "INT "
         # the supervisor received a termination signal. Let's gracefully shut everything down
         log "Shutdown signal received"
+        Signal.trap("INT", "DEFAULT")
+        Signal.trap("TERM", "DEFAULT")
         self.stop_loop = true
       end
     end
