@@ -11,7 +11,7 @@ describe TomQueue::WorkerSupervisor do
     end
   end
 
-  # This hook ensures that any child processes are coupled to this 
+  # This hook ensures that any child processes are coupled to this
   # rspec process by holding open a read file descriptor in a background
   # thread.
   #
@@ -143,12 +143,12 @@ describe TomQueue::WorkerSupervisor do
       pid = worker_message.wait.match(/started\:(\d+)/)[1].to_i
 
       # don't let it clean up
-      forked_supervisor.kill 
+      forked_supervisor.kill
       forked_supervisor.join
 
-      # getpgid (get process group IDs) should work for any PID on the system and 
+      # getpgid (get process group IDs) should work for any PID on the system and
       # return an answer if the process is running. The worker process should
-      # have been terminated along with the supervisor, so we want it to return 
+      # have been terminated along with the supervisor, so we want it to return
       # an error
       sleep 0.5
       expect { Process.getpgid(pid) }.to raise_exception(Errno::ESRCH)
@@ -257,7 +257,7 @@ describe TomQueue::WorkerSupervisor do
       it "should clean up multiple child processes even if it only receives a single SIGCHLD" do
         signals[:child1_ready]
         signals[:child2_ready]
-    
+
         supervisor.loop_throttle = 0.1
 
         supervisor.supervise(as: "foo1") do
