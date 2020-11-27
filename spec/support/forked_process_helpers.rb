@@ -11,29 +11,13 @@ class ChildProcessMessage
   def set(value)
     @read.close
     @write.write value
-    @write.close
   end
 
   # to be called in the parent process, waiting for the child
   # to set a value
   def wait(timeout=2)
-    puts "Waiting for child signal"
     @write.close
     @read.read_with_timeout(timeout)
-  ensure
-    @read.close
-  end
-
-  def write_in_child_process
-    @read.close
-    @write.write @message
-    @write.close
-  end
-
-  def expect_message_was_written(times: 1)
-    @write.close
-    expect(@read.gets).to eq @message*times
-    @read.close
   end
 end
 
@@ -68,6 +52,15 @@ class TestForkedProcess
     Process.kill("SIGTERM", @pid)
   end
 
+  def stop
+    Process.kill("SIGSTOP", @pid)
+  end
+
+  def continue
+    Process.kill("SIGCONT", @pid)
+  end
+
+
   def kill
     Process.kill("SIGKILL", @pid)
   end
@@ -82,10 +75,17 @@ end
 Thread.abort_on_exception = true
 class TestChildProcess
   @@rd, @@wr = IO.pipe
+
   def self.run
     @@wr.close
-
-    Thread.new { loop { exit(1) if @@rd.read.empty? } }
+    Thread.new do
+      loop do
+        if @@rd.read(1).nil? 
+          puts " ** Cleaning up orphaned child #{$$}"
+          exit(1)
+        end
+      end
+    end
     yield if block_given?
   end
 end
