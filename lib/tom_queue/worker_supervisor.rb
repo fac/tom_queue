@@ -82,6 +82,7 @@ module TomQueue
     #   "working..."
     #
     def run
+      setup_child_linking
       setup_parent_process_signal_handling
       self.stop_loop = false
       self.currently_running_processes = {}
@@ -119,44 +120,59 @@ module TomQueue
     end
 
     def fork_process(name)
-      $stdout.puts "Starting '#{name}'..."
       process_id = fork do
+        link_child_to_parent
         after_fork.call
-        setup_child_process_signal_handling
+        reset_child_process_signal_handlers
         processes[name].call
+        exit(0)
       end
+      log "Started '#{name}' task as pid #{process_id}"
       self.currently_running_processes[process_id] = name
     end
 
-    def setup_child_process_signal_handling
+    def setup_child_linking
+      @link_rd, @link_wr = IO.pipe
+    end
+    def link_child_to_parent
+      @link_wr.close
+      Thread.new do 
+        sleep 1 until @link_rd.read(1).nil?
+        log "Supervisor went away unexpectedly, terminating", "child-#{$$}"
+        exit(128)
+      end
+    end
+
+    def reset_child_process_signal_handlers
       # We don't want the child processes to use the signal handlers defined in the parent process
       Signal.trap("TERM", "DEFAULT")
       Signal.trap("INT", "DEFAULT")
       Signal.trap("CHLD", "DEFAULT")
     end
 
-    def stop_child_when_process_finishes
-      exit(0)
-    end
-
     def handle_signal_event
       signal = signal_queue.pop
       case signal
-      when /CHLD/
+      when "CHLD"
         # a child process terminated. Let's remove it from the running processes array so it's started again
-        stopped_process_id, status = wait_for_child_process_to_exit
-        if stopped_process_name = currently_running_processes.delete(stopped_process_id)
-          $stderr.puts "#{stopped_process_name} terminated (#{stopped_process_id}) with status #{status.exitstatus}"
-        end
-      when /TERM/
+        while reap_child_process; end
+      when "TERM"
         # the supervisor received a termination signal. Let's gracefully shut everything down
-        puts "Shutdown!"
+        log "Shutdown signal received"
         self.stop_loop = true
       end
     end
 
-    def wait_for_child_process_to_exit
-      Process.waitpid2
+    def reap_child_process
+      reaped_process_id, status = Process.waitpid2(-1, Process::WNOHANG)
+      return false if reaped_process_id.nil?
+
+      if reaped_process_name = currently_running_processes.delete(reaped_process_id)
+        log "Task '#{reaped_process_name}' reaped (#{reaped_process_id}) with status #{status.exitstatus}"
+        true
+      end
+    rescue Errno::ECHILD
+      false
     end
 
     def throttle_loop
@@ -164,31 +180,35 @@ module TomQueue
     end
 
     def shut_down_child_processes
-      currently_running_processes.keys.each do |pid|
+      log "Gracefully shutting down all tasks"
+      currently_running_processes.each do |pid, name|
         begin
           Process.kill("TERM", pid)
         rescue Errno::ESRCH
-          $stderr.puts "Process already terminated"
+          log "Process '#{name}' (#{pid}) already terminated"
         end
       end
     end
 
     def wait_for_all_child_processes_to_end
-      currently_running_processes.keys.each do |pid|
+      currently_running_processes.each do |pid, name|
         begin
           Timeout.timeout(graceful_timeout) do
-            reaped_pid = Process.waitpid(pid)
-            puts "Process #{reaped_pid} reaped"
-            next
+            reap_child_process
           end
         rescue Errno::ECHILD
-          puts "Process doesn't exist - ignoring"
+          log "Task '#{name}' (#{pid}) doesn't exist - ignoring"
         rescue Timeout::Error
-          puts "Process didn't quit - SIGKILL'ing"
+          log "Task '#{name}' (#{pid}) shutdown timed out - sending SIGKILL"
           Process.kill("KILL", pid)
           Process.waitpid(pid)
         end
       end
+    end
+
+    def log(message, extra=nil)
+      extra = ":#{extra}" unless extra.nil?
+      $stderr.puts "[WorkerSupervisor#{extra}] #{message}"
     end
   end
 end
