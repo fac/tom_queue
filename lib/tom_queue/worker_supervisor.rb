@@ -125,11 +125,15 @@ module TomQueue
 
     def fork_process(name)
       process_id = fork do
-        link_child_to_parent
-        after_fork.call
-        reset_child_process_signal_handlers
-        processes[name].call
-        exit(0)
+        begin
+          link_child_to_parent
+          after_fork.call
+          reset_child_process_signal_handlers
+          processes[name].call
+          exit(0)
+        rescue Interrupt
+          exit(1)
+        end
       end
       log "Started '#{name}' task as pid #{process_id}"
       self.currently_running_processes[process_id] = name
@@ -170,8 +174,8 @@ module TomQueue
       end
     end
 
-    def reap_child_process
-      reaped_process_id, status = Process.waitpid2(-1, Process::WNOHANG)
+    def reap_child_process(pid: -1, block: false)
+      reaped_process_id, status = Process.waitpid2(pid, block ? nil : Process::WNOHANG)
       return false if reaped_process_id.nil?
 
       if reaped_process_name = currently_running_processes.delete(reaped_process_id)
@@ -201,7 +205,7 @@ module TomQueue
       currently_running_processes.each do |pid, name|
         begin
           Timeout.timeout(graceful_timeout) do
-            reap_child_process
+            reap_child_process(pid: pid, block: true)
           end
         rescue Errno::ECHILD
           log "Task '#{name}' (#{pid}) doesn't exist - ignoring"
