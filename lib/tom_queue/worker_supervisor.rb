@@ -160,7 +160,7 @@ module TomQueue
     end
 
     def handle_signal_event
-      event = spinner.pop
+      event = spinner.wait_for_message
       case event
       when "CHLD"
         # a child process terminated. Let's remove it from the running processes array so it's started again
@@ -232,7 +232,7 @@ module TomQueue
         @wr.write(message)
       end
 
-      def pop
+      def wait_for_message
         @rd.read(4)
       end
     end
