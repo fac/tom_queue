@@ -61,8 +61,10 @@ module TomQueue
     #   supervisor.run
     #
     #   #=>
-    #   Starting 'worker1'...
-    #   Starting 'thing that ends1'...
+    #
+    #   [WorkerSupervisor] Startup in pid 46219
+    #   [WorkerSupervisor] Started 'worker1' task as pid 46220
+    #   [WorkerSupervisor] Started 'thing that ends1' task as pid 46221
     #   "working..."
     #   "doing thing 1"
     #   "working..."
@@ -70,11 +72,9 @@ module TomQueue
     #   "working..."
     #   "doing thing 3"
     #   "working..."
-    #   thing that ends1 terminated (40099) with status 0
+    #   [WorkerSupervisor] Task 'thing that ends1' reaped (46221) with status 0
     #   "working..."
-    #   "working..."
-    #   "working..."
-    #   Starting 'thing that ends1'...
+    #   [WorkerSupervisor] Started 'thing that ends1' task as pid 46223
     #   "doing thing 1"
     #   "working..."
     #   "doing thing 2"
@@ -89,7 +89,7 @@ module TomQueue
       setup_parent_process_signal_handling
       self.stop_loop = false
       self.currently_running_processes = {}
-      
+
       before_fork.call
 
       until stop_loop do
@@ -108,21 +108,6 @@ module TomQueue
     end
 
     private
-
-    class LoopSpinner
-      def initialize
-        @rd, @wr = IO.pipe
-      end
-
-      def << message
-        raise ArgumentError, "Expected message to be 4 bytes long" unless message.bytesize == 4
-        @wr.write(message)
-      end
-
-      def pop
-        @rd.read(4)
-      end
-    end
 
     attr_accessor :spinner, :currently_running_processes, :stop_loop
 
@@ -156,7 +141,7 @@ module TomQueue
 
     def link_child_to_parent
       @link_wr.close
-      Thread.new do 
+      Thread.new do
         sleep 1 until @link_rd.read(1).nil?
         log "Supervisor went away unexpectedly, terminating", "child-#{$$}"
         exit(128)
@@ -231,6 +216,21 @@ module TomQueue
     def log(message, extra=nil)
       extra = ":#{extra}" unless extra.nil?
       $stderr.puts "[WorkerSupervisor#{extra}] #{message}"
+    end
+
+    class LoopSpinner
+      def initialize
+        @rd, @wr = IO.pipe
+      end
+
+      def << message
+        raise ArgumentError, "Expected message to be 4 bytes long" unless message.bytesize == 4
+        @wr.write(message)
+      end
+
+      def pop
+        @rd.read(4)
+      end
     end
   end
 end

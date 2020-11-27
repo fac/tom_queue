@@ -6,7 +6,7 @@ class ChildProcessMessage
     @read, @write = IO.pipe
   end
 
-  # sets a value in the child process to be communicated 
+  # sets a value in the child process to be communicated
   # back to the waiting parent process.
   def set(value)
     @read.close
@@ -31,7 +31,7 @@ class IO
     end
   rescue EOFError
     nil
-  end 
+  end
 end
 
 class TestForkedProcess
@@ -80,7 +80,7 @@ class TestChildProcess
     @@wr.close
     Thread.new do
       loop do
-        if @@rd.read(1).nil? 
+        if @@rd.read(1).nil?
           puts " ** Cleaning up orphaned child #{$$}"
           exit(1)
         end
