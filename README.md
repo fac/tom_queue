@@ -140,3 +140,32 @@ Do let us know if you find any bugs or improve it (or just manage to get it to w
 bundle exec appraisal install
 bundle exec appraisal rspec spec
 ```
+
+#### Development docker environment
+
+There is a docker compose configuration that can be used to boot up the various services necessary to run TomQueue entirely (MySQL, RabbitMQ, ZooKeeper)
+
+To boot a full set of clustered services, run:
+
+```sh
+docker-compose -f docker-compose.cluster.yml up
+```
+
+For single-instance services, run:
+
+```sh
+
+docker-compose up
+```
+
+Don't forget to clean up when you're finished!
+
+```sh
+docker-compose rm
+```
+
+
+
+
+
+
