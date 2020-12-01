@@ -7,7 +7,19 @@
 #
 # You probably want to start with TomQueue::QueueManager
 #
+require "zeitwerk"
+loader = Zeitwerk::Loader.for_gem
+
+loader.ignore("#{__dir__}/delayed/backend/shared_spec.rb")
+loader.ignore("#{__dir__}/delayed/yaml_ext.rb")
+loader.ignore("#{__dir__}/delayed/exceptions.rb")
+
+loader.setup
+
+require "active_support"
+
 module TomQueue
+
   require "tom_queue/logging_helper"
 
   require "tom_queue/publisher"
