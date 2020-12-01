@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "active_record/version"
-
 module Delayed
   module Backend
     module ActiveRecord
@@ -87,6 +86,57 @@ module Delayed
         end
 
         def self.reserve_with_scope(ready_scope, worker, now)
+          case Delayed::Backend::ActiveRecord.configuration.reserve_sql_strategy
+          # Optimizations for faster lookups on some common databases
+          when :optimized_sql
+            reserve_with_scope_using_optimized_sql(ready_scope, worker, now)
+          # Slower but in some cases more unproblematic strategy to lookup records
+          # See https://github.com/collectiveidea/delayed_job_active_record/pull/89 for more details.
+          when :default_sql
+            reserve_with_scope_using_default_sql(ready_scope, worker, now)
+          end
+        end
+
+        def self.reserve_with_scope_using_optimized_sql(ready_scope, worker, now)
+          case connection.adapter_name
+          when "PostgreSQL", "PostGIS"
+            reserve_with_scope_using_optimized_postgres(ready_scope, worker, now)
+          when "MySQL", "Mysql2"
+            reserve_with_scope_using_optimized_mysql(ready_scope, worker, now)
+          when "MSSQL", "Teradata"
+            reserve_with_scope_using_optimized_mssql(ready_scope, worker, now)
+          # Fallback for unknown / other DBMS
+          else
+            reserve_with_scope_using_default_sql(ready_scope, worker, now)
+          end
+        end
+
+        def self.reserve_with_scope_using_default_sql(ready_scope, worker, now)
+          # This is our old fashion, tried and true, but possibly slower lookup
+          # Instead of reading the entire job record for our detect loop, we select only the id,
+          # and only read the full job record after we've successfully locked the job.
+          # This can have a noticable impact on large read_ahead configurations and large payload jobs.
+          ready_scope.limit(worker.read_ahead).select(:id).detect do |job|
+            count = ready_scope.where(id: job.id).update_all(locked_at: now, locked_by: worker.name)
+            count == 1 && job.reload
+          end
+        end
+
+        def self.reserve_with_scope_using_optimized_postgres(ready_scope, worker, now)
+          # Custom SQL required for PostgreSQL because postgres does not support UPDATE...LIMIT
+          # This locks the single record 'FOR UPDATE' in the subquery
+          # http://www.postgresql.org/docs/9.0/static/sql-select.html#SQL-FOR-UPDATE-SHARE
+          # Note: active_record would attempt to generate UPDATE...LIMIT like
+          # SQL for Postgres if we use a .limit() filter, but it would not
+          # use 'FOR UPDATE' and we would have many locking conflicts
+          quoted_name = connection.quote_table_name(table_name)
+          subquery    = ready_scope.limit(1).lock(true).select("id").to_sql
+          sql         = "UPDATE #{quoted_name} SET locked_at = ?, locked_by = ? WHERE id IN (#{subquery}) RETURNING *"
+          reserved    = find_by_sql([sql, now, worker.name])
+          reserved[0]
+        end
+
+        def self.reserve_with_scope_using_optimized_mysql(ready_scope, worker, now)
           # Removing the millisecond precision from now(time object)
           # MySQL 5.6.4 onwards millisecond precision exists, but the
           # datetime object created doesn't have precision, so discarded
@@ -98,6 +148,21 @@ module Delayed
           count = ready_scope.limit(1).update_all(locked_at: now, locked_by: worker.name)
           return nil if count == 0
 
+          where(locked_at: now, locked_by: worker.name, failed_at: nil).first
+        end
+
+        def self.reserve_with_scope_using_optimized_mssql(ready_scope, worker, now)
+          # The MSSQL driver doesn't generate a limit clause when update_all
+          # is called directly
+          subsubquery_sql = ready_scope.limit(1).to_sql
+          # select("id") doesn't generate a subquery, so force a subquery
+          subquery_sql = "SELECT id FROM (#{subsubquery_sql}) AS x"
+          quoted_table_name = connection.quote_table_name(table_name)
+          sql = "UPDATE #{quoted_table_name} SET locked_at = ?, locked_by = ? WHERE id IN (#{subquery_sql})"
+          count = connection.execute(sanitize_sql([sql, now, worker.name]))
+          return nil if count == 0
+
+          # MSSQL JDBC doesn't support OUTPUT INSERTED.* for returning a result set, so query locked row
           where(locked_at: now, locked_by: worker.name, failed_at: nil).first
         end
 
