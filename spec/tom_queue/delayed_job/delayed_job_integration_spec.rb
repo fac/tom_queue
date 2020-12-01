@@ -1,5 +1,6 @@
 require 'tom_queue/helper'
 require 'tom_queue/delayed_job'
+require 'tom_queue/delayed_job/job'
 
 describe Delayed::Job, "integration spec", :timeout => 10 do
 
