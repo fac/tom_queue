@@ -7,6 +7,8 @@
 #
 # You probably want to start with TomQueue::QueueManager
 #
+
+require 'delayed_job'
 require "zeitwerk"
 loader = Zeitwerk::Loader.for_gem
 
