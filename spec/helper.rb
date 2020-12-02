@@ -81,3 +81,7 @@ end
 
 # Add this directory so the ActiveSupport autoloading works
 ActiveSupport::Dependencies.autoload_paths << File.dirname(__FILE__)
+
+RSpec.configure do |config|
+  config.example_status_persistence_file_path = "#{__dir__}../tmp/rspec.failures"
+end
