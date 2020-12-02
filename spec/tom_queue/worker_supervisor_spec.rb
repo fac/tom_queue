@@ -204,15 +204,17 @@ describe TomQueue::WorkerSupervisor do
 
         supervisor.supervise(as: "worker") do
           # Some signals aren't trappable, so we'll ignore those!
-          handlers = (Signal.list.keys - ["ILL", "FPE", "KILL", "BUS", "SEGV", "STOP", "VTALRM"]).map do |name|
-            Signal.trap(name, "DEFAULT")
+          handlers = (Signal.list.keys - ["EXIT", "PIPE", "SYS", "ILL", "FPE", "KILL", "BUS", "SEGV", "STOP", "VTALRM"]).map do |name|
+            [name, Signal.trap(name, "DEFAULT").to_s]
           end
-          signals[:child_ready].set(handlers.uniq.compact.join(","))
+          signals[:child_ready].set(Marshal.dump(handlers))
           sleep 1 while true
         end
 
         forked_supervisor.start
-        expect(signals[:child_ready].wait).to eq("DEFAULT,SYSTEM_DEFAULT")
+        Marshal.load(signals[:child_ready].wait).each do |name, handler|
+          expect(handler).to eq("DEFAULT").or(eq("SYSTEM_DEFAULT"))
+        end
         forked_supervisor.term
       end
 
