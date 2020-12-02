@@ -2,7 +2,7 @@ require 'tom_queue/helper'
 require 'tom_queue/delayed_job'
 require 'tom_queue/delayed_job/job'
 
-describe Delayed::Job, "integration spec", :timeout => 10 do
+describe Delayed::Job, "integration spec", timeout: 10, dj_hook: true do
 
   class TestJobClass
     cattr_accessor :perform_hook
@@ -41,7 +41,6 @@ describe Delayed::Job, "integration spec", :timeout => 10 do
 
   before do
     # Clean-slate ...
-    TomQueue::DelayedJob.apply_hook!
     Delayed::Job.delete_all
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
 
