@@ -75,10 +75,12 @@ RSpec.configure do |r|
     TheBunny.stop
   end
 
+  r.around(dj_hook: true) do |example|
+    TomQueue::DelayedJob.apply_hook!(&example)
+  end
+
   r.before do
     TomQueue.logger ||= Logger.new("/dev/null")
-
-    TomQueue::DelayedJob.apply_hook!
     Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
   end
 
