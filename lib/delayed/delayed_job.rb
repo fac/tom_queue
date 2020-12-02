@@ -1,5 +1,4 @@
 require 'active_support'
-require 'delayed/compatibility'
 require 'delayed/exceptions'
 require 'delayed/message_sending'
 require 'delayed/performable_method'
