@@ -1,6 +1,6 @@
 require 'tom_queue/helper'
 
-describe TomQueue, "once hooked" do
+describe TomQueue, "once hooked", dj_hook: true do
 
   let(:job) { Delayed::Job.create! }
   let(:new_job) { Delayed::Job.new }
