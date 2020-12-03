@@ -8,13 +8,7 @@ rescue LoadError
 end
 
 require 'active_record'
-# require_relative '../lib/delayed/backend/base'
-# require_relative '../lib/delayed/backend/active_record'
-# require_relative '../lib/delayed/plugin'
-# require_relative '../lib/delayed/plugins/clear_locks'
-# require_relative '../lib/delayed/worker'
 require 'delayed_job'
-require 'delayed/backend/active_record'
 
 require 'delayed/backend/shared_spec'
 
