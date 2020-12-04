@@ -3,7 +3,7 @@
 require "helper"
 require "delayed/backend/active_record"
 
-describe Delayed::Backend::ActiveRecord::Job do
+describe Delayed::Backend::ActiveRecord::Job, backend: :active_record do
   it_behaves_like "a delayed_job backend"
 
   describe "configuration" do
