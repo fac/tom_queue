@@ -90,4 +90,14 @@ RSpec.configure do |config|
   config.after(:each) do
     Delayed::Worker.reset
   end
+
+  [:active_record, :test].each do |backend|
+    config.around(backend: backend) do |example|
+      old_backend = Delayed::Worker.backend
+      Delayed::Worker.backend = backend
+      example.call
+    ensure
+      Delayed::Worker.backend = old_backend
+    end
+  end
 end

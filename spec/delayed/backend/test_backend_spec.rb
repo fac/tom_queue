@@ -1,6 +1,6 @@
 require 'delayed/helper'
 
-describe Delayed::Backend::Test::Job do
+describe Delayed::Backend::Test::Job, backend: :test do
   it_should_behave_like 'a delayed_job backend'
 
   describe '#reload' do
