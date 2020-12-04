@@ -10,10 +10,9 @@
 
 require 'delayed_job'
 require "zeitwerk"
-loader = Zeitwerk::Loader.for_gem
 
-loader.ignore("#{__dir__}/delayed/yaml_ext.rb")
-loader.ignore("#{__dir__}/delayed/exceptions.rb")
+loader = Zeitwerk::Loader.for_gem
+loader.ignore("#{__dir__}/delayed")
 loader.ignore("#{__dir__}/delayed_job.rb")
 loader.ignore("#{__dir__}/delayed_job_active_record.rb")
 loader.setup
