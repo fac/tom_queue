@@ -13,6 +13,7 @@ require "zeitwerk"
 
 loader = Zeitwerk::Loader.for_gem
 loader.ignore("#{__dir__}/delayed")
+loader.ignore("#{__dir__}/generators")
 loader.ignore("#{__dir__}/delayed_job.rb")
 loader.ignore("#{__dir__}/delayed_job_active_record.rb")
 loader.setup
