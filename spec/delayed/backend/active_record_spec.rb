@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "helper"
+require "spec_helper"
 require "delayed/backend/active_record"
 
 describe Delayed::Backend::ActiveRecord::Job, backend: :active_record do

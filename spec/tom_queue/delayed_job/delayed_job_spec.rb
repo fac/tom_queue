@@ -1,4 +1,4 @@
-require 'tom_queue/helper'
+require "spec_helper"
 
 describe TomQueue, "once hooked", dj_hook: true do
 

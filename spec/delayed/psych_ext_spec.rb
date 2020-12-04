@@ -1,4 +1,4 @@
-require 'delayed/helper'
+require "spec_helper"
 
 describe 'Psych::Visitors::ToRuby', :if => defined?(Psych::Visitors::ToRuby) do
   context BigDecimal do

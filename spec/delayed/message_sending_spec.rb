@@ -1,4 +1,4 @@
-require 'delayed/helper'
+require "spec_helper"
 
 describe Delayed::MessageSending, backend: :test do
   it 'does not include ClassMethods along with MessageSending' do

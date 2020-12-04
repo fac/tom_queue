@@ -1,4 +1,4 @@
-require 'delayed/helper'
+require "spec_helper"
 
 class MyMailer < ActionMailer::Base
   def signup(email)

@@ -1,4 +1,4 @@
-require 'tom_queue/helper'
+require "spec_helper"
 
 # "Integration" For lack of a better word, trying to simulate various failures
 
