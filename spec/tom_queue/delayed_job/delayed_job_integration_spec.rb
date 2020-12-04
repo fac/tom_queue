@@ -1,6 +1,4 @@
-require 'tom_queue/helper'
-require 'tom_queue/delayed_job'
-require 'tom_queue/delayed_job/job'
+require "spec_helper"
 
 describe "delayed_job integration spec", timeout: 10, dj_hook: true do
 

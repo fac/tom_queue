@@ -1,5 +1,4 @@
-require 'tom_queue/helper'
-require 'tempfile'
+require "spec_helper"
 
 describe TomQueue::LoggingHelper do
 
