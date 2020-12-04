@@ -1,4 +1,4 @@
-require 'tom_queue/helper'
+require "spec_helper"
 
 describe TomQueue::DeferredWorkSet do
   let(:set) { TomQueue::DeferredWorkSet.new }

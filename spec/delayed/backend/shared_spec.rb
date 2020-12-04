@@ -1,3 +1,5 @@
+require "spec_helper"
+
 require File.expand_path('../../../../spec/sample_jobs', __FILE__)
 
 require 'active_support/core_ext/numeric/time'
