@@ -1,14 +1,13 @@
-# This is a bit of a library-in-a-library, for the time being
+# frozen_string_literal: true
+# 
+# TomQueue is a Background Job processing library, evolved from DelayedJob.
 #
-# This module manages the interaction with AMQP, handling publishing of
-# work messages, scheduling of work off the AMQP queue, etc.
+# It persists work as records in a database table, emulating the behaviour of Delayed Job
+# but schedules job across worker processes using AMQP notifications and coordinates work
+# into shards using ZooKeeper.
 #
 ##
-#
-# You probably want to start with TomQueue::QueueManager
-#
 
-require 'delayed_job'
 require "zeitwerk"
 
 loader = Zeitwerk::Loader.for_gem
@@ -19,6 +18,7 @@ loader.ignore("#{__dir__}/delayed_job_active_record.rb")
 loader.setup
 
 require "active_support"
+require "tom_queue/railtie"
 
 module TomQueue
 
