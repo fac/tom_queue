@@ -1,2 +1,5 @@
 require "delayed_job"
-require "delayed/backend/active_record/railtie"
+require 'active_record'
+require "delayed/backend/active_record"
+
+Delayed::Worker.backend = :active_record

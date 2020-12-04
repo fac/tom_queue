@@ -76,13 +76,13 @@ RSpec.configure do |r|
   end
 
   r.around(dj_hook: true) do |example|
-    TomQueue::DelayedJob.apply_hook!(&example)
+    TomQueue.logger ||= Logger.new("/dev/null")
+    TomQueue::DelayedJob.apply_hook! do
+      Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
+      example.call
+    end
   end
 
-  r.before do
-    TomQueue.logger ||= Logger.new("/dev/null")
-    Delayed::Job.class_variable_set(:@@tomqueue_manager, nil)
-  end
 
   # All tests should take < 2 seconds !!
   r.around do |test|
