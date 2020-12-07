@@ -1,6 +1,6 @@
 require 'delayed/helper'
 
-describe Delayed::PerformableMethod, backend: :test do
+describe Delayed::PerformableMethod, backend: :active_record do
   describe 'perform' do
     before do
       @method = Delayed::PerformableMethod.new('foo', :count, ['o'])

@@ -1,6 +1,6 @@
 require 'delayed/helper'
 
-describe Delayed::MessageSending, backend: :test do
+describe Delayed::MessageSending, backend: :active_record do
   it 'does not include ClassMethods along with MessageSending' do
     expect { ClassMethods }.to raise_error(NameError)
     expect(defined?(String::ClassMethods)).to eq(nil)

@@ -91,13 +91,11 @@ RSpec.configure do |config|
     Delayed::Worker.reset
   end
 
-  [:active_record, :test].each do |backend|
-    config.around(backend: backend) do |example|
-      old_backend = Delayed::Worker.backend
-      Delayed::Worker.backend = backend
-      example.call
-    ensure
-      Delayed::Worker.backend = old_backend
-    end
+  config.around(backend: :active_record) do |example|
+    old_backend = Delayed::Worker.backend
+    Delayed::Worker.backend = :active_record
+    example.call
+  ensure
+    Delayed::Worker.backend = old_backend
   end
 end

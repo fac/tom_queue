@@ -6,7 +6,7 @@ class MyMailer < ActionMailer::Base
   end
 end
 
-describe ActionMailer::Base, backend: :test do
+describe ActionMailer::Base, backend: :active_record do
   describe 'delay' do
     it 'enqueues a PerformableEmail job' do
       expect do
