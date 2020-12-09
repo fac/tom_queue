@@ -11,6 +11,5 @@ require "tom_queue/worker"
 }
 
 @worker_options[:sleep_delay] = ENV['SLEEP_DELAY'].to_i if ENV['SLEEP_DELAY']
-@worker_options[:read_ahead] = ENV['READ_AHEAD'].to_i if ENV['READ_AHEAD']
 
 TomQueue::Worker.new(@worker_options).start
