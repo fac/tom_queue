@@ -1,0 +1,83 @@
+version: '3.1'
+
+services:
+
+  zoo1:
+    image: zookeeper:3.4
+    restart: always
+    hostname: zoo1
+    ports:
+      - 2181:2181
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=0.0.0.0:2888:3888 server.2=zoo2:2888:3888 server.3=zoo3:2888:3888
+
+  zoo2:
+    image: zookeeper:3.4
+    restart: always
+    hostname: zoo2
+    ports:
+      - 2182:2181
+    environment:
+      ZOO_MY_ID: 2
+      ZOO_SERVERS: server.1=zoo1:2888:3888 server.2=0.0.0.0:2888:3888 server.3=zoo3:2888:3888
+
+  zoo3:
+    image: zookeeper:3.4
+    restart: always
+    hostname: zoo3
+    ports:
+      - 2183:2181
+    environment:
+      ZOO_MY_ID: 3
+      ZOO_SERVERS: server.1=zoo1:2888:3888 server.2=zoo2:2888:3888 server.3=0.0.0.0:2888:3888
+
+  rmq1:
+    build:
+      context: dockerfiles/rabbitmq
+      dockerfile: ../rabbitmq.dockerfile
+    image: tom_queue/rabbitmq
+    restart: always
+    hostname: rmq1
+    ports:
+      - 15672:15672
+      - 5672:5672
+    environment:
+      RMQ_CLUSTER: "rabbit@rmq1 rabbit@rmq2 rabbit@rmq3"
+      RMQ_FAST_STARTUP: "true"
+
+  rmq2:
+    depends_on:
+      - rmq1
+    image: tom_queue/rabbitmq
+    restart: always
+    hostname: rmq2
+    ports:
+      - 15673:15672
+      - 5673:5672
+    environment:
+      RMQ_CLUSTER: "rabbit@rmq1 rabbit@rmq2 rabbit@rmq3"
+
+  rmq3:
+    depends_on:
+      - rmq1
+    image: tom_queue/rabbitmq
+    restart: always
+    hostname: rmq3
+    ports:
+      - 15674:15672
+      - 5674:5672
+    environment:
+      RMQ_CLUSTER: "rabbit@rmq1 rabbit@rmq2 rabbit@rmq3"
+
+  mysql:
+    image: mysql:5.6
+    command: --default-authentication-plugin=mysql_native_password
+    hostname: mysql
+    restart: always
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: jobs_test_app
+

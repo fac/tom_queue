@@ -1,0 +1,37 @@
+version: '3.1'
+
+services:
+
+  zoo1:
+    image: zookeeper:3.4
+    restart: always
+    hostname: zoo1
+    ports:
+      - 2181:2181
+    environment:
+      ZOO_MY_ID: 1
+
+  rmq1:
+    build:
+      context: dockerfiles/rabbitmq
+      dockerfile: ../rabbitmq.dockerfile
+    image: tom_queue/rabbitmq
+    restart: always
+    hostname: rmq1
+    ports:
+      - 15672:15672
+      - 5672:5672
+    environment:
+      RMQ_FAST_STARTUP: "true"
+
+  mysql:
+    image: mysql:5.6
+    command: --default-authentication-plugin=mysql_native_password
+    hostname: mysql
+    restart: always
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: jobs_test_app
+
