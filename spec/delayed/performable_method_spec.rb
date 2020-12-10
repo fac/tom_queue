@@ -1,6 +1,6 @@
-require 'delayed/helper'
+require "spec_helper"
 
-describe Delayed::PerformableMethod do
+describe Delayed::PerformableMethod, backend: :test do
   describe 'perform' do
     before do
       @method = Delayed::PerformableMethod.new('foo', :count, ['o'])

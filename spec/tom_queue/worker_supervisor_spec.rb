@@ -1,6 +1,4 @@
-require 'tom_queue/helper'
-require "pry"
-require 'tom_queue/worker_supervisor'
+require "spec_helper"
 
 describe TomQueue::WorkerSupervisor do
   let(:supervisor) { described_class.new }

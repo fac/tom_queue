@@ -1,4 +1,4 @@
-require 'delayed/helper'
+require "spec_helper"
 
 class MyMailer < ActionMailer::Base
   def signup(email)
@@ -6,7 +6,7 @@ class MyMailer < ActionMailer::Base
   end
 end
 
-describe ActionMailer::Base do
+describe ActionMailer::Base, backend: :test do
   describe 'delay' do
     it 'enqueues a PerformableEmail job' do
       expect do

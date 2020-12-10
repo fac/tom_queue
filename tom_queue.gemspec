@@ -3,8 +3,6 @@
 require_relative "lib/tom_queue/version"
 
 Gem::Specification.new do |spec|
-  spec.add_dependency   'activerecord', '>= 4.1', '< 6.1'
-  spec.add_dependency   'bunny', "~> 2.2"
   spec.authors        = ["Thomas Haggett"]
   spec.description    = 'AMQP hook for Delayed Job, backed by ActiveRecord'
   spec.email          = ['thomas+gemfiles@freeagent.com']
@@ -22,4 +20,9 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency 'rest-client'
   spec.add_development_dependency 'appraisal'
+
+  spec.add_dependency 'zeitwerk'
+  spec.add_dependency   'activerecord', '>= 4.1', '< 6.1'
+  spec.add_dependency   'bunny', "~> 2.2"
+
 end

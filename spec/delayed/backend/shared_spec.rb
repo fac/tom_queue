@@ -1,3 +1,5 @@
+require "spec_helper"
+
 require File.expand_path('../../../../spec/sample_jobs', __FILE__)
 
 require 'active_support/core_ext/numeric/time'
@@ -385,7 +387,7 @@ shared_examples_for 'a delayed_job backend' do
 
         create_job(:queue => 'large')
         create_job(:queue => 'small')
-        worker.work_off
+        p worker.work_off
 
         expect(SimpleJob.runs).to eq(1)
       end

@@ -1,4 +1,4 @@
-require 'delayed/helper'
+require "spec_helper"
 
 describe 'YAML' do
   it 'autoloads classes' do
