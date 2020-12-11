@@ -1,3 +1,5 @@
+require 'support/forked_process_helpers'
+
 ### DJ
 
 require 'simplecov'
@@ -36,7 +38,7 @@ db_config = {
   host: "127.0.0.1",
   database: "delayed_job_test",
   username: "root",
-  password: "root",
+  password: ENV.fetch("MYSQL_PASSWORD", "root"),
   encoding: "utf8"
 }
 ActiveRecord::Base.establish_connection(db_config.slice(:adapter, :host, :username, :password))
@@ -216,6 +218,7 @@ RSpec.configure do |r|
     begin
       pid = fork do
         TomQueue.bunny = Bunny.new(TEST_AMQP_CONFIG)
+        TestChildProcess.run
         TomQueue.bunny.start
         TomQueue::DeferredWorkManager.new(TomQueue.default_prefix).start
       end
