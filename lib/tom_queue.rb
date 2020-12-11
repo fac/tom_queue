@@ -15,6 +15,7 @@ loader.ignore("#{__dir__}/delayed")
 loader.ignore("#{__dir__}/generators")
 loader.ignore("#{__dir__}/delayed_job.rb")
 loader.ignore("#{__dir__}/delayed_job_active_record.rb")
+loader.ignore("#{__dir__}/tom_queue/tasks.rb")
 loader.setup
 
 require "active_support"
