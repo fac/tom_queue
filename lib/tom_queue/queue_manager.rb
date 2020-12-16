@@ -105,6 +105,7 @@ module TomQueue
       # once we reach some limit. This is a _temporary_ measure to mitigate aother issue
       # which causes to leak AMQP consumers.
       @job_count = 0
+      @job_limit = TomQueue.job_limit || 0
     end
 
     # Internal: Opens channels and declares the necessary queues, exchanges and bindings
@@ -233,8 +234,8 @@ module TomQueue
     def pop(opts={})
       raise "Cannot pop messages, consumers not started" unless @consumers_started
 
-      if @job_count >= 10
-        puts "Processed 10 jobs, sending TERM"
+      if (@job_limit > 0) && (@job_count >= @job_limit)
+        debug "Processed #{@job_count} jobs, sending TERM"
         Process.kill("TERM", Process.pid)
       end
 
