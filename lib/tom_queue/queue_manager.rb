@@ -100,6 +100,11 @@ module TomQueue
 
       # Call the initial setup_amqp! to create the channels, exchanges and queues
       @consumers_started = false
+
+      # Track number of jobs processed which will use trigger a shutdown of the worker
+      # once we reach some limit. This is a _temporary_ measure to mitigate aother issue
+      # which causes to leak AMQP consumers.
+      @job_count = 0
     end
 
     # Internal: Opens channels and declares the necessary queues, exchanges and bindings
@@ -227,6 +232,14 @@ module TomQueue
     # Returns QueueManager::Work instance
     def pop(opts={})
       raise "Cannot pop messages, consumers not started" unless @consumers_started
+
+      if @job_count >= 10
+        puts "Processed 10 jobs, sending TERM"
+        Process.kill("TERM", Process.pid)
+      end
+
+      @job_count += 1
+
       work = sync_poll_queues
       work ||= wait_for_message
       work
