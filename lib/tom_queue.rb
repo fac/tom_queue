@@ -19,7 +19,7 @@ module TomQueue
 
   require "tom_queue/sorted_array"
 
-  mattr_accessor :bunny, :publisher, :default_prefix
+  mattr_accessor :bunny, :publisher, :default_prefix, :job_limit
 
   self.publisher = Publisher.new
 

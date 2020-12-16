@@ -100,6 +100,10 @@ module TomQueue
 
       # Call the initial setup_amqp! to create the channels, exchanges and queues
       @consumers_started = false
+
+      # Setting job_limit > 0 will cause the worker to exit after processing this number of jobs
+      @job_limit = TomQueue.job_limit || 0
+      @job_count = 0
     end
 
     # Internal: Opens channels and declares the necessary queues, exchanges and bindings
@@ -227,6 +231,16 @@ module TomQueue
     # Returns QueueManager::Work instance
     def pop(opts={})
       raise "Cannot pop messages, consumers not started" unless @consumers_started
+
+      # Exit when we hit the job limit by sending SIGTERM to oneself.
+      # This allows for everything to be cleaned up properly.
+      if (@job_limit > 0) && (@job_count >= @job_limit)
+        debug "Processed #{@job_count} jobs, sending TERM"
+        Process.kill("TERM", Process.pid)
+      end
+
+      @job_count += 1
+
       work = sync_poll_queues
       work ||= wait_for_message
       work
