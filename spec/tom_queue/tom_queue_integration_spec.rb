@@ -342,7 +342,7 @@ describe TomQueue::QueueManager, "simple publish / pop" do
       consumers.each do |c|
         total_size += c.work.size
         c.work.each do |work|
-          work.received_at.should < (work.run_at + 1.0)
+          work.received_at.should < (work.run_at + 2.0)
         end
       end
 
