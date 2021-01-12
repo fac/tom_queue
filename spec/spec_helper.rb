@@ -168,31 +168,6 @@ module SlowExpectation
   end
 end
 
-Pipes = []
-
-module ForkWithAttachment
-  def fork
-    puts "Forking with attachment"
-    @rd,@wr = IO.pipe
-    Pipes << @wr
-    super do
-      @wr.close
-      Thread.new { loop { exit(1) if @rd.read(1).nil? } }
-      yield
-    ensure
-      puts "SHUTDOWN"
-    end
-  end
-end
-
-class << Process
-  prepend(ForkWithAttachment)
-end
-Kernel.prepend(ForkWithAttachment)
-class << Kernel
-  prepend(ForkWithAttachment)
-end
-
 
 RSpec.configure do |r|
   r.include(SlowExpectation)
@@ -209,14 +184,6 @@ RSpec.configure do |r|
 
   # Make sure all tests see the same Bunny instance
   r.before do |test|
-  end
-
-  r.after(:suite) do |test|
-    p "after suite!"
-    while pipe = Pipes.pop
-      puts "Closing pipe"
-      pipe.close
-    end
   end
 
   r.around do |test|

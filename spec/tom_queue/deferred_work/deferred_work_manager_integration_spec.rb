@@ -19,13 +19,15 @@ describe "DeferredWorkManager", "#stop" do
 
   let!(:file) { Tempfile.new("exception") }
   let!(:pid) do
-    fork do
+    forked_process = TestForkedProcess.new do
       TomQueue.bunny = Bunny.new(TEST_AMQP_CONFIG)
       TomQueue.bunny.start
       TomQueue.exception_reporter = exception_reporter
       manager = TomQueue::DeferredWorkManager.new(TomQueue.default_prefix)
       manager.start
     end
+    forked_process.start
+    forked_process.pid
   end
 
   before(:each) do
