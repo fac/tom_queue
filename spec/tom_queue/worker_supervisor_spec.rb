@@ -9,16 +9,6 @@ describe TomQueue::WorkerSupervisor do
     end
   end
 
-  # This hook ensures that any child processes are coupled to this
-  # rspec process by holding open a read file descriptor in a background
-  # thread.
-  #
-  # This is in addition to the child processes being linked to the supervisor
-  # process inside WorkerSupervisor.
-  before do
-    supervisor.after_fork = -> { TestChildProcess.run }
-  end
-
   describe "#supervise" do
     it "creates a process with the right name" do
       supervisor.supervise(as: "worker") { }

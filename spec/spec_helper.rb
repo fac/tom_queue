@@ -109,6 +109,12 @@ RSpec.configure do |config|
     Delayed::Worker.reset
   end
 
+  config.before do
+    Signal.trap("TERM", "DEFAULT")
+    Signal.trap("INT", "DEFAULT")
+    Signal.trap("CHLD", "DEFAULT")
+  end
+
   [:active_record, :test].each do |backend|
     config.around(backend: backend) do |example|
       old_backend = Delayed::Worker.backend
@@ -203,6 +209,10 @@ RSpec.configure do |r|
     end
   end
 
+  # Clean up any orphaned process after each test scenario
+  r.around do |test|
+    TestForkedProcess.wrap(&test)
+  end
 
   # All tests should take < 2 seconds !!
   r.around do |test|
@@ -216,9 +226,8 @@ RSpec.configure do |r|
 
   r.around(:each, deferred_work_manager: true) do |example|
     begin
-      pid = fork do
+      process = TestForkedProcess.start do
         TomQueue.bunny = Bunny.new(TEST_AMQP_CONFIG)
-        TestChildProcess.run
         TomQueue.bunny.start
         TomQueue::DeferredWorkManager.new(TomQueue.default_prefix).start
       end
@@ -227,7 +236,8 @@ RSpec.configure do |r|
 
       example.call
     ensure
-      Process.kill(:KILL, pid)
+      process.term
+      process.join
     end
   end
 end
