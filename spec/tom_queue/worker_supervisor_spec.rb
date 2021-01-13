@@ -64,9 +64,9 @@ describe TomQueue::WorkerSupervisor do
       supervisor.before_fork = -> { before_hook_message.set "executing before fork" }
 
       forked_supervisor.start
-
       expect(before_hook_message.wait).to eq "executing before fork"
-      forked_supervisor.term
+
+      forked_supervisor.kill # TODO: Why do we need a kill here to prevent orphan processes and nowhere else in the file?
     end
 
     it "runs the after hook" do
@@ -292,6 +292,8 @@ describe TomQueue::WorkerSupervisor do
 
         expect(new_child1_pid).to_not eq(child1_pid)
         expect(new_child2_pid).to_not eq(child2_pid)
+
+        forked_supervisor.term
       end
     end
   end

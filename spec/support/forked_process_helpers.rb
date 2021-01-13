@@ -46,6 +46,8 @@ class TestForkedProcess
       TestChildProcess.run
       @block.call
     end
+    puts "Forked child process: #{@pid}, current pid: #{$$}"
+    @pid
   end
 
   def term
@@ -59,7 +61,6 @@ class TestForkedProcess
   def continue
     Process.kill("SIGCONT", @pid)
   end
-
 
   def kill
     Process.kill("SIGKILL", @pid)

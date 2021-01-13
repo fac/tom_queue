@@ -44,7 +44,6 @@ module TomQueue
       end
     end
 
-
     # Public: Starts each process, bringing them back up again if they die.
     #
     # Examples
@@ -191,7 +190,7 @@ module TomQueue
     end
 
     def shut_down_child_processes
-      log "Gracefully shutting down all tasks"
+      log "Gracefully shutting down all tasks #{currently_running_processes}"
       currently_running_processes.each do |pid, name|
         begin
           Process.kill("TERM", pid)
