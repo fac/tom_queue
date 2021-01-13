@@ -15,31 +15,33 @@ describe "DeferredWorkManager", "#stop" do
     end
   end
 
-  let(:exception_reporter) { ExceptionReporter.new(file.path) }
+  let!(:exception_reporter) { ExceptionReporter.new(file.path) }
 
   let!(:file) { Tempfile.new("exception") }
-  let!(:pid) do
-    fork do
+  let!(:worker_process) do
+    msg = ChildProcessMessage.new
+    TestForkedProcess.start do
       TomQueue.bunny = Bunny.new(TEST_AMQP_CONFIG)
       TomQueue.bunny.start
       TomQueue.exception_reporter = exception_reporter
       manager = TomQueue::DeferredWorkManager.new(TomQueue.default_prefix)
-      manager.start
-    end
+      
+      manager.start { msg.set("started") }
+    end.tap { |_| msg.wait }
   end
 
-  before(:each) do
-    sleep 0.5
-
-    Process.kill("SIGTERM", pid)
-    _, @status = Process.waitpid2(pid)
+  subject do
+    worker_process.term
+    @status = worker_process.join(timeout: 2)
   end
 
   it "handles SIGTERM send by god properly" do
+    subject
     expect(@status.exitstatus).to eq 0
   end
 
   it "doesn't report into the exception_reporter" do
+    subject
     expect(file.size).to eq 0
   end
 end
@@ -48,7 +50,7 @@ describe "DeferredWorkManager integration scenarios"  do
   it "should restore un-acked messages when the process has crashed" do
     @prefix = "test-#{Time.now.to_f}"
 
-    fork do
+    process = TestForkedProcess.start do
       TomQueue.bunny = Bunny.new(TEST_AMQP_CONFIG)
       TomQueue.bunny.start
       @manager = TomQueue::DeferredWorkManager.new(@prefix)
@@ -58,7 +60,7 @@ describe "DeferredWorkManager integration scenarios"  do
       @manager.start
     end
 
-    Process.wait
+    process.join(timeout: 2)
 
     # we would expect the message to be on the queue again, so this
     # should "just work"
@@ -75,13 +77,14 @@ describe "DeferredWorkManager integration scenarios"  do
         end
       end
 
-      Process.kill("SIGKILL", @pid)
+      @process.kill
+      @process.join(timeout: 2)
     end
 
     before do
       @prefix = "test-#{Time.now.to_f}"
 
-      @pid = fork do
+      @process = TestForkedProcess.start do
         TomQueue.exception_reporter = nil
         require 'tom_queue/deferred_work_set'
 

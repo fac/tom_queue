@@ -77,11 +77,13 @@ module TomQueue
       response.channel.reject(response.delivery_tag, !response.redelivered?)
     end
 
-    def start
+    def start(&started_callback)
       debug "[DeferredWorkManager] Deferred process starting up"
 
       # This block will get called-back for new messages
       @consumer = queue.subscribe(:manual_ack => true, &method(:schedule))
+
+      started_callback.call if started_callback
 
       # This is the core event loop - we block on the deferred set to return messages
       # (which have been scheduled by the AMQP consumer). If a message is returned
