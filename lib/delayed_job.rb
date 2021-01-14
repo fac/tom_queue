@@ -1,4 +1,3 @@
-$stderr.puts "require 'delayed_job' is deprecated, migrate to require 'tom_queue'"
 caller.each { |e| $stderr.puts "\t#{e}"}
 
 require 'active_support'
