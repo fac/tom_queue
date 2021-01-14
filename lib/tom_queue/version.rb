@@ -1,3 +1,3 @@
 module TomQueue
-  VERSION = "2.2.0"
+  VERSION = "3.0.0.pre1"
 end

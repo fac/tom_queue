@@ -7,6 +7,7 @@
 # into shards using ZooKeeper.
 #
 ##
+puts "TomQueue version: #{TomQueue::VERSION}"
 
 require "zeitwerk"
 
