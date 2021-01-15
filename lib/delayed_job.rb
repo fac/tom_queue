@@ -1,5 +1,3 @@
-caller.each { |e| $stderr.puts "\t#{e}"}
-
 require 'active_support'
 require 'delayed/exceptions'
 require 'delayed/message_sending'

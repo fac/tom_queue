@@ -22,6 +22,7 @@ if defined?(Rails::Railtie)
       config.after_initialize do
         require "delayed/backend/active_record"
         Delayed::Worker.backend = :active_record
+        Delayed::Worker.logger.info "TomQueue version: #{TomQueue::VERSION}"
       end
 
     end
