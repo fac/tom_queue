@@ -1,3 +1,4 @@
+require 'tom_queue'
 require 'delayed/backend/active_record'
 require 'active_support/concern'
 
