@@ -8,7 +8,7 @@ module Datadog
 
         MINIMUM_VERSION = Gem::Version.new('3.0.0.pre2')
 
-        register_as :tom_queue
+        register_as :delayed_job
 
         def self.version
           Gem.loaded_specs['tom_queue'] && Gem.loaded_specs['tom_queue'].version
