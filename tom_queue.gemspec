@@ -22,7 +22,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'appraisal'
 
   spec.add_dependency 'zeitwerk'
-  spec.add_dependency   'activerecord', '>= 4.1', '< 6.1'
+  spec.add_dependency   'activerecord', '>= 4.1'
   spec.add_dependency   'bunny', "~> 2.2"
 
 end
