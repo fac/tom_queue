@@ -12,4 +12,4 @@ require "tom_queue/worker"
 
 @worker_options[:sleep_delay] = ENV['SLEEP_DELAY'].to_i if ENV['SLEEP_DELAY']
 
-TomQueue::Worker.new(@worker_options).start
+Delayed::Worker.new(@worker_options).start
