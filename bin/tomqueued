@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require "./config/environment"
+require 'optparse'
 
 @worker_options = {
   :min_priority => ENV['MIN_PRIORITY'],
@@ -11,10 +12,22 @@ require "./config/environment"
 
 @worker_options[:sleep_delay] = ENV['SLEEP_DELAY'].to_i if ENV['SLEEP_DELAY']
 
+options = {workers: 1}
+OptionParser.new do |parser|
+  parser.banner = "Usage: bundle exec tomqueued [options]"
+  parser.on("-w", "--workers WORKERS", Integer, "The number of workers to fork (defaults to #{options[:workers]})") do |workers|
+    options[:workers] = workers
+  end
+  parser.on("-h", "--help", "Prints this help") do
+    puts parser
+    exit
+  end
+end.parse!
+
 supervisor = TomQueue::WorkerSupervisor.new
 supervisor.before_fork = Rails.application.config.before_fork
 supervisor.after_fork = Rails.application.config.after_fork
-supervisor.supervise(as: "worker") do
+supervisor.supervise(as: "worker", count: options[:workers]) do
   Delayed::Worker.new(@worker_options).start
 end
 supervisor.run
