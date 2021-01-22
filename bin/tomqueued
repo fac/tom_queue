@@ -1,7 +1,6 @@
 #!/usr/bin/env ruby
 
 require "./config/environment"
-require "tom_queue/worker"
 
 @worker_options = {
   :min_priority => ENV['MIN_PRIORITY'],
@@ -12,4 +11,10 @@ require "tom_queue/worker"
 
 @worker_options[:sleep_delay] = ENV['SLEEP_DELAY'].to_i if ENV['SLEEP_DELAY']
 
-Delayed::Worker.new(@worker_options).start
+supervisor = TomQueue::WorkerSupervisor.new
+supervisor.before_fork = Rails.application.config.before_fork
+supervisor.after_fork = Rails.application.config.after_fork
+supervisor.supervise(as: "worker") do
+  Delayed::Worker.new(@worker_options).start
+end
+supervisor.run
