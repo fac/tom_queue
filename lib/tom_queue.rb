@@ -48,5 +48,9 @@ module TomQueue
   class << self
     attr_accessor :exception_reporter
     attr_accessor :logger
+
+    def in_worker?
+      /tomqueue/.match? $PROGRAM_NAME
+    end
   end
 end
