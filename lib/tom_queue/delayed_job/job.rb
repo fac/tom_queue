@@ -230,6 +230,7 @@ module TomQueue
 
             if job.nil?
               job = nil
+              warn "JOB WAS NIL"
 
             elsif job.failed?
               warn "[tomqueue] Received notification for failed job #{job.id}"
@@ -237,6 +238,7 @@ module TomQueue
 
             elsif job.locked?
               job = false
+              warn "JOB WAS LOCKED"
 
             elsif job.locked_at || job.locked_by || (!block_given? || yield(job) == true)
               if job.run_at > self.db_time_now + 5
@@ -246,6 +248,8 @@ module TomQueue
 
                 job = nil
               else
+                warn "JOB WAS ACQUIRED"
+
                 job.skip_publish = true
 
                 job.locked_by = worker.name
@@ -255,7 +259,8 @@ module TomQueue
                 job.skip_publish = nil
               end
             else
-              job = nil
+                warn "JOB ELSE?"
+              #job = nil
             end
 
             job

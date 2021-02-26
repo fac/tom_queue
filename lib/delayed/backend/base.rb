@@ -5,14 +5,32 @@ module Delayed
         base.extend ClassMethods
       end
 
+      class DelayedWrapperJob < ActiveJob::Base
+        def perform(payload_object)
+        end
+      end
+
       module ClassMethods
-        # Add a job to the queue
-        def enqueue(*args)
-          job_options = Delayed::Backend::JobPreparer.new(*args).prepare
-          enqueue_job(job_options)
+        def enqueue(payload = nil, payload_object: nil, queue: nil, priority: nil, run_at: nil)
+          payload_object ||= payload
+          queue ||= payload_object.respond_to?(:queue_name) ? payload_object.queue_name : Delayed::Worker.default_queue_name
+
+          if queue_attribute = Delayed::Worker.queue_attributes[queue]
+            priority ||= queue_attribute.fetch(:priority) { Delayed::Worker.default_priority }
+          end
+
+          DelayedWrapperJob.new(payload_object).enqueue(
+            queue: queue,
+            priority: priority,
+            wait_until: run_at,
+          )
         end
 
         def enqueue_job(options)
+
+
+          p "Hiya, we're enqueuing the job!"
+          Rails.logger.info("IN ENQUEUE")
           new(options).tap do |job|
             Delayed::Worker.lifecycle.run_callbacks(:enqueue, job) do
               job.hook(:enqueue)
@@ -65,20 +83,20 @@ module Delayed
 
       def payload_object=(object)
         @payload_object = object
-        self.handler = object.to_yaml
+        self.handler = Marshal.dump(object.serialize)
       end
 
       def payload_object
-        @payload_object ||= YAML.load_dj(handler)
-      rescue TypeError, LoadError, NameError, ArgumentError, SyntaxError, Psych::SyntaxError => e
-        raise DeserializationError, "Job failed to load: #{e.message}. Handler: #{handler.inspect}"
+        @payload_object ||= ActiveJob::Base.deserialize(Marshal.load(handler))
       end
 
       def invoke_job
         Delayed::Worker.lifecycle.run_callbacks(:invoke_job, self) do
           begin
             hook :before
-            payload_object.perform
+            ActiveJob::Callbacks.run_callbacks(:execute) do
+              payload_object.perform_now
+            end
             hook :success
           rescue Exception => e # rubocop:disable RescueException
             hook :error, e
