@@ -6,7 +6,7 @@ require 'optparse'
 options = {
   workers: 1,
   deferred_scheduler: false,
-  executable_path: "./config/tom_queue_config.rb",
+  executable_path: false,
 }
 
 OptionParser.new do |parser|
