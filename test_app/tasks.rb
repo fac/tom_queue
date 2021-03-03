@@ -11,6 +11,7 @@ require 'pathname'
 # Don't forget, if you change any of these creation steps, you'll need to clean
 # and re-create any test apps you have.
 namespace :test_app do
+
   ROOT = Pathname.new(__dir__).join("..")
   APP_ROOT = ROOT.join("tmp/apps")
   RAILS = {
@@ -23,6 +24,10 @@ namespace :test_app do
     "config/amqp.yaml" => "amqp.yml",
     "config/routes.rb" => "routes.rb"
   }
+
+  task "foreman" do
+    sh("gem list -i rails || gem install foreman")
+  end
 
   RAILS.keys.each do |version|
     task "build_#{version}"
@@ -55,15 +60,16 @@ namespace :test_app do
       task "build_#{version}" => RAILS[version].join(target)
     end
 
-    task "start_#{version}" => "build_#{version}" do
+    task "start_#{version}" => [:foreman, "build_#{version}"] do
       cd(RAILS[version]) do
         exec("foreman start")
       end
     end
+
+    task :rails => "build_#{version}"
   end
   
-  task :rails => [RAILS["6.1.3"]] do
-    sh("gem list -i rails || gem install foreman")
+  task :rails do
     puts "rails ready"
   end
 
