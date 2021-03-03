@@ -26,7 +26,7 @@ namespace :test_app do
   }
 
   task "foreman" do
-    sh("gem list -i rails || gem install foreman")
+    sh("gem list -i foreman || gem install foreman")
   end
 
   RAILS.keys.each do |version|
