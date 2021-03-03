@@ -1,0 +1,14 @@
+<h4>Jobs</h4>
+<table>
+  <thead>
+    <tr>
+      <th>ID</th><th>Run at</th>
+    </tr>
+  </thead>
+  <% @jobs.each do |job| %>
+    <tr>
+      <td><%= job.id %></td>
+      <td><%= job.run_at.to_s(:short) %></td>
+    </tr>
+  <% end %>
+</table>
