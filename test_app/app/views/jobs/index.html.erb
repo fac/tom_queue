@@ -1,0 +1,30 @@
+<div>
+  <%= link_to "Create a job", new_job_path %>
+</div>
+
+<div id="job_list">
+  <%= render partial: "list" %>
+</div>
+
+<script type="text/javascript">
+  window.App = {}
+  window.App.cable = ActionCable.createConsumer("/cable")
+  window.App.clockChannel = window.App.cable.subscriptions.create({channel: "JobsChannel"}, {
+    // ActionCable callbacks
+    connected: function() {
+      console.log("connected", this.identifier)
+    },
+    disconnected: function() {
+      console.log("disconnected", this.identifier)
+    },
+    rejected: function() {
+      console.log("rejected")
+    },
+    received: function(data) {
+      console.log("Got event")
+      fetch('/jobs?fragment=list')
+        .then(data => data.text())
+        .then(html => document.getElementById("job_list").innerHTML = html)
+    },
+  });
+</script>

@@ -1,7 +1,7 @@
 class TestDelayedJob < Struct.new(:arg)
 
   def perform
-    puts "Delayed job running with arg=#{arg}"
+    Rails.logger.warn "Delayed job running with arg=#{arg}"
   end 
   
 end

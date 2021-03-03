@@ -4,7 +4,9 @@
 gsub_file "Gemfile", /^gem 'rails'.*$/, ""
 gem 'rails', "= #{Rails.version}"
 
-gem("tom_queue", path: "../../..")
+gem "tom_queue", path: "../../.."
+
+gem "redis"
 
 file "db/migrate/20210301151001_create_delayed_jobs.rb", <<~MIGRATE
   class CreateDelayedJobs < ActiveRecord::Migration[6.1]
@@ -33,8 +35,20 @@ rails_command("db:migrate")
 file "Procfile", <<~PROCFILE
   web: bundle exec puma -p 3001
   job: bundle exec tomqueued
+  redis: redis-server --port 61379
   log: tail -f log/development.log
 PROCFILE
+
+file "config/initializers/active_job.rb", <<~CONFIG
+  ActiveJob::Base.queue_adapter = :delayed_job
+CONFIG
+
+file "config/cable.yml", <<~CONFIG, force: true
+  development:
+    adapter: redis
+    url: redis://127.0.0.1:61379
+    channel_prefix: tq_test_app
+CONFIG
 
 file "config/tom_queue_config.rb", <<~CONFIG
   # frozen_string_literal: true
