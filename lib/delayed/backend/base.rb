@@ -89,11 +89,12 @@ module Delayed
       def payload_object=(object)
         @payload_object = object
         #byebug
-        self.handler = object.serialize#Marshal.dump(object)
+        self.handler = object.serialize # this is a hash #Marshal.dump(object)
+        Rails.logger.info("HANDLER IS :#{handler}")
+        self.handler
       end
 
       def payload_object
-        byebug
         @payload_object ||= ActiveJob::Base.deserialize(handler)
       end
 

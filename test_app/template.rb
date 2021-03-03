@@ -40,7 +40,8 @@ file "Procfile", <<~PROCFILE
 PROCFILE
 
 file "config/initializers/active_job.rb", <<~CONFIG
-  ActiveJob::Base.queue_adapter = :delayed_job
+  require "tom_queue/queue_adapter"
+  ActiveJob::Base.queue_adapter = :tom_queue
 CONFIG
 
 file "config/cable.yml", <<~CONFIG, force: true

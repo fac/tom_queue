@@ -38,6 +38,8 @@ module Delayed
                           :failed_at, :locked_at, :locked_by, :handler
         end
 
+        serialize :handler, Hash
+
         scope :by_priority, lambda { order("priority ASC, run_at ASC") }
         scope :min_priority, lambda { where("priority >= ?", Worker.min_priority) if Worker.min_priority }
         scope :max_priority, lambda { where("priority <= ?", Worker.max_priority) if Worker.max_priority }

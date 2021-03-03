@@ -9,7 +9,7 @@ module TomQueue
     def enqueue_at(job, timestamp) #:nodoc:
       delayed_job_fields = {
         queue: job.queue_name,
-        priority: job.priority,
+        priority: job.priority || 0,
         run_at: job.scheduled_at,
         payload_object: job,
       }
