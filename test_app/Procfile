@@ -1,3 +1,0 @@
-app: bundle exec shotgun --server=puma --port=5000 config.ru
-worker: bundle exec rake jobs:work
-rabbitmq: bash ./bin/run-rabbitmq.sh
