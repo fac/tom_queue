@@ -5,8 +5,14 @@ module Delayed
         base.extend ClassMethods
       end
 
+      # ActiveJob that we're wrapping DelayedJobs in
       class DelayedWrapperJob < ActiveJob::Base
-        def perform(payload_object)
+        def self.wrap_payload_object(payload_object)
+          new(Marshal.dump(payload_object))
+        end
+
+        def perform(payload_object_string)
+          Marshal.load(payload_object_string).perform
         end
       end
 
@@ -19,7 +25,7 @@ module Delayed
             priority ||= queue_attribute.fetch(:priority) { Delayed::Worker.default_priority }
           end
 
-          DelayedWrapperJob.new(payload_object).enqueue(
+          DelayedWrapperJob.wrap_payload_object(payload_object).enqueue(
             queue: queue,
             priority: priority,
             wait_until: run_at,
@@ -27,8 +33,6 @@ module Delayed
         end
 
         def enqueue_job(options)
-
-
           p "Hiya, we're enqueuing the job!"
           Rails.logger.info("IN ENQUEUE")
           new(options).tap do |job|
@@ -78,16 +82,19 @@ module Delayed
       def name
         @name ||= payload_object.respond_to?(:display_name) ? payload_object.display_name : payload_object.class.name
       rescue DeserializationError
+        p "Oops. Couldn't deserialize name"
         ParseObjectFromYaml.match(handler)[1]
       end
 
       def payload_object=(object)
         @payload_object = object
-        self.handler = Marshal.dump(object.serialize)
+        #byebug
+        self.handler = object.serialize#Marshal.dump(object)
       end
 
       def payload_object
-        @payload_object ||= ActiveJob::Base.deserialize(Marshal.load(handler))
+        byebug
+        @payload_object ||= ActiveJob::Base.deserialize(handler)
       end
 
       def invoke_job
