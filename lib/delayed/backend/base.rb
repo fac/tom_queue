@@ -5,8 +5,12 @@ module Delayed
         base.extend ClassMethods
       end
 
-      # ActiveJob that we're wrapping DelayedJobs in
       class DelayedWrapperJob < ActiveJob::Base
+        before_enqueue do |job|
+          delayed_job_instance = Marshal.load(arguments[0])
+          delayed_job_instance.before(delayed_job_instance)
+        end
+
         def self.wrap_payload_object(payload_object)
           new(Marshal.dump(payload_object))
         end
