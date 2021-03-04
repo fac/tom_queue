@@ -10,7 +10,7 @@ module TomQueue
       delayed_job_fields = {
         queue: job.queue_name,
         priority: job.priority || 0,
-        run_at: job.scheduled_at,
+        run_at: Time.at(timestamp),
         payload_object: job,
       }
 

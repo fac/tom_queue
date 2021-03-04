@@ -20,6 +20,7 @@ module Delayed
         def enqueue(payload = nil, payload_object: nil, queue: nil, priority: nil, run_at: nil)
           payload_object ||= payload
           queue ||= payload_object.respond_to?(:queue_name) ? payload_object.queue_name : Delayed::Worker.default_queue_name
+          run_at ||= payload_object.respond_to?(:run_at) ? payload_object.run_at: Time.now
 
           if queue_attribute = Delayed::Worker.queue_attributes[queue]
             priority ||= queue_attribute.fetch(:priority) { Delayed::Worker.default_priority }

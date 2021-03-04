@@ -4,4 +4,8 @@
   <%= form_tag jobs_path do %>
     <%= submit_tag("Create") %>
   <% end %>
+  <%= form_with url: jobs_path do |form| %>
+    <%= form.hidden_field :deferred, value: true %>
+    <%= submit_tag("Create deferred job") %>
+  <% end %>
 </p>
