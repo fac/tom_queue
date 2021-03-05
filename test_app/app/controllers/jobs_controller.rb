@@ -7,7 +7,7 @@ class JobsController < ApplicationController
 
   def create
     Delayed::Job.enqueue(TestDelayedJob.new("some-arg"), run_at: run_at)
-    TestActiveJob.set(wait_until: run_at).perform_later("some-arg")
+    #TestActiveJob.set(wait_until: run_at).perform_later("some-arg")
     redirect_to new_job_path
   end
 

@@ -1,7 +1,16 @@
 class TestDelayedJob < Struct.new(:arg)
 
+  class FailAndRetry < Exception
+  end
+
   def perform
     Rails.logger.warn "Delayed job running with arg=#{arg}"
+    raise "oops"
+  end
+
+  def reschedule_at(current_time, attempts)
+    Rails.logger.info("We're rescheduling the job!")
+    current_time + attempts.seconds
   end
 
   def max_attempts

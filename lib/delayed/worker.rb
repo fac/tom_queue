@@ -228,10 +228,17 @@ module Delayed
       job_say job, 'RUNNING'
       runtime = Benchmark.realtime do
         Timeout.timeout(max_run_time(job).to_i, WorkerTimeout) { job.invoke_job }
-        job.destroy
+        Rails.logger.info("RUN JOB SUCCESSFULLY. FAILED IS #{job.failed?}")
+        job.destroy unless job.failed?
       end
-      job_say job, format('COMPLETED after %.4f', runtime)
-      return true # did work
+      if !job.failed?
+        job_say job, format('COMPLETED after %.4f', runtime)
+        return true # did work
+      else
+        # TODO-make logging nicer
+        job_say job, format('FAILED after %.4f', runtime)
+        false
+      end
     rescue DeserializationError => error
       job_say job, "FAILED permanently with #{error.class.name}: #{error.message}", 'error'
 

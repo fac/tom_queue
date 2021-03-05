@@ -3,6 +3,20 @@ module Delayed
     module Base
       def self.included(base)
         base.extend ClassMethods
+
+        attr_accessor :failed
+
+        def failed?
+          failed
+        end
+      end
+
+      class ::ActiveJob::Base
+        attr_accessor :delayed_job_record
+
+        after_perform do |job|
+          job.delayed_job_record.failed ||= false
+        end
       end
 
       class DelayedWrapperJob < ActiveJob::Base
@@ -11,12 +25,63 @@ module Delayed
           delayed_job_instance.before(delayed_job_instance)
         end
 
+        rescue_from Exception do |error|
+          delayed_job_record.failed = true
+          # TODO magic number
+          if delayed_job_record.attempts < delayed_job.max_attempts - 1
+            delayed_job_record.update! attempts: delayed_job_record.attempts + 1
+            # hack—executions should already be set. Why aren't they incrementing?
+            self.executions = delayed_job_record.attempts
+            retry_job wait_until: delayed_job.reschedule_at(Time.now, delayed_job_record.attempts)
+          else
+            raise error
+          end
+        end
+
         def self.wrap_payload_object(payload_object)
           new(Marshal.dump(payload_object))
         end
 
+        def delayed_job
+          @job ||= Marshal.load(arguments[0])
+        end
+
+        #def rescue_with_handler(exception)
+          #Rails.logger.info("RESCUE WITH HANDLER: #{exception}")
+          #false
+        #end
+
         def perform(payload_object_string)
-          Marshal.load(payload_object_string).perform
+          Delayed::Worker.lifecycle.run_callbacks(:invoke_job, delayed_job_record) do
+            begin
+              #hook :before
+              delayed_job.perform
+              #hook :success
+            rescue Exception => e # rubocop:disable RescueException
+              #hook :error, e
+              raise e
+            ensure
+              #hook :after
+            end
+          end
+          #Rails.logger.info("PERFORMING JOB: #{job.max_attempts}")
+          #Rails.logger.info("PERFORMING JOB: #{provider_job_id}")
+          #Rails.logger.info("PERFORMING JOB: execution count: #{executions}")
+          #Rails.logger.info("PERFORMING JOB: job id: #{Delayed::Job.where("handler LIKE '%job_id%'").first&.id}")
+          #job.perform
+        #rescue Exception => e# Exception to catch Delayed::FailAndRetry
+          #delayed_job = Delayed::Job.find_by("handler LIKE '%job_id%'")
+          #if executions <= job.max_attempts
+            #reschedule_at = delayed_job.reschedule_at(Time.now, executions)
+            #delayed_job.update! attempts: executions#, run_at: reschedule_at
+            ##Rails.logger.info("EXCEPTION: Job is #{job.to_json}")
+            #retry_job wait_until: job.reschedule_at(Time.now, executions)
+          #else
+            #raise
+            ##Rails.logger.info("EXCEPTION: JOB FAILED: AJ: #{inspect}\nDJ: #{job.inspect}")
+            ##delayed_job&.update failed_at: Time.now
+          #end
+          #raise
         end
       end
 
@@ -104,19 +169,10 @@ module Delayed
       end
 
       def invoke_job
-        Delayed::Worker.lifecycle.run_callbacks(:invoke_job, self) do
-          begin
-            hook :before
-            ActiveJob::Callbacks.run_callbacks(:execute) do
-              payload_object.perform_now
-            end
-            hook :success
-          rescue Exception => e # rubocop:disable RescueException
-            hook :error, e
-            raise e
-          ensure
-            hook :after
-          end
+        ActiveJob::Callbacks.run_callbacks(:execute) do
+          payload_object.provider_job_id = self.id
+          payload_object.delayed_job_record = self
+          payload_object.perform_now
         end
       end
 

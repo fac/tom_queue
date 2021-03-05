@@ -34,7 +34,7 @@ rails_command("db:migrate")
 
 file "Procfile", <<~PROCFILE
   web: bundle exec puma -p 3001
-  job: bundle exec tomqueued
+  job: bundle exec tomqueued -d -e "./config/tom_queue_config.rb"
   redis: redis-server --port 61379
   log: tail -f log/development.log
 PROCFILE
@@ -53,13 +53,26 @@ CONFIG
 
 file "config/tom_queue_config.rb", <<~CONFIG
   # frozen_string_literal: true
+  TomQueue.default_prefix = "test"
 
-  @tomqueue_supervisor.before_fork = Rails.application.config.before_fork
+  @tomqueue_supervisor.before_fork = -> do
+    TomQueue.bunny = nil
+    #begin
+      #Rails.application.config.bunny_queue.stop(timeout: 2)
+    #rescue TimeoutError
+    #end
+  end
   @tomqueue_supervisor.after_fork = -> do
-    Rails.application.config.after_fork.call
-    if Rails.configuration.bunny_queue
-      Rails.configuration.bunny_queue.publish_timeout = 2.seconds
-      Rails.configuration.bunny_queue.wait_for_start
-    end
+    TEST_AMQP_CONFIG = {:host => 'localhost', :vhost => 'test', :user => 'guest', :password => 'guest'}
+    TomQueue.bunny = Bunny.new(TEST_AMQP_CONFIG)
+    TomQueue.bunny.start
+    ActiveRecord::Base.establish_connection
+    Rails.cache.instance_variable_get(:@data).reset unless Rails.application.config.cache_store == :null_store
+    #Rails.application.config.bunny_queue.start
+
+    #if Rails.configuration.bunny_queue
+      #Rails.configuration.bunny_queue.publish_timeout = 2.seconds
+      #Rails.configuration.bunny_queue.wait_for_start
+    #end
   end
 CONFIG
