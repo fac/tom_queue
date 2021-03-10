@@ -8,6 +8,7 @@ require 'rspec'
 
 require 'action_mailer'
 require 'active_record'
+require 'active_job'
 
 require 'delayed_job'
 Delayed::Worker.logger = Logger.new("/tmp/dj.log")
@@ -128,6 +129,8 @@ require 'bunny'
 require 'rest_client'
 require 'tom_queue'
 require 'tom_queue/delayed_job'
+require 'tom_queue/queue_adapter'
+ActiveJob::Base.queue_adapter = :tom_queue
 
 #
 # Temporary note:

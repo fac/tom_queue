@@ -15,6 +15,7 @@ module Delayed
         attr_accessor :delayed_job_record
 
         after_perform do |job|
+          p "AFTER PERFORM: #{job.delayed_job_record}"
           job.delayed_job_record.failed ||= false
         end
       end
@@ -22,7 +23,7 @@ module Delayed
       class DelayedWrapperJob < ActiveJob::Base
         before_enqueue do |job|
           delayed_job_instance = Marshal.load(arguments[0])
-          delayed_job_instance.before(delayed_job_instance)
+          delayed_job_instance.before(delayed_job_instance) if delayed_job_instance.respond_to?(:before)
         end
 
         rescue_from Exception do |error|
@@ -46,12 +47,8 @@ module Delayed
           @job ||= Marshal.load(arguments[0])
         end
 
-        #def rescue_with_handler(exception)
-          #Rails.logger.info("RESCUE WITH HANDLER: #{exception}")
-          #false
-        #end
-
         def perform(payload_object_string)
+          p "IN PERFORM METHOD: delayed_job_record is #{delayed_job_record}"
           Delayed::Worker.lifecycle.run_callbacks(:invoke_job, delayed_job_record) do
             begin
               #hook :before
@@ -64,24 +61,6 @@ module Delayed
               #hook :after
             end
           end
-          #Rails.logger.info("PERFORMING JOB: #{job.max_attempts}")
-          #Rails.logger.info("PERFORMING JOB: #{provider_job_id}")
-          #Rails.logger.info("PERFORMING JOB: execution count: #{executions}")
-          #Rails.logger.info("PERFORMING JOB: job id: #{Delayed::Job.where("handler LIKE '%job_id%'").first&.id}")
-          #job.perform
-        #rescue Exception => e# Exception to catch Delayed::FailAndRetry
-          #delayed_job = Delayed::Job.find_by("handler LIKE '%job_id%'")
-          #if executions <= job.max_attempts
-            #reschedule_at = delayed_job.reschedule_at(Time.now, executions)
-            #delayed_job.update! attempts: executions#, run_at: reschedule_at
-            ##Rails.logger.info("EXCEPTION: Job is #{job.to_json}")
-            #retry_job wait_until: job.reschedule_at(Time.now, executions)
-          #else
-            #raise
-            ##Rails.logger.info("EXCEPTION: JOB FAILED: AJ: #{inspect}\nDJ: #{job.inspect}")
-            ##delayed_job&.update failed_at: Time.now
-          #end
-          #raise
         end
       end
 
@@ -104,7 +83,7 @@ module Delayed
 
         def enqueue_job(options)
           p "Hiya, we're enqueuing the job!"
-          Rails.logger.info("IN ENQUEUE")
+          #Rails.logger.info("IN ENQUEUE")
           new(options).tap do |job|
             Delayed::Worker.lifecycle.run_callbacks(:enqueue, job) do
               job.hook(:enqueue)
@@ -157,10 +136,10 @@ module Delayed
       end
 
       def payload_object=(object)
+        p "Setting the payload object"
         @payload_object = object
-        #byebug
         self.handler = object.serialize # this is a hash #Marshal.dump(object)
-        Rails.logger.info("HANDLER IS :#{handler}")
+        p "The payload object was set to #{self.payload_object}"
         self.handler
       end
 
@@ -170,6 +149,7 @@ module Delayed
 
       def invoke_job
         ActiveJob::Callbacks.run_callbacks(:execute) do
+          p "INVOKING JOB"
           payload_object.provider_job_id = self.id
           payload_object.delayed_job_record = self
           payload_object.perform_now

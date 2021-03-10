@@ -3,11 +3,13 @@
 module TomQueue
   class QueueAdapter
     def enqueue(job) #:nodoc:
+      p "ENQUEING IN QUEUE ADAPTER"
       enqueue_at(job, Time.now)
     end
 
     def enqueue_at(job, timestamp) #:nodoc:
-      Rails.logger.info("ENQUEING JOB ID #{job.provider_job_id}")
+      p "ENQUEING AT #{timestamp} IN QUEUE ADAPTER"
+      #Rails.logger.info("ENQUEING JOB ID #{job.provider_job_id}")
       delayed_job_fields = {
         queue: job.queue_name,
         priority: job.priority || 0,
@@ -16,7 +18,7 @@ module TomQueue
       }
 
       if job.delayed_job_record.present?
-        Rails.logger.info("RE-ENQUEUING JOB: DELAYED_JOB_RECORD IS PRESENT, job is a #{job.class}, #{job.inspect}")
+        #Rails.logger.info("RE-ENQUEUING JOB: DELAYED_JOB_RECORD IS PRESENT, job is a #{job.class}, #{job.inspect}")
         job.delayed_job_record.update(run_at: timestamp, attempts: job.executions)
         # update job if provider_job_id set
       else

@@ -13,6 +13,13 @@ class SimpleJob
   end
 end
 
+class SimpleJobAJ < ActiveJob::Base
+  @@runs = 0
+  def perform
+    @@runs += 1
+  end
+end
+
 class NamedQueueJob < SimpleJob
   def queue_name
     'job_tracking'
@@ -20,6 +27,14 @@ class NamedQueueJob < SimpleJob
 end
 
 class ErrorJob
+  cattr_accessor :runs
+  @runs = 0
+  def perform
+    raise Exception, 'did not work'
+  end
+end
+
+class ErrorJobAJ < ActiveJob::Base
   cattr_accessor :runs
   @runs = 0
   def perform

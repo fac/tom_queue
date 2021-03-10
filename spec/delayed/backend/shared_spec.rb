@@ -26,18 +26,24 @@ shared_examples_for 'a delayed_job backend' do
   end
 
   it 'sets run_at automatically if not set' do
-    expect(described_class.create(:payload_object => ErrorJob.new).run_at).not_to be_nil
+    # Passing DelayedJob instance falls over because we call serialize when assigning payload
+    # (payload_object= in base.rb). We will always wrap the DJ in an AJ so should be OK.
+    # TODO: confirm
+    expect(described_class.create(payload_object: SimpleJobAJ.new).run_at).not_to be_nil
   end
 
   it 'does not set run_at automatically if already set' do
     later = described_class.db_time_now + 5.minutes
-    job = described_class.create(:payload_object => ErrorJob.new, :run_at => later)
+    job = described_class.create(:payload_object => ErrorJobAJ.new, :run_at => later)
     expect(job.run_at).to be_within(1).of(later)
   end
 
   describe '#reload' do
     it 'reloads the payload' do
-      job = described_class.enqueue :payload_object => SimpleJob.new
+      job = described_class.enqueue :payload_object => SimpleJobAJ.new
+      p "job is a #{job.class}"
+      p "payload object is #{job.payload_object}"
+      #p "reloaded payload object is #{job.payload_object}"
       expect(job.payload_object.object_id).not_to eq(job.reload.payload_object.object_id)
     end
   end
