@@ -25,7 +25,7 @@ describe "DeferredWorkManager", "#stop" do
       TomQueue.bunny.start
       TomQueue.exception_reporter = exception_reporter
       manager = TomQueue::DeferredWorkManager.new(TomQueue.default_prefix)
-      
+
       manager.start { msg.set("started") }
     end.tap { |_| msg.wait }
   end
@@ -68,7 +68,8 @@ describe "DeferredWorkManager integration scenarios"  do
     ch.queue("#{@prefix}.work.deferred", durable: true).pop.last.should == "work"
   end
 
-  describe "if the AMQP consumer thread crashes", timeout: 4 do
+  describe "with a deferred work set process", timeout: 4 do
+    let(:ack_timeout) { 10.minutes }
     after do
       class TomQueue::DeferredWorkSet
         if method_defined?(:orig_schedule)
@@ -103,7 +104,7 @@ describe "DeferredWorkManager integration scenarios"  do
 
         TomQueue.bunny = Bunny.new(TEST_AMQP_CONFIG)
         TomQueue.bunny.start
-        @manager = TomQueue::DeferredWorkManager.new(@prefix)
+        @manager = TomQueue::DeferredWorkManager.new(@prefix, ack_timeout)
 
         @manager.start
       end
@@ -111,24 +112,34 @@ describe "DeferredWorkManager integration scenarios"  do
       @queue_manager.start_consumers!
     end
 
-    let(:crash!) do
-      @queue_manager.publish("explosive", :run_at => Time.now + 2)
+    describe "if the AMQP consumer thread crashes", timeout: 4 do
+      let(:crash!) do
+        @queue_manager.publish("explosive", :run_at => Time.now + 2)
+      end
+
+      it "should work around the broken messages" do
+        @queue_manager.publish("foo", :run_at => Time.now + 1)
+        crash!
+        @queue_manager.publish("bar", :run_at => Time.now + 2)
+
+        @queue_manager.pop.ack!.payload.should == "foo"
+        @queue_manager.pop.ack!.payload.should == "bar"
+      end
+
+      it "should re-queue the message once" do
+        crash!
+        @queue_manager.publish("bar", :run_at => Time.now + 1)
+        @queue_manager.pop.ack!
+      end
     end
 
-    it "should work around the broken messages" do
-      @queue_manager.publish("foo", :run_at => Time.now + 1)
-      crash!
-      @queue_manager.publish("bar", :run_at => Time.now + 2)
+    describe "with a short ack timeout" do
+      let(:ack_timeout) { 1.second }
 
-      @queue_manager.pop.ack!.payload.should == "foo"
-      @queue_manager.pop.ack!.payload.should == "bar"
-    end
-
-    it "should re-queue the message once" do
-      crash!
-      @queue_manager.publish("bar", :run_at => Time.now + 1)
-      @queue_manager.pop.ack!
+      it "acks the message within the timeout" do
+        @queue_manager.publish("foo", :run_at => Time.now + 1000000)
+        @queue_manager.pop.ack!.payload.should == "foo"
+      end
     end
   end
-
 end

@@ -21,18 +21,18 @@ module TomQueue
   # un-acked messages onto the deferred queue, to be re-popped by another worker in the pool.
   #
   class DeferredWorkManager
-
     include LoggingHelper
 
-    attr_accessor :prefix, :exchange, :queue, :consumer, :deferred_set, :out_manager, :channel
+    attr_accessor :prefix, :exchange, :queue, :consumer, :deferred_set, :out_manager, :channel, :ack_timeout
 
-    def initialize(prefix = nil)
+    def initialize(prefix = nil, ack_timeout = 10.minutes)
       @prefix = prefix || TomQueue.default_prefix
       @prefix || raise(ArgumentError, 'prefix is required')
       setup_amqp
       @deferred_set = DeferredWorkSet.new
       @out_manager = QueueManager.new(prefix)
       @out_manager.start_consumers!
+      @ack_timeout = ack_timeout
     end
 
 
@@ -65,7 +65,12 @@ module TomQueue
     #
     #
     def schedule(response, headers, payload)
-      run_at = Time.at(headers[:headers]['run_at'])
+      # RabbitMQ will time out if the job is not acknowledged within a time window
+      # (defaulting to 15m/30m depending on the version)
+      #
+      # We'll ensure that we acknowledge all the jobs after 10 minutes after which they'll be re-queued to the
+      # deferred queue if they are still not due to run
+      run_at = [Time.at(headers[:headers]['run_at']), Time.now + ack_timeout].min
 
       # schedule it in the work set
       deferred_set.schedule(run_at, [response, headers, payload])
