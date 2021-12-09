@@ -1,6 +1,9 @@
 TomQueue
 =========
 
+**Note: TomQueue is no longer under active development**
+
+
 TomQueue is a backend for [Delayed::Job](https://github.com/collectiveidea/delayed_job) gem. TomQueue hooks onto [delayed_job_active_record](https://github.com/collectiveidea/delayed_job_active_record) backend and replaces the mechanism by which Delayed::Job workers acquire jobs. By default Delayed::Job workers poll the database for new jobs. TomQueue replaces "polling" logic with subscription to [RabbitMQ](http://rabbitmq.com) queue. Delayed::Job workers receive a new job as soon as it gets published to the queue.
 
 Why?
@@ -40,7 +43,7 @@ The `logger` is a bog-standard `Logger` object that, when set, receives warnings
 
 Now you need to configure TomQueue in your Rails environments and wire in the AMQP broker configuration for them. In, for example, `config/environments/production.rb` add the lines:
 
-```ruby    
+```ruby
 AMQP_CONFIG = {
   :host     => 'localhost',
   :port     => 5672,
