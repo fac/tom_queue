@@ -16,7 +16,7 @@ Considering alternatives (such as [Resque](http://resquework.org)) we decided th
 Great, how do I use it?
 -----------------------
 
-Ok, first you need an RabbitMQ server [installed](https://www.rabbitmq.com/download.html) and running. It also helps to have [Management Plugin](https://www.rabbitmq.com/management.html) enabled. It'll run RabbitMQ web interface at `http://localhost:15672`.
+Ok, first you need a RabbitMQ server [installed](https://www.rabbitmq.com/download.html) and running. It also helps to have [Management Plugin](https://www.rabbitmq.com/management.html) enabled. It'll run RabbitMQ web interface at `http://localhost:15672`.
 
 Once you have this, open your projects `Gemfile` and add the entry:
 
@@ -87,7 +87,7 @@ Will send a message for *all* jobs in the DB, useful to fill a fresh AMQP broker
 So, how does this thing work?
 -----------------------------
 
-When we call `apply_hook!` in initializer it modifies Delayed::Job config so that it uses `TomQueue::DelayedJob::Job` class as a backend. This class defines an `after_save` hook for when the job is saved to the database. After job is persisted it gets published to the [RabbitMQ exchange](http://rubybunny.info/articles/exchanges.html).
+When we call `apply_hook!` in initializer it modifies Delayed::Job config so that it uses `TomQueue::DelayedJob::Job` class as a backend. This class defines an `after_save` hook for when the job is saved to the database. After the job is persisted it gets published to the [RabbitMQ exchange](http://rubybunny.info/articles/exchanges.html).
 
 TomQueue uses [Bunny](http://rubybunny.info) gem for interacting with RabbitMQ broker.
 
